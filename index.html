@@ -77,6 +77,11 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   </div>
   <div class="hint" style="margin-bottom:8px;">把目前整份設定（年份、展名、程序表、揭幕/合影名單）存進 Firebase；之後按「讀」即可完整還原。</div>
   <div id="slotArea"></div>
+  <div style="border-top:1px dashed var(--line);margin-top:10px;padding-top:8px;">
+    <div class="small-label">🔗 貴賓工具連動（讀取 AllVIPWiki 的工作檔，自動帶入展名、程序表、揭幕/合影）</div>
+    <div id="frontSlotBtns" class="row" style="margin-top:4px;"></div>
+    <div class="hint" id="frontLinkStatus" style="margin-top:4px;">連動中…</div>
+  </div>
 </div>
 
 <!-- ═══ 表頭：年份 + 展名 ═══ -->
@@ -194,10 +199,53 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   <div class="hint" style="margin-top:6px;">一行一點；用半形括號 ( ) 開頭的行會變成藍色小字備註（跟舊簡報一樣）。</div>
 </div>
 
+
+<!-- ═══ 司儀導覽 / 識別證（固定兩頁，可上傳照片） ═══ -->
+<div class="card">
+  <h2 style="margin-top:0;">6️⃣ 司儀導覽＆識別證（固定兩頁，照片文字可在 PPT 內移動）</h2>
+
+  <h3>🎤 第一頁：司儀及導覽人員</h3>
+  <input type="text" id="mcTitle" value="司儀及導覽人員" style="width:100%;font-weight:700;margin-bottom:8px;">
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;min-width:240px;" id="mcBlock0"></div>
+    <div style="flex:1;min-width:240px;" id="mcBlock1"></div>
+  </div>
+
+  <h3 style="margin-top:18px;">🗺 開幕典禮平面圖（地點自動同步程序表；右側輸出「公關公司場配圖」空框）</h3>
+  <div class="row">
+    <span class="small-label">座位共</span>
+    <input type="text" id="planSeats" value="210" style="width:80px;">
+    <span class="small-label">席</span>
+  </div>
+
+  <h3 style="margin-top:18px;">🪪 開幕可進場識別證-1（先留空格，之後在 PPT 貼圖）</h3>
+  <input type="text" id="badge1Title" value="開幕可進場識別證-1" style="width:100%;font-weight:700;margin-bottom:8px;">
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;min-width:200px;" id="badge1Block0"></div>
+    <div style="flex:1;min-width:200px;" id="badge1Block1"></div>
+    <div style="flex:1;min-width:200px;" id="badge1Block2"></div>
+  </div>
+
+  <h3 style="margin-top:18px;">🪪 開幕可進場識別證-2（臨時人力證／貿協員工證／開幕請柬，上方留空放圖）</h3>
+  <input type="text" id="badge2Title" value="開幕可進場識別證-2" style="width:100%;font-weight:700;margin-bottom:8px;">
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;min-width:200px;" id="badge2Block0"></div>
+    <div style="flex:1;min-width:200px;" id="badge2Block1"></div>
+    <div style="flex:1;min-width:200px;" id="badge2Block2"></div>
+  </div>
+
+  <h3 style="margin-top:18px;">🎫 其他可進場識別證（左側輸出「請跟七組拿圖」空框；右側貴賓證圖＋文字）</h3>
+  <input type="text" id="otherTitle" value="其他可進場識別證" style="width:100%;font-weight:700;margin-bottom:8px;">
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;max-width:340px;" id="otherBlock0"></div>
+  </div>
+  <div class="hint" style="margin-top:6px;">照片會自動壓縮後跟工作檔一起存雲端；文字一行一點。沒放照片的格子在 PPT 只留空位＋文字。</div>
+</div>
+
 <!-- ═══ 產生 ═══ -->
 <div class="card" style="text-align:center;">
   <button class="btn-navy" style="font-size:16px;padding:12px 26px;" onclick="generatePPT()">🎬 產生維安簡報 PPT</button>
-  <div class="hint" style="margin-top:6px;">第1頁封面｜第2頁程序表｜揭幕名單＋站位圖｜合影名單＋站位圖｜安全戒備＆接待人力</div>
+  <div class="hint" style="margin-top:6px;">封面｜程序表｜揭幕＋站位圖｜合影＋站位圖｜安全戒備｜平面圖｜全場席次圖(待補)｜司儀導覽｜識別證-1｜識別證-2｜其他識別證</div>
 </div>
 
 <!-- 致詞選人視窗 -->
@@ -250,6 +298,120 @@ function dbDel(path) {
   if (useFirebase) return db.ref(path).remove();
   localStorage.removeItem("SEC_" + path);
   return Promise.resolve();
+}
+
+
+/* ═══════════ 貴賓工具（AllVIPWiki genWorkspaces）連動 ═══════════ */
+let frontSlots = []; // {i, name, savedAt, state}
+let frontAutoDone = false;
+function loadFrontSlots(){
+  const st = document.getElementById("frontLinkStatus");
+  try{
+    firebase.app("wiki").firestore().collection("genWorkspaces").get().then(snap=>{
+      frontSlots = [];
+      snap.docs.forEach(d=>{
+        const m = /^slot(\d+)$/.exec(d.id);
+        if(!m) return;
+        const v = d.data();
+        frontSlots.push({ i:+m[1], name:v.name||"", savedAt:v.savedAt||0, state:v.state||"" });
+      });
+      frontSlots.sort((a,b)=>a.i-b.i);
+      renderFrontSlotBtns();
+      if(!frontSlots.length){ st.textContent = "貴賓工具目前沒有存檔。"; return; }
+      /* 只有「從貴賓工具點過來」才自動帶入最近存檔；直接開啟＝從 0 開始 */
+      const fromFront = (document.referrer||"").includes("/AllVIPWiki");
+      if(fromFront && !frontAutoDone){
+        frontAutoDone = true;
+        const latest = frontSlots.slice().sort((a,b)=>b.savedAt-a.savedAt)[0];
+        if(latest && latest.state){ importFrontSlot(latest, true); }
+      } else if(!fromFront){
+        st.textContent = "直接開啟＝空白開始。要帶入貴賓工具的檔案，點上面 📥 按鈕即可。";
+      }
+    }).catch(err=>{ st.textContent = "貴賓工具連動失敗：" + err.message; });
+  }catch(e){ st.textContent = "貴賓工具連動失敗：" + e.message; }
+}
+function renderFrontSlotBtns(){
+  const box = document.getElementById("frontSlotBtns");
+  box.innerHTML = "";
+  frontSlots.forEach(s=>{
+    const b = document.createElement("button");
+    b.className = "btn-line btn-sm";
+    b.textContent = `📥 檔${s.i}${s.name?"（"+s.name+"）":""}`;
+    b.onclick = ()=>{ if(confirm(`帶入貴賓工具 檔${s.i}${s.name?"「"+s.name+"」":""}？目前畫面內容會被取代。`)) importFrontSlot(s,false); };
+    box.appendChild(b);
+  });
+}
+function frontOff(id){
+  const o = wikiOfficials.find(x=>x.id===id);
+  return o ? {zo:o.zo,zn:o.zn,zt:o.zt,eo:o.eo,en:o.en,et:o.et} : null;
+}
+function importFrontSlot(slot, isAuto){
+  let st;
+  try{ st = JSON.parse(slot.state); }catch(e){ alert("讀取貴賓工具存檔失敗"); return; }
+  const status = document.getElementById("frontLinkStatus");
+
+  /* 展名 / 年份：標題開頭四碼當年份 */
+  const title = (st.title||"").trim();
+  const m = /^(\d{4})\s*(.*)$/.exec(title);
+  const yr = m ? m[1] : "";
+  const expo = m ? (m[2]||title) : title;
+  if(yr) document.getElementById("inYear").value = yr;
+  if(expo){
+    if(!expoNames.includes(expo)){
+      expoNames.push(expo);
+      dbSet("SECURITY/expoNames", expoNames);
+    }
+    renderExpoSelect(expo);
+  }
+
+  /* 日期時間（前台為連續5分鐘制） */
+  let S = 10*60;
+  if(st.sch){
+    const y=st.sch.y, mo=st.sch.mo, d=st.sch.d;
+    if(y&&mo&&d) document.getElementById("cerDate").value =
+      `${String(y).padStart(4,"0")}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    if(st.sch.hh!==""&&st.sch.hh!==undefined){
+      S = (+st.sch.hh)*60 + (+(st.sch.mi||0));
+      document.getElementById("cerStart").value = m2t(S);
+    }
+    const venues=[];
+    if(st.sch.v1) venues.push("台北南港展覽館1館4樓M區門廳");
+    if(st.sch.v2) venues.push("台北南港展覽館2館");
+    if(st.sch.v3) venues.push("台北世貿中心1館");
+    if(st.sch.extra) venues.push(st.sch.extra);
+    if(venues.length) document.getElementById("cerPlace").value = venues.join("、");
+  }
+
+  /* 程序表：開場5分 → 各致詞5分（連續）→ 揭幕5分 → 導覽30分 */
+  const sched = (st.schedule||[]).map(it=>({o:frontOff(it.id), t:it.t||"貴賓致詞"})).filter(x=>x.o);
+  const n = sched.length;
+  const unveilS = S + 5 + n*5;
+  const tourS = unveilS + 5;
+  const E = tourS + 30;
+  document.getElementById("cerEnd").value = m2t(E);
+  progRows = [];
+  progRows.push({ time:`${m2t(S)}-${m2t(S+5)}`, en:"Opening", zh:"【開場/貴賓唱名及影片】" });
+  sched.forEach((x,k)=>{
+    const a = S + 5 + k*5;
+    progRows.push({
+      time:`${m2t(a)}-${m2t(a+5)}`,
+      en: x.o.en ? `Remarks by ${x.o.en}${x.o.et?", "+x.o.et:""}${x.o.eo?", "+x.o.eo:""}` : "",
+      zh: `【${x.t}】\n${x.o.zo} ${x.o.zn}${x.o.zt}`
+    });
+  });
+  progRows.push({ time:`${m2t(unveilS)}-${m2t(unveilS+5)}`, en:"Show Opening & Group Photo", zh:"揭幕儀式/貴賓合影" });
+  progRows.push({ time:`${m2t(tourS)}-${m2t(E)}`, en:"Guided Tour of the Showground", zh:"貴賓參觀展覽" });
+  renderProg();
+
+  /* 揭幕/合影＝前台「已選擇的貴賓」順序 */
+  const sel = (st.selected||[]).map(id=>frontOff(id)).filter(Boolean);
+  unveilList = sel.map(o=>({...o}));
+  photoList  = sel.map(o=>({...o}));
+  sel.forEach(o=>autoSynced.add(o.zn+"|"+o.zo));
+  sched.forEach(x=>autoSynced.add(x.o.zn+"|"+x.o.zo));
+  renderGuests();
+  refreshPreview();
+  status.textContent = `✅ 已帶入貴賓工具 檔${slot.i}${slot.name?"（"+slot.name+"）":""}${isAuto?"（自動，最新存檔）":""}，可再點其他檔切換。`;
 }
 
 /* ═══════════ 展名下拉 ═══════════ */
@@ -315,10 +477,11 @@ function loadWiki(){
     wikiApp.firestore().collection("officers").get().then(snap=>{
       wikiOfficials = snap.docs.map(d=>{
         const r=d.data();
-        return { zo:r.companyZh||"", zn:r.nameZh||"", zt:r.titleZh||"",
+        return { id:d.id, zo:r.companyZh||"", zn:r.nameZh||"", zt:r.titleZh||"",
                  eo:r.companyEn||"", en:r.nameEn||"", et:r.titleEn||"", src:"wiki" };
       }).filter(o=>o.zn||o.zo);
       st.textContent = "📖 已連動 AllVIPWiki 長官資料庫（" + wikiOfficials.length + " 筆），搜尋時會一起找。";
+      loadFrontSlots();
     }).catch(err=>{
       st.textContent = "📖 AllVIPWiki 連動失敗：" + err.message;
     });
@@ -675,6 +838,12 @@ function collectWork(){
     secLines: document.getElementById("secLines").value,
     staffTitle: document.getElementById("staffTitle").value,
     staffLines: document.getElementById("staffLines").value,
+    mcTitle: document.getElementById("mcTitle").value,
+    planSeats: document.getElementById("planSeats").value,
+    badge1Title: document.getElementById("badge1Title").value,
+    badge2Title: document.getElementById("badge2Title").value,
+    otherTitle: document.getElementById("otherTitle").value,
+    extraPages,
     savedAt: new Date().toISOString()
   };
 }
@@ -690,6 +859,16 @@ function applyWork(w){
   if(w.secLines!==undefined) document.getElementById("secLines").value=w.secLines;
   if(w.staffTitle!==undefined) document.getElementById("staffTitle").value=w.staffTitle;
   if(w.staffLines!==undefined) document.getElementById("staffLines").value=w.staffLines;
+  if(w.mcTitle!==undefined) document.getElementById("mcTitle").value=w.mcTitle;
+  if(w.planSeats!==undefined) document.getElementById("planSeats").value=w.planSeats;
+  if(w.badge1Title!==undefined) document.getElementById("badge1Title").value=w.badge1Title;
+  if(w.badge2Title!==undefined) document.getElementById("badge2Title").value=w.badge2Title;
+  if(w.otherTitle!==undefined) document.getElementById("otherTitle").value=w.otherTitle;
+  extraPages = defaultExtraPages();
+  if(w.extraPages){
+    Object.keys(extraPages).forEach(k=>{ if(w.extraPages[k]) extraPages[k]=w.extraPages[k]; });
+  }
+  renderExtraBlocks();
   renderProg(); renderGuests(); refreshPreview();
 }
 function renderSlots(){
@@ -739,6 +918,75 @@ function clearSlot(i){
   dbDel(`SECURITY/slots/slot${i}`).then(()=>{ delete slotMeta["slot"+i]; renderSlots(); });
 }
 
+
+/* ═══════════ 司儀導覽 / 識別證 固定兩頁 ═══════════ */
+const MC_DEFAULT = [
+  { img:null, text:"開幕典禮司儀\n王采欣Tracy" },
+  { img:null, text:"導覽人員\n陳意涵 Ariel" }
+];
+const BADGE1_DEFAULT = [ {img:null,text:""}, {img:null,text:""}, {img:null,text:""} ];
+const BADGE2_DEFAULT = [ {img:null,text:"臨時人力證"}, {img:null,text:"貿協員工證"}, {img:null,text:"開幕請柬"} ];
+const OTHER_DEFAULT  = [ {img:null,text:"外貿協會\n台灣國際專業展貴賓證"} ];
+function defaultExtraPages(){
+  return {
+    mc:     { blocks: JSON.parse(JSON.stringify(MC_DEFAULT)) },
+    badge1: { blocks: JSON.parse(JSON.stringify(BADGE1_DEFAULT)) },
+    badge2: { blocks: JSON.parse(JSON.stringify(BADGE2_DEFAULT)) },
+    other:  { blocks: JSON.parse(JSON.stringify(OTHER_DEFAULT)) }
+  };
+}
+let extraPages = defaultExtraPages();
+function renderExtraBlocks(){
+  [["mc",2],["badge1",3],["badge2",3],["other",1]].forEach(([kind,n])=>{
+    for(let i=0;i<n;i++){
+      const el = document.getElementById(kind+"Block"+i);
+      const b = extraPages[kind].blocks[i];
+      el.innerHTML = `
+        <div style="border:1px dashed var(--line);border-radius:9px;padding:8px;text-align:center;">
+          ${b.img ? `<img src="${b.img.data}" style="max-width:100%;max-height:130px;border-radius:6px;">`
+                  : `<div class="hint" style="padding:24px 0;">尚無照片</div>`}
+          <div class="row" style="justify-content:center;margin-top:6px;">
+            <label class="btn-line btn-sm" style="cursor:pointer;">📷 選擇照片
+              <input type="file" accept="image/*" style="display:none;" onchange="pickExtraImg('${kind}',${i},this)">
+            </label>
+            ${b.img?`<button class="btn-red btn-sm" onclick="clearExtraImg('${kind}',${i})">✕ 移除照片</button>`:""}
+          </div>
+          <textarea style="width:100%;min-height:52px;margin-top:6px;border:1px solid var(--line);border-radius:7px;padding:6px;font-size:13px;color:var(--brown);font-family:inherit;"
+            placeholder="文字（一行一點）" onchange="extraPages.${kind}.blocks[${i}].text=this.value">${escHtml(b.text||"")}</textarea>
+        </div>`;
+    }
+  });
+}
+function pickExtraImg(kind,i,input){
+  const f = input.files && input.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const MAX = 900;
+      let w = img.width, h = img.height;
+      const sc = Math.min(1, MAX/Math.max(w,h));
+      w = Math.round(w*sc); h = Math.round(h*sc);
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      extraPages[kind].blocks[i].img = { data: cv.toDataURL("image/jpeg",0.85), w, h };
+      renderExtraBlocks();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+function clearExtraImg(kind,i){
+  extraPages[kind].blocks[i].img = null;
+  renderExtraBlocks();
+}
+function fitRect(natW,natH,maxW,maxH){
+  const sc = Math.min(maxW/natW, maxH/natH);
+  return { w: natW*sc, h: natH*sc };
+}
+
 /* ═══ 重製目前這一份（不影響 存檔1-3 / 展名選項 / 長官一覽表）═══ */
 const SEC_DEFAULT = "國安局勤務人員\n總統府侍衛隊\n南港區憲兵隊\n台北市政府警察局南港分局執勤人員\n本會緊急應變小組4人\n(本會任務編組，配合安全作業)";
 const STAFF_DEFAULT = "主辦單位人力：主管及同仁約25位";
@@ -759,6 +1007,13 @@ function blankCurrent(){
   document.getElementById("staffTitle").value = "主辦單位接待人力安排";
   document.getElementById("staffLines").value = STAFF_DEFAULT;
   unveilList = []; photoList = [];
+  document.getElementById("mcTitle").value = "司儀及導覽人員";
+  document.getElementById("planSeats").value = "210";
+  document.getElementById("badge1Title").value = "開幕可進場識別證-1";
+  document.getElementById("badge2Title").value = "開幕可進場識別證-2";
+  document.getElementById("otherTitle").value = "其他可進場識別證";
+  extraPages = defaultExtraPages();
+  renderExtraBlocks();
   autoSynced.clear();
   progRows = [];
   buildDefaultProgram(true);
@@ -876,6 +1131,88 @@ function generatePPT(){
         document.getElementById("staffLines").value, 5.3, 4.3);
   })();
 
+  /* ── 固定頁：司儀及導覽人員 / 其他可進場識別證 ── */
+  function slideTitle(s, t){
+    s.addText(t,{x:0.4,y:0.18,w:9.2,h:0.5,fontSize:24,bold:true,color:NAVY,fontFace:FONT});
+  }
+  function extraSlide(title, blocks, layout, centered){
+    const s = pptx.addSlide();
+    slideTitle(s, title);
+    blocks.forEach((b,i)=>{
+      const L = layout[i];
+      if(b.img){
+        const f = fitRect(b.img.w, b.img.h, L.w, L.imgH);
+        s.addImage({ data:b.img.data, x:L.x+(L.w-f.w)/2, y:0.95+(L.imgH-f.h)/2, w:f.w, h:f.h });
+      }
+      const lines = (b.text||"").split("\n").map(t=>t.trim()).filter(t=>t);
+      if(lines.length){
+        const items = lines.map((t,j)=>({ text:t,
+          options: centered
+            ? { breakLine:j<lines.length-1, paraSpaceAfter:4 }
+            : { bullet:{code:"2022",color:"000000"}, breakLine:j<lines.length-1, paraSpaceAfter:4 } }));
+        s.addText(items,{ x:L.x, y:0.95+L.imgH+0.15, w:L.w, h:1.2, fontSize:14, color:"000000",
+          fontFace:FONT, valign:"top", align: centered?"center":"left" });
+      }
+    });
+  }
+
+  /* ── 開幕典禮平面圖（安全戒備後一頁）── */
+  (function(){
+    const s=pptx.addSlide();
+    slideTitle(s,"開幕典禮平面圖");
+    const seats=(document.getElementById("planSeats").value.trim()||"210");
+    s.addText([
+      {text:(place||"（程序表地點）"),options:{bullet:{code:"2022",color:"000000"},breakLine:true,paraSpaceAfter:12}},
+      {text:"座位共"+seats+"席",options:{bullet:{code:"2022",color:"000000"}}}
+    ],{x:0.5,y:0.95,w:4.3,h:1.1,fontSize:17,color:"000000",fontFace:FONT,valign:"top"});
+    s.addText([
+      {text:"緊急應變小組：共4人",options:{bold:true,underline:true,breakLine:true,paraSpaceAfter:10}},
+      {text:"1.",options:{breakLine:true,paraSpaceAfter:6}},
+      {text:"2.",options:{breakLine:true,paraSpaceAfter:6}},
+      {text:"3.",options:{breakLine:true,paraSpaceAfter:6}},
+      {text:"4.",options:{breakLine:true,paraSpaceAfter:12}},
+      {text:"(本會任務編組，配合憲兵隊作業)",options:{color:"1F6FBF",fontSize:12}}
+    ],{x:0.5,y:2.15,w:4.3,h:3.2,fontSize:15,color:"000000",fontFace:FONT,valign:"top"});
+    s.addText("公關公司場配圖",{shape:"rect",x:5.1,y:0.95,w:4.4,h:4.25,
+      line:{color:"999999",width:1.25},align:"center",valign:"middle",
+      fontSize:16,color:"999999",fontFace:FONT});
+  })();
+
+  /* ── 全場席次圖（待補）── */
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"全場席次圖 (待補)"); })();
+
+  /* ── 司儀及導覽人員 ── */
+  extraSlide(document.getElementById("mcTitle").value.trim()||"司儀及導覽人員",
+    extraPages.mc.blocks,
+    [ {x:0.5,w:4.3,imgH:2.7}, {x:5.2,w:4.3,imgH:2.7} ], false);
+
+  /* ── 開幕可進場識別證-1 / -2 ── */
+  extraSlide(document.getElementById("badge1Title").value.trim()||"開幕可進場識別證-1",
+    extraPages.badge1.blocks,
+    [ {x:0.4,w:2.9,imgH:2.9}, {x:3.55,w:2.9,imgH:2.9}, {x:6.7,w:2.9,imgH:2.9} ], true);
+  extraSlide(document.getElementById("badge2Title").value.trim()||"開幕可進場識別證-2",
+    extraPages.badge2.blocks,
+    [ {x:0.4,w:2.9,imgH:2.9}, {x:3.55,w:2.9,imgH:2.9}, {x:6.7,w:2.9,imgH:2.9} ], true);
+
+  /* ── 其他可進場識別證：左空框「請跟七組拿圖」＋右貴賓證 ── */
+  (function(){
+    const s=pptx.addSlide();
+    slideTitle(s, document.getElementById("otherTitle").value.trim()||"其他可進場識別證");
+    s.addText("請跟七組拿圖",{shape:"rect",x:0.4,y:0.95,w:5.3,h:4.25,
+      line:{color:"999999",width:1.25},align:"center",valign:"middle",
+      fontSize:16,color:"999999",fontFace:FONT});
+    const b=extraPages.other.blocks[0];
+    if(b && b.img){
+      const f=fitRect(b.img.w,b.img.h,3.5,3.1);
+      s.addImage({data:b.img.data,x:6.1+(3.5-f.w)/2,y:0.95+(3.1-f.h)/2,w:f.w,h:f.h});
+    }
+    const lines=((b&&b.text)||"").split("\n").map(t=>t.trim()).filter(t=>t);
+    if(lines.length){
+      s.addText(lines.map((t,j)=>({text:t,options:{breakLine:j<lines.length-1,paraSpaceAfter:4}})),
+        {x:6.1,y:4.2,w:3.5,h:1.0,fontSize:14,bold:true,color:"000000",fontFace:FONT,align:"center",valign:"top"});
+    }
+  })();
+
   const fname=`${y}${expo}_維安簡報_${todayStr().replaceAll("/","")}.pptx`;
   pptx.writeFile({fileName:fname}).then(()=>console.log("done"));
 }
@@ -889,6 +1226,7 @@ loadExpoNames();
 loadOfficials();
 loadSlotMeta();
 loadWiki();
+renderExtraBlocks();
 refreshPreview();
 /* 預設先放一列開場，方便直接開始 */
 setTimeout(()=>{ if(progRows.length===0) buildDefaultProgram(true); }, 600);
