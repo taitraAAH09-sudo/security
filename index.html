@@ -111,10 +111,14 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   </div>
 </div>
 
-<!-- ═══ 長官中英一覽表 ═══ -->
+<!-- ═══ 長官中英一覽表（預設收合，讓版面乾淨；3️⃣/4️⃣的搜尋仍會用到這張表+AllVIPWiki，平常不用打開） ═══ -->
+<div class="card" style="padding:10px 14px;">
+  <button class="btn-line btn-sm" style="width:100%;" onclick="toggleOfficialsCard()">2️⃣ 長官中英一覽表（維護/手動新增用，展開才顯示）</button>
+</div>
+<div id="officialsCardWrap" style="display:none;">
 <div class="card">
   <h2 style="margin-top:0;">2️⃣ 長官中英一覽表</h2>
-  <div class="hint" style="margin-bottom:8px;">程序表致詞、揭幕與合影名單都從這張表挑人；資料會存 Firebase 供全部展覽共用。</div>
+  <div class="hint" style="margin-bottom:8px;">程序表致詞、揭幕與合影名單的搜尋都會用到這張表（+ AllVIPWiki）；資料會存 Firebase 供全部展覽共用。平常直接在3️⃣/4️⃣搜尋即可，這裡只有要「手動新增/修改」不在 AllVIPWiki 裡的人時才需要打開。</div>
   <input type="text" id="offSearch" placeholder="🔍 搜尋長官名字 / 單位（中英皆可）" style="width:100%;" oninput="renderOfficials()">
   <div style="overflow-x:auto;margin-top:8px;">
   <table class="ed" id="offTable">
@@ -126,6 +130,7 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   <button class="btn-line btn-sm" style="margin-top:8px;" onclick="addOfficial()">➕ 新增長官</button>
   <button class="btn-gold btn-sm" style="margin-top:8px;" onclick="saveOfficials()">💾 儲存一覽表</button>
   <div class="hint" id="wikiStatus" style="margin-top:8px;">📖 連動 AllVIPWiki 中…</div>
+</div>
 </div>
 
 <!-- ═══ 程序表 ═══ -->
@@ -328,7 +333,8 @@ function loadFrontSlots(){
       }
       if(fromFront && !frontAutoDone){
         frontAutoDone = true;
-        const latest = frontSlots.slice().sort((a,b)=>b.savedAt-a.savedAt)[0];
+        const hidden = hiddenFrontSet();
+        const latest = frontSlots.filter(s=>!hidden.has(s.i)).sort((a,b)=>b.savedAt-a.savedAt)[0];
         if(latest && latest.state){ importFrontSlot(latest, true); }
       } else if(!fromFront){
         st.textContent = "直接開啟＝空白開始。要帶入貴賓工具的檔案，點上面 📥 按鈕即可。";
@@ -336,33 +342,49 @@ function loadFrontSlots(){
     }).catch(err=>{ st.textContent = "貴賓工具連動失敗：" + err.message; });
   }catch(e){ st.textContent = "貴賓工具連動失敗：" + e.message; }
 }
+function hiddenFrontSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem("SEC_hiddenFrontSlots")||"[]")); }
+  catch(e){ return new Set(); }
+}
+function hideFrontSlot(i){
+  const s = hiddenFrontSet(); s.add(i);
+  localStorage.setItem("SEC_hiddenFrontSlots", JSON.stringify([...s]));
+  renderFrontSlotBtns();
+}
 function renderFrontSlotBtns(){
   const box = document.getElementById("frontSlotBtns");
   box.innerHTML = "";
-  if(sessionStorage.getItem("SEC_dismissFront")==="1"){
+  const hidden = hiddenFrontSet();
+  const dismissed = sessionStorage.getItem("SEC_dismissFront")==="1";
+  const visible = frontSlots.filter(s=>!hidden.has(s.i));
+  if(frontSlots.length && (dismissed || !visible.length)){
     const undo = document.createElement("button");
     undo.className = "btn-line btn-sm";
     undo.textContent = "↩ 恢復連動按鈕";
-    undo.onclick = ()=>{ sessionStorage.removeItem("SEC_dismissFront"); renderFrontSlotBtns();
-      document.getElementById("frontLinkStatus").textContent = "已恢復，點 📥 帶入。"; };
+    undo.onclick = ()=>{
+      sessionStorage.removeItem("SEC_dismissFront");
+      localStorage.removeItem("SEC_hiddenFrontSlots");
+      renderFrontSlotBtns();
+      document.getElementById("frontLinkStatus").textContent = "已恢復，點 📥 帶入。";
+    };
     box.appendChild(undo);
     return;
   }
-  frontSlots.forEach(s=>{
+  visible.forEach(s=>{
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;align-items:center;gap:2px;margin:2px 6px 2px 0;";
     const b = document.createElement("button");
     b.className = "btn-line btn-sm";
     b.textContent = `📥 檔${s.i}${s.name?"（"+s.name+"）":""}`;
     b.onclick = ()=>{ if(confirm(`帶入貴賓工具 檔${s.i}${s.name?"「"+s.name+"」":""}？目前畫面內容會被取代。`)){ sessionStorage.removeItem("SEC_dismissFront"); importFrontSlot(s,false); } };
-    box.appendChild(b);
-  });
-  if(frontSlots.length){
     const x = document.createElement("button");
     x.className = "btn-red btn-sm";
     x.textContent = "✕";
-    x.title = "不要用貴賓工具的資料（清空並保持空白）";
-    x.onclick = dismissFront;
-    box.appendChild(x);
-  }
+    x.title = `隱藏 檔${s.i}（重整仍隱藏；全部隱藏＝保持空白）`;
+    x.onclick = ()=>hideFrontSlot(s.i);
+    wrap.appendChild(b); wrap.appendChild(x);
+    box.appendChild(wrap);
+  });
 }
 function frontOff(id){
   const o = wikiOfficials.find(x=>x.id===id);
@@ -706,7 +728,7 @@ function m2t(m){ return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60
 function speechRow(o){
   return { time:"", en:"Remarks by "+o.en+", "+o.et+", "+o.eo, zh:"【致詞】 "+o.zo+" "+o.zn+o.zt };
 }
-function findOff(name){ return officials.find(o=>o.zn===name); }
+function findOff(name){ return officials.find(o=>o.zn===name) || wikiOfficials.find(o=>o.zn===name); }
 function buildDefaultProgram(silent){
   const S=t2m(document.getElementById("cerStart").value||"10:00");
   const E=t2m(document.getElementById("cerEnd").value||"11:30");
@@ -1232,19 +1254,32 @@ function generatePPT(){
     const s=pptx.addSlide();
     slideTitle(s,"長官接待計畫");
     const S = t2m(document.getElementById("cerStart").value||"10:00");
-    const wt = m2t(S-5);
-    let vip = null, greeters = [];
-    if(unveilList.length){
-      vip = unveilList[0]; /* 站位1號＝被恭迎者 */
-      greeters = unveilList.slice(1).map(o=>o.zn+o.zt);
-    }
+    const t5 = m2t(S-5), t2 = m2t(S-2);
+    const vip = unveilList.length ? unveilList[0] : null; /* 揭幕站位1號＝被恭迎者 */
+    const keyOf = o=>o.zn+"|"+o.zo;
+    /* 第一段：揭幕＋合影全部長官（去重、扣除被恭迎者）→ 貴賓室 */
+    const seen = new Set(); const allNames = [];
+    unveilList.concat(photoList).forEach(o=>{
+      if(vip && keyOf(o)===keyOf(vip)) return;
+      if(seen.has(keyOf(o))) return;
+      seen.add(keyOf(o)); allNames.push(o.zn+o.zt);
+    });
+    /* 第二段：只有揭幕名單（扣除被恭迎者）→ 大門口恭迎 */
+    const greeters = unveilList.slice(1).map(o=>o.zn+o.zt);
     const vipLabel = vip ? vip.zt : "總統";
     s.addText([
-      {text:`${wt} 恭迎${vipLabel}`,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:10}},
-      {text:`由${greeters.length?greeters.join("、"):"（揭幕貴賓）"}接待`,options:{fontSize:16,breakLine:true,paraSpaceAfter:10}},
-      {text:"➢ 南港1館經貿二路1樓大門 → 4樓開幕典禮會場",options:{fontSize:16}}
-    ],{x:0.6,y:1.0,w:8.8,h:3.5,color:"000000",fontFace:FONT,valign:"top"});
+      {text:t5,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:6}},
+      {text:(allNames.length?allNames.join("、"):"（揭幕/合影貴賓）"),options:{fontSize:16,breakLine:true,paraSpaceAfter:6}},
+      {text:"➢ 貴賓室",options:{fontSize:16,breakLine:true,paraSpaceAfter:18}},
+      {text:`${t2} 恭迎${vipLabel}`,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:6}},
+      {text:(greeters.length?greeters.join("、"):"（揭幕貴賓）"),options:{fontSize:16,breakLine:true,paraSpaceAfter:6}},
+      {text:"➢ 大門口 → 會場",options:{fontSize:16}}
+    ],{x:0.6,y:0.95,w:8.8,h:4.2,color:"000000",fontFace:FONT,valign:"top"});
   })();
+
+  /* ── 總統動線（空頁，僅標題，共2頁）── */
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"總統動線"); })();
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"總統動線"); })();
 
   /* ── 司儀及導覽人員 ── */
   extraSlide(document.getElementById("mcTitle").value.trim()||"司儀及導覽人員",
@@ -1284,12 +1319,20 @@ function generatePPT(){
     }
   })();
 
+  /* ── 導覽路線 @（空頁，僅標題，共2頁，放在檔案最後）── */
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"導覽路線 @"); })();
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"導覽路線 @"); })();
+
   const fname=`${y}${expo}_維安簡報_${todayStr().replaceAll("/","")}.pptx`;
   pptx.writeFile({fileName:fname}).then(()=>console.log("done"));
 }
 
 function toggleFixedPages(){
   const el = document.getElementById("fixedPagesAdv");
+  el.style.display = (el.style.display==="none") ? "block" : "none";
+}
+function toggleOfficialsCard(){
+  const el = document.getElementById("officialsCardWrap");
   el.style.display = (el.style.display==="none") ? "block" : "none";
 }
 
