@@ -71,7 +71,10 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
 
 <!-- ═══ 工作檔存讀（3份） ═══ -->
 <div class="card">
-  <h3 style="margin-top:0;">📁 工作檔存讀</h3>
+  <div class="row" style="justify-content:space-between;align-items:center;">
+    <h3 style="margin:0;">📁 工作檔存讀</h3>
+    <button class="btn-line btn-sm" onclick="resetCurrent()">🧹 重製本份（不動存檔）</button>
+  </div>
   <div class="hint" style="margin-bottom:8px;">把目前整份設定（年份、展名、程序表、揭幕/合影名單）存進 Firebase；之後按「讀」即可完整還原。</div>
   <div id="slotArea"></div>
 </div>
@@ -124,7 +127,7 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
 <div class="card">
   <h2 style="margin-top:0;">3️⃣ 開幕典禮程序表（PPT 第二頁）</h2>
   <div class="row" style="margin-bottom:8px;">
-    <div><span class="small-label">典禮日期</span><input type="date" id="cerDate" onchange="refreshPreview()"></div>
+    <div><span class="small-label">典禮日期</span><input type="date" id="cerDate" min="2020-01-01" max="2099-12-31" onchange="refreshPreview()"></div>
     <div><span class="small-label">開始</span><input type="time" id="cerStart" value="10:00"></div>
     <div><span class="small-label">結束</span><input type="time" id="cerEnd" value="11:30"></div>
   </div>
@@ -338,7 +341,47 @@ function importWikiToTable(idx){
   if(!o) return;
   officials.push({zo:o.zo,zn:o.zn,zt:o.zt,eo:o.eo,en:o.en,et:o.et});
   renderOfficials();
-  alert("已把「"+o.zn+"」加入一覽表，記得按 💾 儲存一覽表。");
+  autoSyncNew(officials.length-1);
+}
+
+/* ═══ 新增長官自動同步：程序表插致詞 + 揭幕/合影名單 ═══ */
+const CORE_SPEECH = ["賴清德","蕭美琴","卓榮泰","黃志芳"];
+const autoSynced = new Set();
+function autoSyncNew(i){
+  const o = officials[i];
+  if(!o || !o.zn.trim() || !o.zo.trim() || !o.zt.trim()) return; // 三個中文欄位齊了才動作
+  const key = o.zn+"|"+o.zo;
+  if(autoSynced.has(key)) return;
+  autoSynced.add(key);
+  /* 揭幕 & 合影 名單同步（去重） */
+  const g = {zo:o.zo,zn:o.zn,zt:o.zt,eo:o.eo,en:o.en,et:o.et};
+  if(!unveilList.some(x=>x.zn===o.zn&&x.zo===o.zo)) unveilList.push({...g});
+  if(!photoList.some(x=>x.zn===o.zn&&x.zo===o.zo)) photoList.push({...g});
+  renderGuests();
+  /* 程序表：核心四人以外 → 插入致詞（黃志芳之後、總統/副總統/院長之前） */
+  if(!CORE_SPEECH.includes(o.zn) && !progRows.some(r=>r.zh && r.zh.includes(o.zn))){
+    const idx = speechInsertIdx();
+    progRows.splice(idx, 0, {
+      time: insertTimeAt(idx),
+      en: o.en ? "Remarks by "+o.en+(o.et?", "+o.et:"")+(o.eo?", "+o.eo:"") : "",
+      zh: "【致詞】 "+o.zo+" "+o.zn+o.zt
+    });
+    renderProg();
+  }
+}
+function speechInsertIdx(){
+  let idx = progRows.findIndex(r=>r.zh && r.zh.includes("致詞") &&
+    (r.zh.includes("賴清德")||r.zh.includes("蕭美琴")||r.zh.includes("卓榮泰")));
+  if(idx===-1) idx = progRows.findIndex(r=>r.zh && r.zh.includes("揭幕"));
+  if(idx===-1) idx = progRows.length;
+  return idx;
+}
+function insertTimeAt(idx){
+  if(idx>0 && progRows[idx-1].time){
+    const m = progRows[idx-1].time.match(/-\s*(\d{1,2}):(\d{2})/);
+    if(m){ const end = (+m[1])*60 + (+m[2]); return m2t(end+1)+"-"+m2t(end+6); }
+  }
+  return "";
 }
 
 /* ═══════════ 長官中英一覽表 ═══════════ */
@@ -370,7 +413,7 @@ function renderOfficials() {
       `<td><button class="btn-red btn-sm" onclick="delOfficial(${i})">✕</button></td>`;
     body.appendChild(tr);
   });
-  function td(i,k,v){ return `<td><input value="${escAttr(v||"")}" onchange="officials[${i}].${k}=this.value"></td>`; }
+  function td(i,k,v){ return `<td><input value="${escAttr(v||"")}" onchange="officials[${i}].${k}=this.value; autoSyncNew(${i})"></td>`; }
   /* Wiki 命中結果（唯讀，可一鍵匯入） */
   const wm = document.getElementById("wikiMatches");
   wm.innerHTML = "";
@@ -382,7 +425,7 @@ function renderOfficials() {
       .slice(0,15);
     if (hits.length) {
       wm.innerHTML = '<div class="hint" style="margin:4px 0;">📖 AllVIPWiki 找到（點 ➕ 加入上表）：</div>' +
-        hits.map(x=>`<span class="chip">📖 ${escHtml(x.o.zo+" "+x.o.zn+x.o.zt)}<button onclick="importWikiToTable(${x.idx})" style="color:#1f6fbf;">➕</button></span>`).join("");
+        hits.map(x=>`<div style="margin:3px 0;"><span class="chip">📖 ${escHtml(x.o.zo+" "+x.o.zn+x.o.zt)}<button onclick="importWikiToTable(${x.idx})" style="color:#1f6fbf;">➕</button></span></div>`).join("");
     }
   }
 }
@@ -555,23 +598,32 @@ function renderGuests(){
 function mvGuest(kind,i,d){ const l=kind==="unveil"?unveilList:photoList; const j=i+d; if(j<0||j>=l.length)return; [l[i],l[j]]=[l[j],l[i]]; renderGuests(); }
 function rmGuest(kind,i){ const l=kind==="unveil"?unveilList:photoList; l.splice(i,1); renderGuests(); }
 
-/* 站位排列：1在中間，偶數往右、奇數往左（例：7 5 3 1 2 4 6）*/
+/* 站位排列（與 AllVIPWiki 站位圖產生器同一套規則）：
+   1 號置中，2 之後左右交錯；總人數單數時左右方向相反 */
 function standOrder(n){
-  const left=[], right=[];
-  for(let r=2;r<=n;r++){ (r%2===0? right.push(r) : left.unshift(r)); }
-  return left.concat([1], right); // 由左至右的「序號」
+  const list=[1];
+  const oddTotal=(n%2===1);
+  for(let k=2;k<=n;k++){
+    const kIsEven=(k%2===0);
+    const goRight = oddTotal ? !kIsEven : kIsEven;
+    if(goRight) list.push(k); else list.unshift(k);
+  }
+  return list;
 }
+function vertText(s){ return String(s||"").replace(/\s+/g,"").split("").join("\n"); }
 function standTableHTML(list){
   if(!list.length) return "";
   const order = standOrder(list.length);
+  const n = list.length;
   let r1="",r2="",r3="";
   order.forEach(rank=>{
     const o=list[rank-1];
-    r1+=`<td>${rank}</td>`;
-    r2+=`<td>${escHtml(o.zn+o.zt)}</td>`;
-    r3+=`<td>${escHtml(o.zo)}</td>`;
+    const hl = rank===1 ? "background:#f5a623;" : "";
+    r1+=`<td style="${hl}font-weight:700;">${rank}</td>`;
+    r2+=`<td style="${hl}writing-mode:vertical-rl;text-orientation:upright;min-height:90px;font-weight:700;">${escHtml((o.zn+o.zt).replace(/\s+/g,""))}</td>`;
+    r3+=`<td style="${hl}writing-mode:vertical-rl;text-orientation:upright;min-height:120px;font-size:11px;">${escHtml((o.zo||"").replace(/\s+/g,""))}</td>`;
   });
-  return `<table><tr>${r1}</tr><tr>${r2}</tr><tr>${r3}</tr></table>`;
+  return `<table><tr><td colspan="${n}" style="background:#ccc;font-weight:700;">背板</td></tr><tr>${r1}</tr><tr>${r2}</tr><tr>${r3}</tr></table>`;
 }
 
 /* ═══════════ 封面預覽 ═══════════ */
@@ -676,7 +728,7 @@ function saveSlot(i){
 }
 function loadSlot(i){
   dbGet(`SECURITY/slots/slot${i}`).then(v=>{
-    if(!v||!v.data){ alert("這個檔位是空的"); return; }
+    if(!v||!v.data){ blankCurrent(); window.scrollTo({top:0,behavior:"smooth"}); return; }
     applyWork(v.data);
     alert(`📂 已讀取工作檔 ${i}${v.name?"（"+v.name+"）":""}`);
   });
@@ -685,6 +737,32 @@ function clearSlot(i){
   if(!confirm(`確定清空工作檔 ${i}？`)) return;
   if(!confirm("再確認一次：清空後無法復原！")) return;
   dbDel(`SECURITY/slots/slot${i}`).then(()=>{ delete slotMeta["slot"+i]; renderSlots(); });
+}
+
+/* ═══ 重製目前這一份（不影響 存檔1-3 / 展名選項 / 長官一覽表）═══ */
+const SEC_DEFAULT = "國安局勤務人員\n總統府侍衛隊\n南港區憲兵隊\n台北市政府警察局南港分局執勤人員\n本會緊急應變小組4人\n(本會任務編組，配合安全作業)";
+const STAFF_DEFAULT = "主辦單位人力：主管及同仁約25位";
+function resetCurrent(){
+  if(!confirm("確定重製目前這一份？（年份、展名選取、程序表、揭幕/合影名單會清空）")) return;
+  if(!confirm("再確認一次：只清畫面上這份，存檔1-3、展名選項、長官一覽表都不會動。")) return;
+  blankCurrent();
+}
+function blankCurrent(){
+  document.getElementById("inYear").value = "";
+  renderExpoSelect("");
+  document.getElementById("cerDate").value = "";
+  document.getElementById("cerStart").value = "10:00";
+  document.getElementById("cerEnd").value = "11:30";
+  document.getElementById("cerPlace").value = "台北南港展覽館1館4樓M區門廳";
+  document.getElementById("secTitle").value = "安全戒備作業";
+  document.getElementById("secLines").value = SEC_DEFAULT;
+  document.getElementById("staffTitle").value = "主辦單位接待人力安排";
+  document.getElementById("staffLines").value = STAFF_DEFAULT;
+  unveilList = []; photoList = [];
+  autoSynced.clear();
+  progRows = [];
+  buildDefaultProgram(true);
+  renderGuests(); refreshPreview();
 }
 
 /* ═══════════ 產生 PPT ═══════════ */
@@ -751,21 +829,24 @@ function generatePPT(){
   function standSlide(title,list){
     const s=pptx.addSlide();
     s.addText(title,{x:0.4,y:0.18,w:9.2,h:0.5,fontSize:24,bold:true,color:NAVY,fontFace:FONT});
-    const order=standOrder(list.length);
+    const n=list.length;
+    const order=standOrder(n);
+    const rowBack=[{text:"背板",options:{colspan:n,align:"center",bold:true,fill:{color:"CCCCCC"},fontSize:12,color:"000000"}}];
     const rNum=[],rName=[],rOrg=[];
     order.forEach(rank=>{
       const o=list[rank-1];
-      rNum.push({text:String(rank),options:{bold:true,align:"center",fill:{color:"F1E8D4"},color:BROWN}});
-      rName.push({text:o.zn+o.zt,options:{align:"center",bold:true}});
-      rOrg.push({text:o.zo,options:{align:"center",fontSize:9}});
+      const hl = rank===1 ? {color:"F5A623"} : {color:"FFFFFF"};
+      rNum.push({text:String(rank),options:{bold:true,align:"center",fill:hl,fontSize:14,color:"000000"}});
+      rName.push({text:vertText(o.zn+o.zt),options:{align:"center",valign:"top",fill:hl,fontSize:11,bold:true,color:"000000"}});
+      rOrg.push({text:vertText(o.zo),options:{align:"center",valign:"top",fill:hl,fontSize:9,color:"000000"}});
     });
-    const w=Math.min(9.2, list.length*1.35);
-    s.addTable([rNum,rName,rOrg],{
-      x:(10-w)/2, y:2.0, w:w,
-      fontSize:11,fontFace:FONT,color:"333333",
-      border:{type:"solid",color:LINE,pt:0.75},valign:"middle",rowH:[0.35,0.5,0.6]
+    const colW=Math.min(0.75, 8.8/n);
+    const w=colW*n;
+    s.addTable([rowBack,rNum,rName,rOrg],{
+      x:(10-w)/2, y:0.85, w:w, colW:Array(n).fill(colW),
+      fontFace:FONT, color:"333333",
+      border:{type:"solid",color:"000000",pt:1}, valign:"middle", rowH:[0.3,0.35,1.7,2.3]
     });
-    s.addText("（面向舞台方向，1 為中央）",{x:0.4,y:4.9,w:9.2,h:0.35,fontSize:11,color:"888888",align:"center",fontFace:FONT});
   }
 
   if(unveilList.length){ listSlide("揭幕貴賓名單",unveilList); standSlide("揭幕站位圖",unveilList); }
