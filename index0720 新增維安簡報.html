@@ -1,0 +1,2777 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>長官中英一覽表</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, deleteDoc, updateDoc, setDoc, doc,
+    onSnapshot, query, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  /* =======================================================
+     ▼▼▼  在這裡貼上你自己的 Firebase 設定  ▼▼▼
+     Firebase Console → 專案設定 → 一般 → 你的應用程式
+  ======================================================= */
+  const firebaseConfig = {
+    apiKey: "AIzaSyACg1t8jLtW2zIvNCDUhJPzU_SJ5vV6LUE",
+    authDomain: "all-vip-wiki.firebaseapp.com",
+    projectId: "all-vip-wiki",
+    storageBucket: "all-vip-wiki.firebasestorage.app",
+    messagingSenderId: "936976436491",
+    appId: "1:936976436491:web:7dc06635df6d982156260e"
+  };
+  /* ======================================================= */
+
+  let app, db, isConnected = false;
+  let allRecords = [];
+  let readOnly = true; // 預設為觀看模式，需輸入密碼才能編輯
+  const EDIT_PASSWORD = "taitra2026";
+
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty-state');
+  const countEl = document.getElementById('count-text');
+  const searchInput = document.getElementById('search-input');
+  const addBtn = document.getElementById('add-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const readonlyBtn = document.getElementById('readonly-btn');
+  const modal = document.getElementById('modal');
+  const modalForm = document.getElementById('modal-form');
+  const modalClose = document.getElementById('modal-close');
+  const modalCancel = document.getElementById('modal-cancel');
+  const photoInput = document.getElementById('photo-input');
+  const photoPreview = document.getElementById('photo-preview');
+  let photoDataUrl = null;
+
+  const passwordModal = document.getElementById('password-modal');
+  const passwordInput = document.getElementById('password-input');
+  const passwordSubmit = document.getElementById('password-submit');
+  const passwordCancel = document.getElementById('password-cancel');
+  const passwordClose = document.getElementById('password-close');
+
+  // ---------- Firebase 連接 ----------
+  try {
+    if (firebaseConfig.apiKey.includes("在這裡貼上")) {
+      throw new Error("尚未設定 Firebase Config");
+    }
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    isConnected = true;
+    setStatus(true, "共用資料庫");
+
+    const q = query(collection(db, "officers"), orderBy("createdAt", "asc"));
+    onSnapshot(q, (snapshot) => {
+      allRecords = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    }, (err) => {
+      setStatus(false, "連接失敗，請檢查安全規則");
+      console.error(err);
+    });
+  } catch (e) {
+    setStatus(false, "示範模式（未連接 Firebase）");
+    console.warn(e.message);
+    render();
+  }
+
+  function setStatus(ok, text) {
+    statusDot.className = "status-dot " + (ok ? "status-dot--ok" : "status-dot--warn");
+    statusText.textContent = text;
+  }
+
+  // ---------- 示範模式暫存資料 ----------
+  let demoCounter = 1;
+
+  // ---------- 搜尋 / 篩選 ----------
+  let showAllMode = false; // true = 顯示全部筆數；false = 需輸入關鍵字才顯示
+
+  function getFiltered() {
+    const kw = searchInput.value.trim().toLowerCase();
+    if (!kw) return showAllMode ? allRecords.slice() : []; // 沒有搜尋內容時，依「顯示全部」狀態決定
+    return allRecords.filter(r => {
+      const hay = [r.companyZh, r.companyEn, r.nameZh, r.nameEn, r.titleZh, r.titleEn]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(kw);
+    });
+  }
+
+  function render() {
+    const filtered = getFiltered();
+    countEl.textContent = `共收錄 ${allRecords.length} 筆 ／ 目前顯示 ${filtered.length} 筆`;
+    listEl.innerHTML = "";
+    addBtn.style.display = readOnly ? "none" : "inline-flex";
+
+    if (filtered.length === 0) {
+      emptyEl.style.display = "flex";
+      const sub = emptyEl.querySelector('.empty-sub');
+      const title = emptyEl.querySelector('.empty-title');
+      if (allRecords.length === 0) {
+        title.textContent = "目前還沒有任何資料";
+        sub.textContent = "點擊右上角「新增」建立第一筆資料";
+      } else if (!searchInput.value.trim()) {
+        title.textContent = showAllMode ? "目前還沒有任何資料" : "請輸入關鍵字開始搜尋";
+        sub.textContent = showAllMode ? "" : `目前共收錄 ${allRecords.length} 筆資料，輸入公司、姓名或職稱以查看`;
+      } else {
+        title.textContent = "找不到符合的資料";
+        sub.textContent = "換個關鍵字再試試看";
+      }
+      return;
+    }
+    emptyEl.style.display = "none";
+
+    filtered.forEach(r => listEl.appendChild(buildCard(r)));
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s || "";
+    return d.innerHTML;
+  }
+
+  function buildCard(r) {
+    const card = document.createElement('div');
+    card.className = "card-row";
+
+    const line2 = [r.nameZh, r.titleZh].filter(Boolean).join('　');
+    const line3 = [r.nameEn, r.titleEn, r.companyEn].filter(Boolean).join(', ');
+
+    card.innerHTML = `
+      <div class="avatar">
+        ${r.photo ? `<img src="${r.photo}" alt="">` : `<span>${esc((r.nameZh || r.companyZh || '?')[0])}</span>`}
+      </div>
+      <div class="info">
+        <div class="info__company">${esc(r.companyZh)}</div>
+        <div class="info__name">${esc(line2)}</div>
+        ${line3 ? `<div class="info__sub dim">${esc(line3)}</div>` : ''}
+      </div>
+      ${!readOnly ? `
+        <div class="row-actions">
+          <button class="edit-btn" title="編輯">✎</button>
+          <button class="delete-btn" title="刪除">✕</button>
+        </div>` : ''}
+    `;
+    if (!readOnly) {
+      card.querySelector('.delete-btn').addEventListener('click', () => removeRecord(r.id));
+      card.querySelector('.edit-btn').addEventListener('click', () => openEditModal(r));
+    }
+    return card;
+  }
+
+  async function removeRecord(id) {
+    if (!confirm("確定要刪除這筆資料嗎？")) return;
+    if (isConnected) {
+      try { await deleteDoc(doc(db, "officers", id)); }
+      catch (e) { alert("刪除失敗：" + e.message); }
+    } else {
+      allRecords = allRecords.filter(r => r.id !== id);
+      render();
+    }
+  }
+
+  // ---------- 照片預覽（自動壓縮成縮圖）----------
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.onload = () => {
+        const size = 320;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        photoPreview.innerHTML = `<img src="${photoDataUrl}" alt="">`;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---------- 新增 / 編輯資料 Modal ----------
+  let editingId = null; // null = 新增模式；有值 = 編輯模式
+
+  const modalTitleEl = document.getElementById('modal-title');
+
+  addBtn.addEventListener('click', () => {
+    editingId = null;
+    modalTitleEl.childNodes[0].textContent = "新增資料 ";
+    modalForm.reset();
+    photoDataUrl = null;
+    photoPreview.innerHTML = `<span class="photo-placeholder">🖼</span>`;
+    modal.classList.add('modal--open');
+  });
+
+  function openEditModal(r) {
+    editingId = r.id;
+    modalTitleEl.childNodes[0].textContent = "編輯資料 ";
+    document.getElementById('company-zh').value = r.companyZh || '';
+    document.getElementById('company-en').value = r.companyEn || '';
+    document.getElementById('name-zh').value = r.nameZh || '';
+    document.getElementById('name-en').value = r.nameEn || '';
+    document.getElementById('title-zh').value = r.titleZh || '';
+    document.getElementById('title-en').value = r.titleEn || '';
+    photoDataUrl = r.photo || null;
+    photoPreview.innerHTML = photoDataUrl
+      ? `<img src="${photoDataUrl}" alt="">`
+      : `<span class="photo-placeholder">🖼</span>`;
+    modal.classList.add('modal--open');
+  }
+
+  function closeModal() { modal.classList.remove('modal--open'); }
+  modalClose.addEventListener('click', closeModal);
+  modalCancel.addEventListener('click', closeModal);
+  // 注意：點擊視窗外的灰色背景「不會」關閉新增視窗，避免填到一半不小心點掉
+  // 只有按「取消」按鈕或成功送出資料，才會關閉這個視窗
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const record = {
+      companyZh: document.getElementById('company-zh').value.trim(),
+      companyEn: document.getElementById('company-en').value.trim(),
+      nameZh: document.getElementById('name-zh').value.trim(),
+      nameEn: document.getElementById('name-en').value.trim(),
+      titleZh: document.getElementById('title-zh').value.trim(),
+      titleEn: document.getElementById('title-en').value.trim(),
+      photo: photoDataUrl || null,
+    };
+
+    if (isConnected) {
+      try {
+        if (editingId) {
+          await updateDoc(doc(db, "officers", editingId), record);
+        } else {
+          await addDoc(collection(db, "officers"), { ...record, createdAt: Date.now() });
+        }
+      } catch (e) {
+        alert((editingId ? "更新失敗：" : "新增失敗：") + e.message);
+        return;
+      }
+    } else {
+      if (editingId) {
+        allRecords = allRecords.map(x => x.id === editingId ? { ...x, ...record } : x);
+      } else {
+        allRecords.push({ id: 'demo-' + (demoCounter++), ...record });
+      }
+      render();
+    }
+    editingId = null;
+    closeModal();
+  });
+
+  // ---------- 其他控制 ----------
+  searchInput.addEventListener('input', render);
+  document.getElementById('show-all-btn').addEventListener('click', () => {
+    showAllMode = true;
+    render();
+  });
+  document.getElementById('hide-all-btn').addEventListener('click', () => {
+    showAllMode = false;
+    render();
+  });
+  refreshBtn.addEventListener('click', () => {
+    refreshBtn.classList.add('spin');
+    setTimeout(() => refreshBtn.classList.remove('spin'), 500);
+    render();
+  });
+  readonlyBtn.addEventListener('click', () => {
+    if (readOnly) {
+      // 目前是唯讀，要解鎖 -> 跳出密碼視窗
+      passwordInput.value = "";
+      passwordModal.classList.add('modal--open');
+      setTimeout(() => passwordInput.focus(), 50);
+    } else {
+      // 目前已解鎖，點一下重新鎖回唯讀
+      readOnly = true;
+      updateReadonlyBtn();
+      render();
+    }
+  });
+
+  function updateReadonlyBtn() {
+    readonlyBtn.innerHTML = readOnly ? `🔒 編輯模式` : `🔓 編輯模式（已解鎖）`;
+    readonlyBtn.classList.toggle('readonly-btn--active', !readOnly);
+    const backupRow = document.getElementById('backup-row');
+    if (backupRow) backupRow.style.display = readOnly ? 'none' : 'flex';
+  }
+
+  // ---------- 備份下載：把全部資料匯出成 JSON 檔 ----------
+  document.getElementById('backup-btn').addEventListener('click', () => {
+    if (allRecords.length === 0) {
+      alert("目前沒有任何資料可以備份");
+      return;
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      source: "長官中英一覽表",
+      count: allRecords.length,
+      records: allRecords,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `長官名錄備份${getTimestampSuffix()}_共${allRecords.length}筆.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ---------- 還原匯入：把備份 JSON 寫回 Firebase（需先解鎖編輯模式） ----------
+  const restoreFileInput = document.getElementById('restore-file-input');
+  document.getElementById('restore-btn').addEventListener('click', () => {
+    if (!isConnected) {
+      alert("目前未連接 Firebase，無法還原");
+      return;
+    }
+    restoreFileInput.value = '';
+    restoreFileInput.click();
+  });
+  restoreFileInput.addEventListener('change', async () => {
+    const file = restoreFileInput.files[0];
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch (e) {
+      alert("這不是有效的備份檔（JSON 解析失敗）");
+      return;
+    }
+    const records = Array.isArray(data) ? data : data.records;
+    if (!Array.isArray(records) || records.length === 0) {
+      alert("備份檔裡找不到資料");
+      return;
+    }
+    if (!confirm(`備份檔內含 ${records.length} 筆資料（匯出時間：${data.exportedAt ? data.exportedAt.slice(0, 16).replace('T', ' ') : '不明'}）。\n\n將以備份內容覆蓋/補回相同編號的資料，現有其他資料不受影響。\n確定要還原嗎？`)) return;
+    let ok = 0, fail = 0;
+    for (const r of records) {
+      const { id, ...fields } = r;
+      if (!fields.createdAt) fields.createdAt = Date.now();
+      try {
+        if (id) await setDoc(doc(db, "officers", id), fields);
+        else await addDoc(collection(db, "officers"), fields);
+        ok++;
+      } catch (e) {
+        fail++;
+        console.error("還原失敗：", id, e);
+      }
+    }
+    alert(`還原完成：成功 ${ok} 筆${fail ? `、失敗 ${fail} 筆（詳見主控台）` : ''}`);
+  });
+
+  function closePasswordModal() { passwordModal.classList.remove('modal--open'); }
+  passwordCancel.addEventListener('click', closePasswordModal);
+  passwordClose.addEventListener('click', closePasswordModal);
+  passwordModal.addEventListener('click', (e) => { if (e.target === passwordModal) closePasswordModal(); });
+
+  function tryUnlock() {
+    if (passwordInput.value === EDIT_PASSWORD) {
+      readOnly = false;
+      updateReadonlyBtn();
+      closePasswordModal();
+      render();
+    } else {
+      alert("密碼錯誤，請再試一次");
+      passwordInput.value = "";
+      passwordInput.focus();
+    }
+  }
+  passwordSubmit.addEventListener('click', tryUnlock);
+  passwordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(); });
+
+  updateReadonlyBtn();
+
+  // ================= 專卷資料產生器 =================
+  const directoryView = document.getElementById('directory-view');
+  const generatorView = document.getElementById('generator-view');
+  const genEntryBtn = document.getElementById('gen-entry-btn');
+  const genBackBtn = document.getElementById('gen-back-btn');
+  const genTitleInput = document.getElementById('gen-title-input');
+  const genSearchInput = document.getElementById('gen-search-input');
+  const genResultsEl = document.getElementById('gen-results');
+  const genSelectedEl = document.getElementById('gen-selected-list');
+  const genGenerateBtn = document.getElementById('gen-generate-btn');
+  const genLineupWordBtn = document.getElementById('gen-lineup-word-btn');
+  const genLineupExcelBtn = document.getElementById('gen-lineup-excel-btn');
+
+  let selectedOfficers = []; // [{ order, record }]
+  let scheduleOfficers = []; // 程序表順序貴賓（獨立順序的複本）[{ order, record }]
+  let rollcallOfficers = []; // 貴賓唱名名單（獨立順序的複本）[{ order, record }]
+
+  // 活動組專用：進入前需工作人員密碼（同一分頁驗證一次即可）
+  const GEN_PW = 'taitra2026';
+  genEntryBtn.addEventListener('click', () => {
+    if (sessionStorage.getItem('genPwOk') !== '1') {
+      const pw = prompt('🔒 需要驗證\n此功能為活動組專用，請輸入工作人員密碼：');
+      if (pw === null) return;
+      if (pw !== GEN_PW) { alert('密碼錯誤'); return; }
+      sessionStorage.setItem('genPwOk', '1');
+    }
+    directoryView.style.display = 'none';
+    generatorView.style.display = 'block';
+    genSearchInput.value = '';
+    renderGenResults();
+  });
+  genBackBtn.addEventListener('click', () => {
+    generatorView.style.display = 'none';
+    directoryView.style.display = 'block';
+  });
+
+  function getGenFiltered() {
+    const kw = genSearchInput.value.trim().toLowerCase();
+    if (!kw) return [];
+    return allRecords.filter(r => {
+      const hay = [r.companyZh, r.companyEn, r.nameZh, r.nameEn, r.titleZh, r.titleEn]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(kw);
+    });
+  }
+
+  function renderGenResults() {
+    const filtered = getGenFiltered();
+    genResultsEl.innerHTML = '';
+    if (filtered.length === 0) {
+      const msg = genSearchInput.value.trim() ? '找不到符合的資料' : '輸入關鍵字搜尋要加入的貴賓';
+      genResultsEl.innerHTML = `<div class="empty-state" style="padding:32px;"><div class="empty-sub">${msg}</div></div>`;
+    } else {
+      filtered.forEach(r => genResultsEl.appendChild(buildGenRow(r)));
+    }
+    renderGenSelectedList();
+  }
+
+  function buildGenRow(r) {
+    const row = document.createElement('div');
+    row.className = "card-row";
+    const idx = selectedOfficers.findIndex(s => s.record.id === r.id);
+    const line2 = [r.nameZh, r.titleZh].filter(Boolean).join('　');
+    row.innerHTML = `
+      <div class="avatar">
+        ${r.photo ? `<img src="${r.photo}" alt="">` : `<span>${esc((r.nameZh || r.companyZh || '?')[0])}</span>`}
+      </div>
+      <div class="info">
+        <div class="info__company">${esc(r.companyZh)}</div>
+        <div class="info__name">${esc(line2)}</div>
+      </div>
+      <button class="gen-pick-btn ${idx >= 0 ? 'gen-pick-btn--active' : ''}">${idx >= 0 ? (idx + 1) : '＋'}</button>
+    `;
+    row.querySelector('.gen-pick-btn').addEventListener('click', () => toggleSelect(r));
+    return row;
+  }
+
+  function toggleSelect(r) {
+    const idx = selectedOfficers.findIndex(s => s.record.id === r.id);
+    if (idx >= 0) {
+      selectedOfficers.splice(idx, 1);
+      selectedOfficers.forEach((s, i) => s.order = i + 1);
+      // 同步移除程序表清單中的同一人
+      const sIdx = scheduleOfficers.findIndex(s => s.record.id === r.id);
+      if (sIdx >= 0) {
+        scheduleOfficers.splice(sIdx, 1);
+        scheduleOfficers.forEach((s, i) => s.order = i + 1);
+      }
+      // 同步移除唱名名單中的同一人
+      const rcIdx = rollcallOfficers.findIndex(s => s.record.id === r.id);
+      if (rcIdx >= 0) {
+        rollcallOfficers.splice(rcIdx, 1);
+        rollcallOfficers.forEach((s, i) => s.order = i + 1);
+      }
+    } else {
+      selectedOfficers.push({ order: selectedOfficers.length + 1, record: r });
+      // 同步加入程序表清單（複製一份，順序獨立）
+      if (!scheduleOfficers.some(s => s.record.id === r.id)) {
+        scheduleOfficers.push({ order: scheduleOfficers.length + 1, record: r });
+      }
+      // 同步加入唱名名單（複製一份，順序獨立）
+      if (!rollcallOfficers.some(s => s.record.id === r.id)) {
+        rollcallOfficers.push({ order: rollcallOfficers.length + 1, record: r });
+      }
+    }
+    renderGenResults();
+    renderScheduleList();
+    renderRollcallResults();
+  }
+
+  function renderGenSelectedList() {
+    genSelectedEl.innerHTML = '';
+    if (selectedOfficers.length === 0) {
+      genSelectedEl.innerHTML = `<div class="empty-sub" style="padding:12px 0;">尚未選擇任何貴賓，請從上方搜尋結果點擊「＋」加入</div>`;
+      return;
+    }
+    selectedOfficers.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = "card-row gen-drag-item";
+      item.style.padding = "10px 18px";
+      item.draggable = true;
+      item.dataset.index = i;
+      const line2 = [s.record.nameZh, s.record.titleZh].filter(Boolean).join('　');
+      item.innerHTML = `
+        <div class="gen-drag-handle" title="拖曳排序">⠿</div>
+        <div class="gen-num-badge">${s.order}</div>
+        <div class="info">
+          <div class="info__company">${esc(s.record.companyZh)}</div>
+          <div class="info__name">${esc(line2)}</div>
+        </div>
+        <button class="delete-btn" title="移除">✕</button>
+      `;
+      item.querySelector('.delete-btn').addEventListener('click', () => toggleSelect(s.record));
+      attachDragHandlers(item);
+      genSelectedEl.appendChild(item);
+    });
+  }
+
+  // ---------- 拖曳排序 ----------
+  let dragSrcIndex = null;
+
+  function attachDragHandlers(item) {
+    item.addEventListener('dragstart', (e) => {
+      dragSrcIndex = Number(item.dataset.index);
+      item.classList.add('gen-drag-item--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('gen-drag-item--dragging');
+      document.querySelectorAll('.gen-drag-item--over').forEach(el => el.classList.remove('gen-drag-item--over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('gen-drag-item--over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('gen-drag-item--over');
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('gen-drag-item--over');
+      const targetIndex = Number(item.dataset.index);
+      if (dragSrcIndex === null || dragSrcIndex === targetIndex) return;
+      const moved = selectedOfficers.splice(dragSrcIndex, 1)[0];
+      selectedOfficers.splice(targetIndex, 0, moved);
+      selectedOfficers.forEach((s, i) => s.order = i + 1);
+      dragSrcIndex = null;
+      renderGenSelectedList();
+      renderGenResults();
+    });
+  }
+
+  genSearchInput.addEventListener('input', renderGenResults);
+
+  genGenerateBtn.addEventListener('click', () => {
+    if (selectedOfficers.length === 0) {
+      alert("請至少選擇一位貴賓再產生文件");
+      return;
+    }
+    const title = genTitleInput.value.trim() || "貴賓合影照片";
+    let rowsHtml = '';
+    for (let i = 0; i < selectedOfficers.length; i += 2) {
+      rowsHtml += '<tr>';
+      for (let j = i; j < i + 2; j++) {
+        if (j < selectedOfficers.length) {
+          const r = selectedOfficers[j].record;
+          const order = selectedOfficers[j].order;
+          const line1 = esc(r.companyZh || '');
+          const line2 = esc(`${r.nameZh || ''}${r.titleZh || ''}`);
+          const PLACEHOLDER_IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGN8dPcCAwwwMSAB3BwAgQQClxK+qckAAAAASUVORK5CYII=';
+          const photoImg = `<img src="${r.photo || PLACEHOLDER_IMG}" style="width:3.6cm;height:3.8cm;object-fit:contain;">`;
+          rowsHtml += `
+            <td style="border:1px solid #000; padding:10px; width:5.13cm; vertical-align:top; font-size:14px; font-family:'PMingLiU','Microsoft JhengHei',serif;">
+              <div>${order}. ${line1}</div>
+              <div style="font-weight:bold; margin-top:4px;">${line2}</div>
+            </td>
+            <td style="border:1px solid #000; padding:6px; width:3.99cm; text-align:center; vertical-align:middle;">
+              ${photoImg}
+            </td>`;
+        } else {
+          rowsHtml += `<td style="border:1px solid #000; width:5.13cm;"></td><td style="border:1px solid #000; width:3.99cm;"></td>`;
+        }
+      }
+      rowsHtml += '</tr>';
+    }
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"><title>${esc(title)}</title>
+        <style>
+          @page WordSection1 { size:21cm 29.7cm; margin:1.5cm 1.0cm 1.5cm 1.0cm; mso-page-orientation:portrait; }
+          div.WordSection1 { page:WordSection1; }
+        </style>
+      </head>
+      <body style="font-family:'PMingLiU','Microsoft JhengHei',serif;">
+        <div class="WordSection1">
+        <p style="text-align:center; font-size:20px; font-weight:bold; margin-bottom:4px;">${esc(title)}</p>
+        <table align="center" style="width:18.69cm; table-layout:fixed; border-collapse:collapse; margin:12px auto 0;" cellpadding="0" cellspacing="0">
+          <colgroup>
+            <col style="width:5.13cm;"><col style="width:3.99cm;"><col style="width:5.13cm;"><col style="width:3.99cm;">
+          </colgroup>
+          <tr><td colspan="4" style="background:#cccccc; padding:8px; font-weight:bold; border:1px solid #000; font-size:14px; text-align:center;">合影貴賓</td></tr>
+          ${rowsHtml}
+        </table>
+        </div>
+      </body>
+      </html>`;
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `揭幕及合影貴賓${getTimestampSuffix()}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ---------- 檔名用的時間戳記（以電腦本機時間為準） ----------
+  function getTimestampSuffix() {
+    const d = new Date();
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    const DD = String(d.getDate()).padStart(2, '0');
+    const HH = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${MM}${DD}_${HH}${mm}`;
+  }
+
+  // ---------- 貴賓揭幕站位圖 ----------
+  // 排列規則：1 號置中（偏左），2 號在其右側，3 號在其左側，
+  // 4 號在 2 號右側，5 號在 3 號左側，以此類推左右交錯排開
+  function computeLineupOrder(n) {
+    const list = [1];
+    const oddTotal = (n % 2 === 1); // 總人數為單數時，規則會與總人數為雙數時左右相反
+    for (let k = 2; k <= n; k++) {
+      const kIsEven = (k % 2 === 0);
+      const goRight = oddTotal ? !kIsEven : kIsEven;
+      if (goRight) list.push(k);      // 往右側加
+      else list.unshift(k);           // 往左側加
+    }
+    return list;
+  }
+
+
+  // 文字中如果有空格，自動斷成多行（例如「外貿協會 黃志芳董事長」→ 兩行）
+  function multiline(text, sep) {
+    return (text || '').split(/\s+/).filter(Boolean).map(esc).join(sep);
+  }
+
+  function buildLineupData() {
+    const examTitle = genTitleInput.value.trim();
+    const n = selectedOfficers.length;
+    const order = computeLineupOrder(n);
+    const people = order.map(rank => {
+      const s = selectedOfficers[rank - 1];
+      const r = s ? s.record : null;
+      return {
+        rank,
+        highlight: rank === 1,
+        nameLine: r ? esc(`${r.nameZh || ''}${r.titleZh || ''}`) : '',
+        companyLine: r ? multiline(r.companyZh, '<br>') : '',
+      };
+    });
+    return { examTitle, n, people };
+  }
+
+  function downloadBlob(html, mime, filename) {
+    const blob = new Blob(['\ufeff', html], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  genLineupWordBtn.addEventListener('click', () => {
+    if (selectedOfficers.length === 0) {
+      alert("請至少選擇一位貴賓再產生站位圖");
+      return;
+    }
+    const examTitle = genTitleInput.value.trim();
+    const n = selectedOfficers.length;
+    const order = computeLineupOrder(n);
+    const colWidth = '1.5cm';
+    const tableWidth = (n * 1.5) + 'cm';
+
+    let numHtml = '', nameHtml = '', companyHtml = '';
+    let colgroupHtml = '';
+    order.forEach(rank => {
+      const s = selectedOfficers[rank - 1];
+      const r = s ? s.record : null;
+      const highlight = rank === 1 ? 'background:#f5a623;' : '';
+      const nameLine = r ? esc(`${r.nameZh || ''}${r.titleZh || ''}`) : '';
+      const companyLine = r ? esc(r.companyZh || '') : '';
+
+      colgroupHtml += `<col style="width:${colWidth};">`;
+      numHtml += `<td style="border:1px solid #000; ${highlight} text-align:center; vertical-align:middle; font-size:20px; font-weight:bold; padding:8px; width:${colWidth};">${rank}</td>`;
+      nameHtml += `<td style="border:1px solid #000; ${highlight} text-align:center; vertical-align:middle; font-size:16pt; padding:10px 2px; word-break:break-all; width:${colWidth}; font-family:'PMingLiU','Microsoft JhengHei',serif; writing-mode: tb-rl; layout-flow: vertical; text-orientation: upright; mso-text-orientation: upright;">${nameLine}</td>`;
+      companyHtml += `<td style="border:1px solid #000; ${highlight} text-align:center; vertical-align:middle; font-size:16pt; padding:10px 2px; word-break:break-all; width:${colWidth}; font-family:'PMingLiU','Microsoft JhengHei',serif; writing-mode: tb-rl; layout-flow: vertical; text-orientation: upright; mso-text-orientation: upright;">${companyLine}</td>`;
+    });
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"><title>貴賓揭幕站位圖</title>
+        <style>
+          @page WordSection1 { size:21cm 29.7cm; margin:1.5cm 1.0cm 1.5cm 1.0cm; mso-page-orientation:portrait; }
+          div.WordSection1 { page:WordSection1; }
+        </style>
+      </head>
+      <body style="font-family:'PMingLiU','Microsoft JhengHei',serif;">
+        <div class="WordSection1">
+        ${examTitle ? `<p style="text-align:center; font-size:20px; font-weight:bold; margin-bottom:2px;">${esc(examTitle)}</p>` : ''}
+        <p style="text-align:center; font-size:18px; font-weight:bold; margin-top:0;">貴賓揭幕站位圖</p>
+        <table align="center" style="width:${tableWidth}; table-layout:fixed; border-collapse:collapse; margin:12px auto 0;" cellpadding="0" cellspacing="0">
+          <colgroup>${colgroupHtml}</colgroup>
+          <tr><td colspan="${n}" style="background:#cccccc; padding:8px; font-weight:bold; border:1px solid #000; font-size:14px; text-align:center;">背板</td></tr>
+          <tr style="height:0.8cm; mso-height-rule:atleast;">${numHtml}</tr>
+          <tr style="height:5.55cm; mso-height-rule:exactly;">${nameHtml}</tr>
+          <tr style="height:10.79cm; mso-height-rule:exactly;">${companyHtml}</tr>
+        </table>
+        </div>
+      </body>
+      </html>`;
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `貴賓站位圖${getTimestampSuffix()}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  genLineupExcelBtn.addEventListener('click', async () => {
+    if (selectedOfficers.length === 0) {
+      alert("請至少選擇一位貴賓再產生站位圖");
+      return;
+    }
+    // 產生真正的 .xlsx（ExcelJS），避免 Excel 跳出「檔案格式與副檔名不相符」警告
+    const examTitle = genTitleInput.value.trim();
+    const n = selectedOfficers.length;
+    const order = computeLineupOrder(n);
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('站位圖');
+    ws.columns = Array.from({ length: n }, () => ({ width: 12 })); // 欄寬 12
+
+    const thin = { style: 'thin', color: { argb: 'FF000000' } };
+    const allBorder = { top: thin, left: thin, bottom: thin, right: thin };
+    const orangeFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5A623' } };
+    const grayFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } };
+    // 直式文字：每個字換一行 + 自動換行（CJK 直書）
+    const vert = s => (s || '').split('').filter(ch => !/\s/.test(ch)).join('\n');
+
+    // 列1：展覽名稱
+    ws.mergeCells(1, 1, 1, n);
+    const t1 = ws.getCell(1, 1);
+    t1.value = examTitle || '';
+    t1.font = { name: 'Microsoft JhengHei', size: 16, bold: true };
+    t1.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 28;
+
+    // 列2：空行
+    ws.mergeCells(2, 1, 2, n);
+    ws.getRow(2).height = 10;
+
+    // 列3：貴賓揭幕位置圖
+    ws.mergeCells(3, 1, 3, n);
+    const t3 = ws.getCell(3, 1);
+    t3.value = '貴賓揭幕位置圖';
+    t3.font = { name: 'Microsoft JhengHei', size: 14, bold: true };
+    t3.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(3).height = 24;
+
+    // 列4：背板
+    for (let c = 1; c <= n; c++) ws.getCell(4, c).border = allBorder;
+    ws.mergeCells(4, 1, 4, n);
+    const t4 = ws.getCell(4, 1);
+    t4.value = '背板';
+    t4.font = { name: 'Microsoft JhengHei', size: 12, bold: true };
+    t4.fill = grayFill;
+    t4.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(4).height = 22;
+
+    // 列5 編號／列6 姓名職稱／列7 公司（高400、直式、靠上、水平置中）
+    ws.getRow(5).height = 30;
+    ws.getRow(6).height = 400;
+    ws.getRow(7).height = 400;
+    order.forEach((rank, idx) => {
+      const s = selectedOfficers[rank - 1];
+      const r = s ? s.record : null;
+      const col = idx + 1;
+      const hl = rank === 1;
+
+      const cNum = ws.getCell(5, col);
+      cNum.value = rank;
+      cNum.font = { name: 'Microsoft JhengHei', size: 18, bold: true };
+      cNum.alignment = { horizontal: 'center', vertical: 'middle' };
+      cNum.border = allBorder;
+      if (hl) cNum.fill = orangeFill;
+
+      const cName = ws.getCell(6, col);
+      cName.value = vert(r ? `${r.nameZh || ''}${r.titleZh || ''}` : '');
+      cName.font = { name: 'Microsoft JhengHei', size: 14 };
+      cName.alignment = { horizontal: 'center', vertical: 'top', wrapText: true };
+      cName.border = allBorder;
+      if (hl) cName.fill = orangeFill;
+
+      const cCo = ws.getCell(7, col);
+      cCo.value = vert(r ? (r.companyZh || '') : '');
+      cCo.font = { name: 'Microsoft JhengHei', size: 14 };
+      cCo.alignment = { horizontal: 'center', vertical: 'top', wrapText: true };
+      cCo.border = allBorder;
+      if (hl) cCo.fill = orangeFill;
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `貴賓站位圖${getTimestampSuffix()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ================= 程序表順序貴賓 =================
+  const scheduleListEl = document.getElementById('schedule-selected-list');
+  const scheduleGenerateBtn = document.getElementById('schedule-generate-btn');
+
+  function removeFromSchedule(id) {
+    const idx = scheduleOfficers.findIndex(s => s.record.id === id);
+    if (idx >= 0) {
+      scheduleOfficers.splice(idx, 1);
+      scheduleOfficers.forEach((s, i) => s.order = i + 1);
+      renderScheduleList();
+    }
+  }
+
+  function renderScheduleList() {
+    if (!scheduleListEl) return;
+    scheduleListEl.innerHTML = '';
+    if (scheduleOfficers.length === 0) {
+      scheduleListEl.innerHTML = `<div class="empty-sub" style="padding:12px 0;">尚未選擇任何貴賓，從上方搜尋結果點擊「＋」後會自動加入此清單</div>`;
+      return;
+    }
+    scheduleOfficers.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = "card-row gen-drag-item";
+      item.style.padding = "10px 18px";
+      item.draggable = true;
+      item.dataset.index = i;
+      const line2 = [s.record.nameZh, s.record.titleZh].filter(Boolean).join('　');
+      const SPEECH_TYPES = ['主辦單位致詞', '協辦單位致詞', '貴賓致詞'];
+      const speechBtns = SPEECH_TYPES.map(t =>
+        `<button class="speech-btn ${s.speechType === t ? 'speech-btn--active' : ''}" data-type="${t}">${t}</button>`
+      ).join('');
+      item.innerHTML = `
+        <div class="gen-drag-handle" title="拖曳排序">⠿</div>
+        <div class="gen-num-badge">${s.order}</div>
+        <div class="info">
+          <div class="info__company">${esc(s.record.companyZh)}</div>
+          <div class="info__name">${esc(line2)}</div>
+        </div>
+        <div class="speech-btns">${speechBtns}</div>
+        <button class="delete-btn" title="移除">✕</button>
+      `;
+      item.querySelectorAll('.speech-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          s.speechType = (s.speechType === b.dataset.type) ? null : b.dataset.type;
+          renderScheduleList();
+        });
+      });
+      item.querySelector('.delete-btn').addEventListener('click', () => removeFromSchedule(s.record.id));
+      attachScheduleDragHandlers(item);
+      scheduleListEl.appendChild(item);
+    });
+  }
+
+  let scheduleDragSrcIndex = null;
+  function attachScheduleDragHandlers(item) {
+    item.addEventListener('dragstart', (e) => {
+      scheduleDragSrcIndex = Number(item.dataset.index);
+      item.classList.add('gen-drag-item--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('gen-drag-item--dragging');
+      document.querySelectorAll('.gen-drag-item--over').forEach(el => el.classList.remove('gen-drag-item--over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('gen-drag-item--over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('gen-drag-item--over');
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('gen-drag-item--over');
+      const targetIndex = Number(item.dataset.index);
+      if (scheduleDragSrcIndex === null || scheduleDragSrcIndex === targetIndex) return;
+      const moved = scheduleOfficers.splice(scheduleDragSrcIndex, 1)[0];
+      scheduleOfficers.splice(targetIndex, 0, moved);
+      scheduleOfficers.forEach((s, i) => s.order = i + 1);
+      scheduleDragSrcIndex = null;
+      renderScheduleList();
+    });
+  }
+
+  scheduleGenerateBtn.addEventListener('click', () => {
+    if (scheduleOfficers.length === 0) {
+      alert("請至少選擇一位貴賓再生成程序表");
+      return;
+    }
+    const title = genTitleInput.value.trim() || "展覽名稱";
+    const tentative = document.getElementById('schedule-tentative-chk').checked;
+    const bilingual = document.getElementById('schedule-bilingual-chk').checked;
+    const KAI = "'DFKai-SB','標楷體','BiauKai',serif";
+
+    // ---- 時間欄位 ----
+    const y = document.getElementById('sch-year').value.trim();
+    const mo = document.getElementById('sch-month').value.trim();
+    const d = document.getElementById('sch-day').value.trim();
+    const hh = document.getElementById('sch-hour').value.trim();
+    const mi = document.getElementById('sch-min').value.trim();
+
+    // ---- 節目清單（開場5分、每位致詞5分、揭幕5分、參觀30分） ----
+    // 中英版：開場/貴賓唱名+Opening、致詞【…】+Remarks by、揭幕儀式/貴賓合影+Group Photo、貴賓參觀展覽+Guided Tour of the Showground
+    const items = [{ label: '開場/貴賓唱名', sub: '', en: 'Opening', dur: 5 }];
+    scheduleOfficers.forEach(s => {
+      const r = s.record;
+      const type = s.speechType || '貴賓致詞';
+      const person = `${r.companyZh || ''} ${r.nameZh || ''}${r.titleZh || ''}`.trim();
+      const enParts = [r.nameEn, r.titleEn, r.companyEn].filter(Boolean).join(', ');
+      if (bilingual) {
+        items.push({ label: `【${type}】`, sub: person, en: enParts ? `Remarks by ${enParts}` : '', dur: 5 });
+      } else {
+        const sub = (type === '貴賓致詞') ? `${person}致詞` : person;
+        items.push({ label: type, sub, en: '', dur: 5 });
+      }
+    });
+    items.push({ label: '揭幕儀式/貴賓合影', sub: '', en: 'Group Photo', dur: 5 });
+    items.push({ label: '貴賓參觀展覽', sub: '', en: 'Guided Tour of the Showground', dur: 30 });
+
+    // ---- 有填時間(XX)就自動排時程 ----
+    const fmt = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+    let startMin = null, endMin = null;
+    if (hh !== '' && !isNaN(Number(hh))) {
+      startMin = Number(hh) * 60 + (mi !== '' && !isNaN(Number(mi)) ? Number(mi) : 0);
+      let t = startMin;
+      items.forEach(it => { it.time = `${fmt(t)}-${fmt(t + it.dur)}`; t += it.dur; });
+      endMin = t;
+    } else {
+      items.forEach(it => { it.time = ''; });
+    }
+
+    // ---- 時間列文字：2026年3月25日(星期三)上午10時30分至11時45分 ----
+    const zhAmPm = m => {
+      const h24 = Math.floor(m / 60), mm2 = m % 60;
+      const ap = h24 < 12 ? '上午' : '下午';
+      const h12 = h24 <= 12 ? h24 : h24 - 12;
+      return `${ap}${h12}時${String(mm2).padStart(2, '0')}分`;
+    };
+    let dateStr = '';
+    if (y) dateStr += `${y}年`;
+    if (mo) dateStr += `${Number(mo)}月`;
+    if (d) dateStr += `${Number(d)}日`;
+    let weekdayIdx = null;
+    if (y && mo && d) {
+      const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+      if (!isNaN(dt)) {
+        dateStr += `(星期${'日一二三四五六'[dt.getDay()]})`;
+        weekdayIdx = dt.getDay();
+      }
+    }
+    let clockStr = '';
+    if (startMin !== null) {
+      const samePeriod = (startMin < 720) === (endMin < 720);
+      const endStr = samePeriod ? zhAmPm(endMin).replace(/^(上午|下午)/, '') : zhAmPm(endMin);
+      clockStr = `${zhAmPm(startMin)}至${endStr}`;
+    }
+    const timeLine = `時間：${dateStr}${clockStr}`;
+
+    // ---- 英文時間列：Time: 10:00 a.m., Thursday, June 25, 2026 ----
+    let timeLineEn = '';
+    if (bilingual && startMin !== null && y && mo && d && weekdayIdx !== null) {
+      const WD_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const MO_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const h24 = Math.floor(startMin / 60), mm2 = startMin % 60;
+      const ap = h24 < 12 ? 'a.m.' : 'p.m.';
+      let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+      timeLineEn = `Time: ${h12}:${String(mm2).padStart(2, '0')} ${ap}, ${WD_EN[weekdayIdx]}, ${MO_EN[Number(mo) - 1]} ${Number(d)}, ${y}`;
+    }
+
+    // ---- 地點列 ----
+    const venues = [];
+    const venuesEn = [];
+    if (document.getElementById('venue-nangang1').checked) { venues.push('南港一館'); venuesEn.push('TaiNEX 1'); }
+    if (document.getElementById('venue-nangang2').checked) { venues.push('南港二館'); venuesEn.push('TaiNEX 2'); }
+    if (document.getElementById('venue-wtc1').checked) { venues.push('世貿一館'); venuesEn.push('TWTC Hall 1'); }
+    const extra = document.getElementById('schedule-venue-extra').value.trim();
+    if (extra) venues.push(extra);
+    const placeLine = `地點：${venues.join('、')}`;
+    const placeLineEn = (bilingual && venuesEn.length > 0) ? `Venue: ${venuesEn.join(', ')}` : '';
+
+    // ---- 產生時間（依電腦本機時間，顯示於地點下方、靠右） ----
+    const now = new Date();
+    const genTimeLine = `更新時間：${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    // ---- 表格 ----
+    let rowsHtml = '';
+    items.forEach(it => {
+      const subHtml = it.sub ? `<div style="margin-top:4px;${bilingual ? '' : ' margin-left:2em;'}">${esc(it.sub)}</div>` : '';
+      const enHtml = (bilingual && it.en) ? `<div style="margin-top:4px; font-family:'Times New Roman',${KAI}; font-size:14pt;">${esc(it.en)}</div>` : '';
+      rowsHtml += `
+        <tr>
+          <td style="border:1px solid #000; padding:8px 6px; width:3.2cm; text-align:center; vertical-align:middle; font-size:14pt; font-family:${KAI};">${esc(it.time)}</td>
+          <td style="border:1px solid #000; padding:8px 12px; width:13.5cm; vertical-align:middle; font-size:${bilingual ? '16pt' : '18pt'}; font-family:${KAI};">
+            <div>${esc(it.label)}</div>${subHtml}${enHtml}
+          </td>
+        </tr>`;
+    });
+
+    const thirdTitle = bilingual ? `程序表/ Agenda${tentative ? '(暫定)' : ''}` : `程序表${tentative ? '(暫定)' : ''}`;
+    const headTime = bilingual ? '時間/Time' : '時間';
+    const headContent = bilingual ? '程序/ Agenda' : '內容';
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"><title>${esc(title)}程序表</title>
+        <style>
+          @page WordSection1 { size:21cm 29.7cm; margin:1.5cm 1.0cm 1.5cm 1.0cm; mso-page-orientation:portrait; }
+          div.WordSection1 { page:WordSection1; }
+        </style>
+      </head>
+      <body style="font-family:${KAI};">
+        <div class="WordSection1">
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:2px; font-family:${KAI};">${esc(title)}</p>
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin:2px 0; font-family:${KAI};">開幕典禮</p>
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin:2px 0 10px; font-family:${KAI};">${esc(thirdTitle)}</p>
+        <p style="font-size:14pt; margin:4px 0; font-family:${KAI};">${esc(timeLine)}</p>
+        ${timeLineEn ? `<p style="font-size:13pt; margin:2px 0 2px 3em; font-family:'Times New Roman',${KAI};">${esc(timeLineEn)}</p>` : ''}
+        <p style="font-size:14pt; margin:4px 0; font-family:${KAI};">${esc(placeLine)}</p>
+        ${placeLineEn ? `<p style="font-size:13pt; margin:2px 0 2px 3em; font-family:'Times New Roman',${KAI};">${esc(placeLineEn)}</p>` : ''}
+        <p style="font-size:14pt; margin:2px 0 6px; text-align:right; font-family:${KAI};">${esc(genTimeLine)}</p>
+        <table align="center" style="width:16.7cm; table-layout:fixed; border-collapse:collapse; margin:6px auto 0;" cellpadding="0" cellspacing="0">
+          <colgroup><col style="width:3.2cm;"><col style="width:13.5cm;"></colgroup>
+          <tr>
+            <td style="border:1px solid #000; background:#cccccc; padding:8px 6px; text-align:center; font-weight:bold; font-size:18pt; font-family:${KAI};">${esc(headTime)}</td>
+            <td style="border:1px solid #000; background:#cccccc; padding:8px 12px; text-align:center; font-weight:bold; font-size:18pt; font-family:${KAI};">${esc(headContent)}</td>
+          </tr>
+          ${rowsHtml}
+        </table>
+        </div>
+      </body>
+      </html>`;
+
+    downloadBlob(html, 'application/msword', `程序表${getTimestampSuffix()}.doc`);
+  });
+
+  renderScheduleList();
+
+  // ================= 貴賓唱名名單 =================
+  const rollcallSearchInput = document.getElementById('rollcall-search-input');
+  const rollcallResultsEl = document.getElementById('rollcall-results');
+  const rollcallListEl = document.getElementById('rollcall-selected-list');
+  const rollcallGenerateBtn = document.getElementById('rollcall-generate-btn');
+
+  function getRollcallFiltered() {
+    const kw = rollcallSearchInput.value.trim().toLowerCase();
+    if (!kw) return [];
+    return allRecords.filter(r => {
+      const hay = [r.companyZh, r.companyEn, r.nameZh, r.nameEn, r.titleZh, r.titleEn]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(kw);
+    });
+  }
+
+  function renderRollcallResults() {
+    const filtered = getRollcallFiltered();
+    rollcallResultsEl.innerHTML = '';
+    if (filtered.length === 0) {
+      const msg = rollcallSearchInput.value.trim() ? '找不到符合的資料' : '輸入關鍵字搜尋要加入唱名名單的貴賓';
+      rollcallResultsEl.innerHTML = `<div class="empty-state" style="padding:32px;"><div class="empty-sub">${msg}</div></div>`;
+    } else {
+      filtered.forEach(r => rollcallResultsEl.appendChild(buildRollcallRow(r)));
+    }
+    renderRollcallList();
+  }
+
+  function buildRollcallRow(r) {
+    const row = document.createElement('div');
+    row.className = "card-row";
+    const idx = rollcallOfficers.findIndex(s => s.record.id === r.id);
+    const line2 = [r.nameZh, r.titleZh].filter(Boolean).join('　');
+    row.innerHTML = `
+      <div class="avatar">
+        ${r.photo ? `<img src="${r.photo}" alt="">` : `<span>${esc((r.nameZh || r.companyZh || '?')[0])}</span>`}
+      </div>
+      <div class="info">
+        <div class="info__company">${esc(r.companyZh)}</div>
+        <div class="info__name">${esc(line2)}</div>
+      </div>
+      <button class="gen-pick-btn ${idx >= 0 ? 'gen-pick-btn--active' : ''}">${idx >= 0 ? (idx + 1) : '＋'}</button>
+    `;
+    row.querySelector('.gen-pick-btn').addEventListener('click', () => toggleRollcall(r));
+    return row;
+  }
+
+  function toggleRollcall(r) {
+    const idx = rollcallOfficers.findIndex(s => s.record.id === r.id);
+    if (idx >= 0) {
+      rollcallOfficers.splice(idx, 1);
+      rollcallOfficers.forEach((s, i) => s.order = i + 1);
+    } else {
+      rollcallOfficers.push({ order: rollcallOfficers.length + 1, record: r });
+    }
+    renderRollcallResults();
+  }
+
+  function renderRollcallList() {
+    rollcallListEl.innerHTML = '';
+    if (rollcallOfficers.length === 0) {
+      rollcallListEl.innerHTML = `<div class="empty-sub" style="padding:12px 0;">尚未選擇任何貴賓，請從上方搜尋結果點擊「＋」加入</div>`;
+      return;
+    }
+    rollcallOfficers.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = "card-row gen-drag-item";
+      item.style.padding = "10px 18px";
+      item.draggable = true;
+      item.dataset.index = i;
+      const line2 = [s.record.nameZh, s.record.titleZh].filter(Boolean).join('　');
+      item.innerHTML = `
+        <div class="gen-drag-handle" title="拖曳排序">⠿</div>
+        <div class="gen-num-badge">${s.order}</div>
+        <div class="info">
+          <div class="info__company">${esc(s.record.companyZh)}</div>
+          <div class="info__name">${esc(line2)}</div>
+        </div>
+        <button class="delete-btn" title="移除">✕</button>
+      `;
+      item.querySelector('.delete-btn').addEventListener('click', () => toggleRollcall(s.record));
+      attachRollcallDragHandlers(item);
+      rollcallListEl.appendChild(item);
+    });
+  }
+
+  let rollcallDragSrcIndex = null;
+  function attachRollcallDragHandlers(item) {
+    item.addEventListener('dragstart', (e) => {
+      rollcallDragSrcIndex = Number(item.dataset.index);
+      item.classList.add('gen-drag-item--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('gen-drag-item--dragging');
+      document.querySelectorAll('.gen-drag-item--over').forEach(el => el.classList.remove('gen-drag-item--over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('gen-drag-item--over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('gen-drag-item--over');
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('gen-drag-item--over');
+      const targetIndex = Number(item.dataset.index);
+      if (rollcallDragSrcIndex === null || rollcallDragSrcIndex === targetIndex) return;
+      const moved = rollcallOfficers.splice(rollcallDragSrcIndex, 1)[0];
+      rollcallOfficers.splice(targetIndex, 0, moved);
+      rollcallOfficers.forEach((s, i) => s.order = i + 1);
+      rollcallDragSrcIndex = null;
+      renderRollcallList();
+      renderRollcallResults();
+    });
+  }
+
+  rollcallSearchInput.addEventListener('input', renderRollcallResults);
+
+  // ---- 唱名名單 Word 生成 ----
+  rollcallGenerateBtn.addEventListener('click', () => {
+    if (rollcallOfficers.length === 0) {
+      alert("請至少選擇一位貴賓再生成唱名名單");
+      return;
+    }
+    const title = genTitleInput.value.trim() || "展覽名稱";
+    const KAI = "'DFKai-SB','標楷體','BiauKai',serif";
+
+    let listHtml = '';
+    rollcallOfficers.forEach((s, i) => {
+      const r = s.record;
+      const zhLine = `${i + 1}. ${[r.companyZh, [r.nameZh, r.titleZh].filter(Boolean).join('')].filter(Boolean).join(' ')}`;
+      const enParts = [r.nameEn, r.titleEn, r.companyEn].filter(Boolean).join(', ');
+      listHtml += `<p style="font-size:14pt; margin:12px 0 0; font-family:${KAI};">${esc(zhLine)}</p>`;
+      if (enParts) {
+        listHtml += `<p style="font-size:12pt; margin:4px 0 0 1.6em; font-family:'Times New Roman',${KAI};">${esc(enParts)}</p>`;
+      }
+    });
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"><title>${esc(title)}唱名貴賓名單</title>
+        <style>
+          @page WordSection1 { size:21cm 29.7cm; margin:1.5cm 1.0cm 1.5cm 1.0cm; mso-page-orientation:portrait; }
+          div.WordSection1 { page:WordSection1; }
+        </style>
+      </head>
+      <body style="font-family:${KAI};">
+        <div class="WordSection1">
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:2px; font-family:${KAI};">${esc(title)}</p>
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin:2px 0 14px; font-family:${KAI};">開幕典禮唱名貴賓名單</p>
+        ${listHtml}
+        </div>
+      </body>
+      </html>`;
+
+    downloadBlob(html, 'application/msword', `唱名貴賓名單${getTimestampSuffix()}.doc`);
+  });
+
+  renderRollcallResults();
+
+  // ================= 接待計畫 =================
+  const RECEPTION_STAFF = [
+    '展覽處 鄧之誠處長','南港張如蕙主任','南港陳瑾緻副主任','展覽處 張碧容副處長',
+    '展覽處 張卓文組長','展覽處 曾群佩組長','李建緯組長','徐毅勤','陳雅筑','許妃棻',
+    '吳亭瑩','陳冠樺','黃楷婷','黃韻蓁','莊適博','王心如','鄧紀希','劉書吟','吳芷鈴',
+    '襄儀1位','公關公司1位','(待確認)'
+  ];
+  // 特定貴賓自動帶入的固定資訊（比對姓名包含關鍵字即帶入）
+  const VIP_EXTRA = {
+    '黃志芳': '秘書：陳柏仰#1793\n司機：李晟弘Ricky\n李先生0926-009-269\n車號：RFA-8995',
+    '何志偉': '陪同：\n車號：\n聯絡人：\n0933-201-462\n林主任\n預計 抵達',
+    '何晉滄': '車號：ARF7223\n聯絡人：\n貿易署發展組袁小姐\n02-2397-7307',
+    '陳佩利': '陪同：(楊組長不出席)\n貿易署 黃昭蓉科長\n貿易署 鄭蕙玲科長\n貿易署同仁3人\n車號：NU0163\n聯絡人：李昱霈0963-386-018',
+    '葛葆萱': '陪同：\n拉美司 韓志正司長\n拉美司 陳正宏科長\n拉美司 林立綸科員\n車號：\n聯絡人：\n預計 抵達',
+    '陳堯濱': '聯繫人:本人電話\n0955-823-999'
+  };
+  // 特定貴賓：接待人員欄自動帶入的固定文字（印在拖進去的人名下方）
+  const VIP_STAFF_EXTRA = {
+    '宋奇沛': '陳勝地總幹事\n0912-273-200\n黃副總幹事\n02-2723-0036',
+    '郭豊標': '秘書吳芳姍\n02-2725-2585\n0939-936-330',
+    '陳堯濱': '沈秘書0966-598-102',
+    '呂溪賓': '協會:\n鄭文涵\n0978-550-093\n(林伊晏秘書\n0932-101-329)'
+  };
+  // 標籤：程序表上有排 →(致詞、合影)；站位圖名單有選 →(合影)
+  function guestMark(r) {
+    if (scheduleOfficers.some(s => s.record.id === r.id)) return '(致詞、合影)';
+    if (selectedOfficers.some(s => s.record.id === r.id)) return '(合影)';
+    return '';
+  }
+
+  const receptionPoolEl = document.getElementById('reception-staff-pool');
+  const receptionListEl = document.getElementById('reception-list');
+  const receptionGenerateBtn = document.getElementById('reception-generate-btn');
+  const receptionFooterTa = document.getElementById('reception-footer-note');
+
+  const receptionData = new Map(); // record.id -> { staff:[], time:'', note:'', extra:'' }
+  let armedStaff = null; // 手機/點選模式：先點人名，再點目標格
+
+  const nl2br = t => esc(t || '').replace(/\n/g, '<br>');
+  const X = v => (v && String(v).trim()) ? String(v).trim() : 'XXX';
+
+  // ---- 拖曳時靠近視窗上下邊緣自動捲動（滾輪在原生拖曳中無法使用的替代方案） ----
+  document.addEventListener('dragover', e => {
+    const margin = 90, speed = 20;
+    if (e.clientY < margin) window.scrollBy(0, -speed);
+    else if (window.innerHeight - e.clientY < margin) window.scrollBy(0, speed);
+  });
+
+  function getReceptionEntry(r) {
+    if (!receptionData.has(r.id)) {
+      const key = Object.keys(VIP_EXTRA).find(k => (r.nameZh || '').includes(k));
+      const sKey = Object.keys(VIP_STAFF_EXTRA).find(k => (r.nameZh || '').includes(k));
+      const isChairman = (r.nameZh || '').includes('黃志芳');
+      receptionData.set(r.id, { staff: [], time: isChairman ? '09:00-12:00' : '', note: '', extra: key ? VIP_EXTRA[key] : '', staffExtra: sKey ? VIP_STAFF_EXTRA[sKey] : '' });
+    }
+    return receptionData.get(r.id);
+  }
+
+  // ================= 固定工作桌資料 =================
+  const stationData = {
+    gate:        { staff: [], time: '', slots: { prep: null, notify: null, guide: null, cA: null, cB: null } },
+    lounge:      { staff: [], time: '', slots: { prep: null, s1: null, s2: null, water: null } },
+    desk:        { staff: [], time: '', slots: { notify: null }, note: '' },
+    media:       { staff: [], time: '' },
+    interp:      { staff: [], time: '', machines: '', teacher: '' },
+    elevator:    { staff: [], time: '', elevNums: '' },
+    chairlounge: { staff: [], time: '', slots: { water: null }, floor: '' },
+    pressWater:  { staff: [], time: '' },
+    noBroadcast: { staff: [], time: '' },
+    onsite:      { staff: [], time: '' },
+    mc:          { staff: ['(待確認)'], time: '' },
+    control:     { staff: ['李建緯組長'], time: '' }
+  };
+  const STATION_KEYS = ['gate','lounge','desk','media','interp','elevator','chairlounge','pressWater','noBroadcast','onsite','mc','control'];
+  const STATION_TITLES = {
+    gate: '1樓大門口', lounge: '1樓貴賓室', desk: '貴賓接待桌', media: '媒體接待桌',
+    interp: '同步口譯設備桌', elevator: '電梯控制(待確認)', chairlounge: '貴賓室(董事長專用)',
+    pressWater: '新聞室茶水', noBroadcast: '禁止廣播立牌(1樓)',
+    onsite: '開幕典禮場內作業', mc: '擔任典禮現場司儀', control: '典禮活動現場掌控'
+  };
+
+  // ================= 整表排序（貴賓 + 工作桌可互相拖曳移動） =================
+  let receptionOrder = null; // [{type:'guest', id} | {type:'station', key}]
+  function ensureReceptionOrder() {
+    if (!receptionOrder) {
+      receptionOrder = [
+        ...rollcallOfficers.map(s => ({ type: 'guest', id: s.record.id })),
+        ...STATION_KEYS.map(k => ({ type: 'station', key: k }))
+      ];
+      return;
+    }
+    const ids = new Set(rollcallOfficers.map(s => s.record.id));
+    receptionOrder = receptionOrder.filter(t => t.type === 'station' || ids.has(t.id));
+    const existing = new Set(receptionOrder.filter(t => t.type === 'guest').map(t => t.id));
+    rollcallOfficers.forEach(s => {
+      if (!existing.has(s.record.id)) {
+        let lastGuestIdx = -1;
+        receptionOrder.forEach((t, i) => { if (t.type === 'guest') lastGuestIdx = i; });
+        receptionOrder.splice(lastGuestIdx + 1, 0, { type: 'guest', id: s.record.id });
+      }
+    });
+  }
+  function getRecordById(id) {
+    const s = rollcallOfficers.find(s => s.record.id === id);
+    return s ? s.record : null;
+  }
+
+  // ---- 整列拖曳（只能從 ⠿ 把手啟動，避免跟人名拖曳、選字打架） ----
+  let rowDragSrc = null;
+  function attachRowReorder(row, pos) {
+    const handle = row.querySelector('.row-drag-handle');
+    if (!handle) return;
+    handle.addEventListener('mousedown', () => { row.draggable = true; });
+    handle.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
+    row.addEventListener('dragstart', e => {
+      if (!row.draggable) return;
+      rowDragSrc = pos;
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', ''); } catch (err) {}
+      row.classList.add('gen-drag-item--dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.draggable = false;
+      rowDragSrc = null;
+      row.classList.remove('gen-drag-item--dragging');
+      document.querySelectorAll('.recep-row--over').forEach(el => el.classList.remove('recep-row--over'));
+    });
+    row.addEventListener('dragover', e => {
+      if (rowDragSrc === null) return; // 人名拖曳時不觸發整列排序
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('recep-row--over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('recep-row--over'));
+    row.addEventListener('drop', e => {
+      if (rowDragSrc === null) return;
+      e.preventDefault();
+      row.classList.remove('recep-row--over');
+      if (rowDragSrc === pos) return;
+      const moved = receptionOrder.splice(rowDragSrc, 1)[0];
+      receptionOrder.splice(pos, 0, moved);
+      rowDragSrc = null;
+      renderReceptionList();
+    });
+  }
+
+  function renderReceptionPool() {
+    if (!receptionPoolEl) return;
+    receptionPoolEl.innerHTML = '';
+    RECEPTION_STAFF.forEach(name => {
+      const chip = document.createElement('div');
+      chip.className = 'staff-chip' + (armedStaff === name ? ' staff-chip--armed' : '');
+      chip.textContent = name;
+      chip.draggable = true;
+      chip.title = '拖曳到「接待人員」欄或 XXX 虛線格，或點一下再點目標格';
+      chip.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', name);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+      chip.addEventListener('click', () => {
+        armedStaff = (armedStaff === name) ? null : name;
+        renderReceptionPool();
+      });
+      receptionPoolEl.appendChild(chip);
+    });
+  }
+
+  // ---- 通用：接待人員 drop zone ----
+  function makeStaffDrop(st) {
+    const drop = document.createElement('div');
+    drop.className = 'recep-drop';
+    st.staff.forEach((name, si) => {
+      const tag = document.createElement('span');
+      tag.className = 'recep-tag';
+      tag.innerHTML = `${esc(name)}<button title="移除">✕</button>`;
+      tag.querySelector('button').addEventListener('click', () => { st.staff.splice(si, 1); renderReceptionList(); });
+      drop.appendChild(tag);
+    });
+    drop.addEventListener('dragover', ev => {
+      if (rowDragSrc !== null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      ev.dataTransfer.dropEffect = 'copy';
+      drop.classList.add('recep-drop--over');
+    });
+    drop.addEventListener('dragleave', () => drop.classList.remove('recep-drop--over'));
+    drop.addEventListener('drop', ev => {
+      if (rowDragSrc !== null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      drop.classList.remove('recep-drop--over');
+      const n = ev.dataTransfer.getData('text/plain');
+      if (n && !st.staff.includes(n)) { st.staff.push(n); renderReceptionList(); }
+    });
+    drop.addEventListener('click', () => {
+      if (armedStaff) {
+        const n = armedStaff; armedStaff = null; renderReceptionPool();
+        if (!st.staff.includes(n)) { st.staff.push(n); renderReceptionList(); }
+      }
+    });
+    return drop;
+  }
+
+  // ---- 通用：XXX 虛線小格 ----
+  function makeSlot(slotObj, key) {
+    const el = document.createElement('span');
+    const val = slotObj[key];
+    el.className = 'slot-box' + (val ? ' slot-box--filled' : '');
+    if (val) {
+      el.innerHTML = `${esc(val)}<button title="移除">✕</button>`;
+      el.querySelector('button').addEventListener('click', ev => {
+        ev.stopPropagation();
+        slotObj[key] = null;
+        renderReceptionList();
+      });
+    } else {
+      el.textContent = 'XXX';
+      el.title = '拖曳人名到這裡，或先點選上方人名再點這裡';
+    }
+    el.addEventListener('dragover', ev => {
+      if (rowDragSrc !== null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      ev.dataTransfer.dropEffect = 'copy';
+      el.classList.add('slot-box--over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('slot-box--over'));
+    el.addEventListener('drop', ev => {
+      if (rowDragSrc !== null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      const n = ev.dataTransfer.getData('text/plain');
+      if (n) { slotObj[key] = n; renderReceptionList(); }
+    });
+    el.addEventListener('click', () => {
+      if (armedStaff) {
+        slotObj[key] = armedStaff;
+        armedStaff = null;
+        renderReceptionPool();
+        renderReceptionList();
+      }
+    });
+    return el;
+  }
+
+  function slotLine(container, parts) {
+    const div = document.createElement('div');
+    div.className = 'slot-line';
+    parts.forEach(pt => {
+      if (typeof pt === 'string') div.appendChild(document.createTextNode(pt));
+      else div.appendChild(pt);
+    });
+    container.appendChild(div);
+  }
+
+  function makeMiniInput(st, prop, placeholder, width) {
+    const inp = document.createElement('input');
+    inp.className = 'recep-input';
+    inp.style.cssText = `display:inline-block; width:${width || '90px'}; padding:3px 8px; font-size:12px; margin:0 3px; vertical-align:middle;`;
+    inp.placeholder = placeholder;
+    inp.value = st[prop] || '';
+    inp.addEventListener('input', ev => { st[prop] = ev.target.value; });
+    return inp;
+  }
+
+  // ================= 依程序表推算接待計畫用的時間脈絡 =================
+  function getReceptionContext() {
+    const fRaw = m => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 1440) + 1440) % 1440 % 60).padStart(2, '0')}`;
+    const y = document.getElementById('sch-year').value.trim();
+    const mo = document.getElementById('sch-month').value.trim();
+    const d = document.getElementById('sch-day').value.trim();
+    const hh = document.getElementById('sch-hour').value.trim();
+    const mi = document.getElementById('sch-min').value.trim();
+
+    let startMin = null;
+    if (hh !== '' && !isNaN(Number(hh))) {
+      startMin = Number(hh) * 60 + (mi !== '' && !isNaN(Number(mi)) ? Number(mi) : 0);
+    }
+    // 程序表節奏：開場5分 → 每位致詞5分 → 揭幕/合影5分 → 參觀30分
+    const speechTimes = new Map();
+    let unveilMin = null, tourMin = null;
+    if (startMin !== null) {
+      scheduleOfficers.forEach((s, i) => speechTimes.set(s.record.id, startMin + 5 + i * 5));
+      unveilMin = startMin + 5 + scheduleOfficers.length * 5;
+      tourMin = unveilMin + 5;
+    }
+    const wd = '日一二三四五六';
+    let dayStr = '', prevStr = '', mdStr = '';
+    if (y && mo && d) {
+      const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+      if (!isNaN(dt)) {
+        dayStr = `${dt.getMonth() + 1}/${dt.getDate()}(${wd[dt.getDay()]})`;
+        mdStr = `${dt.getMonth() + 1}/${dt.getDate()}`;
+        const pv = new Date(dt.getTime() - 86400000);
+        prevStr = `${pv.getMonth() + 1}/${pv.getDate()}(${wd[pv.getDay()]})`;
+      }
+    }
+    const venues = [];
+    if (document.getElementById('venue-nangang1').checked) venues.push('南港一館');
+    if (document.getElementById('venue-nangang2').checked) venues.push('南港二館');
+    if (document.getElementById('venue-wtc1').checked) venues.push('世貿一館');
+    const extraVenue = document.getElementById('schedule-venue-extra').value.trim();
+    if (extraVenue) venues.push(extraVenue);
+    const venueStr = venues.join('、');
+
+    const f = m => (m === null ? '' : fRaw(m));
+    const unified = startMin !== null ? `${f(startMin - 30)}-12:00` : '';
+    return { startMin, speechTimes, unveilMin, tourMin, dayStr, prevStr, mdStr, venueStr, f, unified };
+  }
+
+  // ================= 貴賓自動備註 =================
+  function buildAutoNote(r) {
+    const c = getReceptionContext();
+    const t = m => (m === null ? '' : c.f(m) + ' ');
+    const speechMin = c.speechTimes.has(r.id) ? c.speechTimes.get(r.id) : null;
+
+    if ((r.nameZh || '').includes('黃志芳')) {
+      const lines = [];
+      if (c.prevStr) lines.push(c.prevStr);
+      lines.push('17:00 董事長彩排');
+      lines.push('*董事長17:00抵達展館');
+      lines.push('');
+      if (c.dayStr) lines.push(c.dayStr);
+      lines.push('◎　　梳化');
+      lines.push(`(地點：${c.venueStr ? c.venueStr : ''}貴賓室，待嘉敏姐通知)`);
+      lines.push('◎09:00 董事長總彩');
+      lines.push('◎10:00 媒體聯訪');
+      lines.push('(地點：開幕現場)');
+      lines.push('');
+      lines.push(`◎${t(c.startMin)}開幕典禮`);
+      if (speechMin !== null) lines.push(`◎${t(speechMin)}董事長致詞`);
+      lines.push(`◎${t(c.unveilMin)}揭幕/合影`);
+      return lines.join('\n');
+    }
+
+    const lines = [];
+    lines.push(`◎${t(c.startMin)}開幕典禮`);
+    if (speechMin !== null) lines.push(`◎${t(speechMin)}${(r.nameZh || '')}${(r.titleZh || '')}致詞`);
+    lines.push(`◎${t(c.unveilMin)}揭幕/合影`);
+    lines.push(`◎${t(c.tourMin)}貴賓參觀展覽`);
+    return lines.join('\n');
+  }
+
+  // ================= 工作桌 Word 文字組裝 =================
+  function rehearsalNoteText(c) {
+    return [
+      `◎${c.prevStr}`,
+      '15:00 初彩(活動組、提詞簡報)',
+      '16:00 處長/副座彩排',
+      '19:00 董事長彩排',
+      '*董事長19:00抵達展館',
+      `◎${c.dayStr}`,
+      '09:00董事長彩排(TBC)'
+    ].join('\n');
+  }
+  function stationWordParts(key, c) {
+    const st = stationData[key];
+    let guest = STATION_TITLES[key], staffTxt = st.staff.join('\n'), note = '';
+    switch (key) {
+      case 'gate': {
+        const sl = st.slots;
+        note = [
+          c.dayStr,
+          `${X(sl.prep)}準備空白VIP證10張`,
+          `◎貴賓抵達後通報接待桌:${X(sl.notify)}`,
+          `◎引導貴賓至1樓P區貴賓室:${X(sl.guide)}`,
+          `◎${X(sl.cA)}結束任務後請協助${X(sl.cB)}簡單整理`
+        ].filter(l => l !== '').join('\n');
+        break;
+      }
+      case 'lounge': {
+        const sl = st.slots;
+        note = [
+          c.prevStr,
+          `${X(sl.prep)}準備空白VIP證20張，${c.venueStr}貴賓室場佈(玻璃瓶裝水、玻璃杯)`,
+          '',
+          c.dayStr,
+          `◎${c.startMin !== null ? c.f(c.startMin - 10) : ''}引導貴賓前往會場`,
+          `◎${X(sl.s1)}協助於貴賓抵貴賓室後，立即通報：${X(sl.s2)}(貴賓接待桌)：統計貴賓抵達情形`,
+          '◎貴賓室茶水:',
+          `8:30請${X(sl.water)}確認(請拍照)`
+        ].join('\n');
+        break;
+      }
+      case 'desk': {
+        const names = st.staff.slice();
+        while (names.length < 6) names.push('XXX');
+        const pairs = [];
+        for (let i = 0; i < names.length; i += 2) pairs.push(names.slice(i, i + 2).join('、'));
+        staffTxt = [
+          '【貴賓接待】', ...pairs, '',
+          '【通報】', X(st.slots.notify),
+          '*通報揭幕及合影貴賓',
+          '*通報非名單內重要貴賓(各縣市首長、立法委員、議員等)',
+          '*空位安排及查詢'
+        ].join('\n');
+        note = st.note;
+        break;
+      }
+      case 'media': {
+        guest = ['媒體接待桌', '', '※記者換證：', '新聞室(4樓401)', `${c.mdStr ? c.mdStr + ' ' : ''}南二1樓Q區大服(開媒體換證櫃到12點)`].join('\n');
+        note = '09:30準備新聞資料QR code立牌(1個，展X組會提供)、簽名簿、簽字筆\n◎備記者證30張';
+        break;
+      }
+      case 'interp': {
+        guest = '同步口譯設備桌\n※典禮中英文進行';
+        staffTxt = st.staff.join('\n') + `\n(翻譯機${X(st.machines)}套)`;
+        note = [
+          `◎09:00擺放口譯機器於貴賓座位，結束後回收，請${X(st.staff[0])}寫編號，結束請活動組協助回收口譯機`,
+          '◎口譯設備請拍報銷照片(口譯老師、口譯設備、口譯間、貴賓使用狀況各1張)',
+          '◎口譯老師10:00抵達',
+          `${X(st.teacher)}老師`
+        ].join('\n');
+        break;
+      }
+      case 'elevator': {
+        note = [
+          `◎預計控${(st.elevNums && st.elevNums.trim()) ? st.elevNums.trim() : 'X、X'}號電梯`,
+          '◎電梯控制牌4個：',
+          'B1、1F、4F、7F'
+        ].join('\n');
+        break;
+      }
+      case 'chairlounge': {
+        guest = `${(st.floor && st.floor.trim()) ? st.floor.trim() : 'X'}貴賓室(董事長專用)`;
+        note = [
+          '◎貴賓室茶水:',
+          `${c.dayStr}8:30請${X(st.slots.water)}確認(請拍照)`
+        ].join('\n');
+        break;
+      }
+      case 'pressWater': {
+        note = ['◎請拍報銷照片', '南港展覽館2館 4樓401會議室', '南港展覽館1館 4樓新聞中心'].join('\n');
+        break;
+      }
+      case 'noBroadcast': {
+        note = '禁止時段 09:00-12:00';
+        break;
+      }
+      case 'onsite': {
+        guest = '開幕典禮場內作業：\n請確認揭幕合影貴賓抵達狀況';
+        note = rehearsalNoteText(c);
+        break;
+      }
+      case 'mc': {
+        guest = '擔任典禮現場司儀';
+        note = rehearsalNoteText(c);
+        break;
+      }
+      case 'control': {
+        guest = '典禮活動現場掌控';
+        note = rehearsalNoteText(c);
+        break;
+      }
+    }
+    return { guest, staffTxt, note };
+  }
+
+  // ================= 表尾「註：」 =================
+  function buildFooterTemplate() {
+    const c = getReceptionContext();
+    return [
+      '1. 姓名：佩帶Walky Talky',
+      '2. 開幕典禮安排XX名襄儀小姐協助場內、外接待與典禮進行作業。',
+      '3. 準備物品：名片盤*1、簽字筆10枝、主講桌讀稿架1個、讀稿燈*2',
+      '4. 公關窗口 XXX',
+      '5. 南港2館1樓P區貴賓室：密碼2870 開幕專用',
+      '6. 南港2館4樓R區貴賓室：密碼2870 董事長專用',
+      '7. 南港1館1樓第五貴賓室：密碼2870 備用',
+      '8. 南港2館601會議室：密碼2298',
+      '9. 南港2館窗口(會議室)：',
+      `10. 記者換證：新聞室(4樓401)、${c.mdStr ? c.mdStr + ' ' : ''}南二1樓Q區大服(開媒體換證櫃到12點)`
+    ].join('\n');
+  }
+  document.getElementById('reception-footer-reset-btn').addEventListener('click', () => {
+    if (receptionFooterTa.value.trim() && !confirm('確定要以預設模板覆蓋目前的「註」內容嗎？')) return;
+    receptionFooterTa.value = buildFooterTemplate();
+  });
+
+  // ================= UI 渲染 =================
+  function makeRowShell(num, companyLabel, titleText) {
+    const row = document.createElement('div');
+    row.className = 'recep-row';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="row-drag-handle gen-drag-handle" title="按住拖曳可上下移動整列">⠿</div>
+        <div class="gen-num-badge">${num}</div>
+        <div class="info">
+          <div class="info__company">${esc(companyLabel)}</div>
+          <div class="info__name">${esc(titleText)}</div>
+        </div>
+      </div>`;
+    return row;
+  }
+
+  function renderGuestRow(r, num) {
+    const e = getReceptionEntry(r);
+    const mk = guestMark(r);
+    const line2 = [r.nameZh, r.titleZh].filter(Boolean).join('　') + (mk ? ` ${mk}` : '');
+    const row = makeRowShell(num, r.companyZh || '', line2);
+    const grid = document.createElement('div');
+    grid.className = 'recep-grid';
+    grid.innerHTML = `
+      <div>
+        <div class="recep-label">貴賓附註（秘書/司機/車號/聯絡人…會印在貴賓名單欄）</div>
+        <textarea class="recep-ta recep-extra" rows="4" placeholder="例如：&#10;秘書：○○○#0000&#10;司機：○○○&#10;車號：XXX-0000">${esc(e.extra)}</textarea>
+      </div>
+      <div class="g-staff-cell">
+        <div class="recep-label">接待人員（拖曳或點選上方人名放入）</div>
+        <textarea class="recep-ta recep-staffextra" rows="3" style="margin-top:6px;" placeholder="補充文字（會印在接待人員欄，人名下方）&#10;例如：秘書○○○&#10;0912-345-678">${esc(e.staffExtra || '')}</textarea>
+      </div>
+      <div>
+        <div class="recep-label">接待時間</div>
+        <input class="recep-input recep-time" type="text" placeholder="例如 10:00-12:00" value="${esc(e.time)}">
+      </div>
+      <div>
+        <div class="recep-label">備註（動線/彩排/流程…）</div>
+        <textarea class="recep-ta recep-note" rows="4" placeholder="例如：&#10;◎10:30 開幕典禮&#10;◎11:00 揭幕/合影">${esc(e.note)}</textarea>
+      </div>`;
+    row.appendChild(grid);
+    const staffCell = grid.querySelector('.g-staff-cell');
+    staffCell.insertBefore(makeStaffDrop(e), staffCell.querySelector('.recep-staffextra'));
+    grid.querySelector('.recep-extra').addEventListener('input', ev => { e.extra = ev.target.value; });
+    grid.querySelector('.recep-staffextra').addEventListener('input', ev => { e.staffExtra = ev.target.value; });
+    grid.querySelector('.recep-time').addEventListener('input', ev => { e.time = ev.target.value; });
+    grid.querySelector('.recep-note').addEventListener('input', ev => { e.note = ev.target.value; });
+    return row;
+  }
+
+  function renderStationRow(key, num) {
+    const st = stationData[key];
+    const c = getReceptionContext();
+    const row = makeRowShell(num, '工作桌', STATION_TITLES[key]);
+    row.classList.add('recep-row--station');
+    const grid = document.createElement('div');
+    grid.className = 'recep-grid';
+    grid.innerHTML = `
+      <div class="st-staff-cell">
+        <div class="recep-label">接待人員（可放多位）</div>
+      </div>
+      <div class="st-note-cell" style="grid-column: span 2;">
+        <div class="recep-label">備註（自動模板，XXX 為可拖放格）</div>
+        <div class="slot-note"></div>
+      </div>
+      <div>
+        <div class="recep-label">接待時間</div>
+        <input class="recep-input st-time" type="text" placeholder="按⚡自動帶入" value="${esc(st.time)}">
+      </div>`;
+    row.appendChild(grid);
+    grid.querySelector('.st-staff-cell').appendChild(makeStaffDrop(st));
+    grid.querySelector('.st-time').addEventListener('input', ev => { st.time = ev.target.value; });
+    const nb = grid.querySelector('.slot-note');
+
+    switch (key) {
+      case 'gate':
+        slotLine(nb, [c.dayStr || '(填程序表日期後自動帶入)']);
+        slotLine(nb, [makeSlot(st.slots, 'prep'), '準備空白VIP證10張']);
+        slotLine(nb, ['◎貴賓抵達後通報接待桌:', makeSlot(st.slots, 'notify')]);
+        slotLine(nb, ['◎引導貴賓至1樓P區貴賓室:', makeSlot(st.slots, 'guide')]);
+        slotLine(nb, ['◎', makeSlot(st.slots, 'cA'), '結束任務後請協助', makeSlot(st.slots, 'cB'), '簡單整理']);
+        break;
+      case 'lounge':
+        slotLine(nb, [c.prevStr || '(前一天日期自動帶入)']);
+        slotLine(nb, [makeSlot(st.slots, 'prep'), `準備空白VIP證20張，${c.venueStr}貴賓室場佈(玻璃瓶裝水、玻璃杯)`]);
+        slotLine(nb, ['　']);
+        slotLine(nb, [c.dayStr || '(當天日期自動帶入)']);
+        slotLine(nb, [`◎${c.startMin !== null ? c.f(c.startMin - 10) : ''}引導貴賓前往會場`]);
+        slotLine(nb, ['◎', makeSlot(st.slots, 's1'), '協助於貴賓抵貴賓室後，立即通報：', makeSlot(st.slots, 's2'), '(貴賓接待桌)：統計貴賓抵達情形']);
+        slotLine(nb, ['◎貴賓室茶水:']);
+        slotLine(nb, ['8:30請', makeSlot(st.slots, 'water'), '確認(請拍照)']);
+        break;
+      case 'desk': {
+        slotLine(nb, ['接待人員欄會印成【貴賓接待】兩人一行，不足6位以XXX補齊']);
+        slotLine(nb, ['【通報】', makeSlot(st.slots, 'notify')]);
+        slotLine(nb, ['*通報揭幕及合影貴賓']);
+        slotLine(nb, ['*通報非名單內重要貴賓(各縣市首長、立法委員、議員等)']);
+        slotLine(nb, ['*空位安排及查詢']);
+        const ta = document.createElement('textarea');
+        ta.className = 'recep-ta';
+        ta.rows = 3;
+        ta.placeholder = '此桌的備註欄（自由填寫，會印在最右欄）';
+        ta.value = st.note;
+        ta.addEventListener('input', ev => { st.note = ev.target.value; });
+        nb.appendChild(ta);
+        break;
+      }
+      case 'media':
+        slotLine(nb, [`貴賓名單欄印：媒體接待桌／※記者換證：新聞室(4樓401)／${c.mdStr ? c.mdStr + ' ' : ''}南二1樓Q區大服(開媒體換證櫃到12點)`]);
+        slotLine(nb, ['09:30準備新聞資料QR code立牌(1個，展X組會提供)、簽名簿、簽字筆']);
+        slotLine(nb, ['◎備記者證30張']);
+        break;
+      case 'interp':
+        slotLine(nb, ['貴賓名單欄印：同步口譯設備桌／※典禮中英文進行']);
+        slotLine(nb, ['接待人員欄末行印：(翻譯機', makeMiniInput(st, 'machines', '套數', '64px'), '套)']);
+        slotLine(nb, ['◎09:00擺放口譯機器於貴賓座位，結束後回收，請【接待人員第1位】寫編號，結束請活動組協助回收口譯機']);
+        slotLine(nb, ['◎口譯設備請拍報銷照片(口譯老師、口譯設備、口譯間、貴賓使用狀況各1張)']);
+        slotLine(nb, ['◎口譯老師10:00抵達']);
+        slotLine(nb, [makeMiniInput(st, 'teacher', '口譯老師姓名', '130px'), '老師']);
+        break;
+      case 'elevator':
+        slotLine(nb, ['◎預計控', makeMiniInput(st, 'elevNums', '例如 3、5', '90px'), '號電梯']);
+        slotLine(nb, ['◎電梯控制牌4個：']);
+        slotLine(nb, ['B1、1F、4F、7F']);
+        break;
+      case 'chairlounge':
+        slotLine(nb, ['貴賓名單欄印：', makeMiniInput(st, 'floor', '例如 4樓R區', '110px'), '貴賓室(董事長專用)']);
+        slotLine(nb, ['◎貴賓室茶水:']);
+        slotLine(nb, [(c.dayStr || '(當天日期)'), '8:30請', makeSlot(st.slots, 'water'), '確認(請拍照)']);
+        break;
+      case 'pressWater':
+        slotLine(nb, ['◎請拍報銷照片']);
+        slotLine(nb, ['南港展覽館2館 4樓401會議室']);
+        slotLine(nb, ['南港展覽館1館 4樓新聞中心']);
+        break;
+      case 'noBroadcast':
+        slotLine(nb, ['禁止時段 09:00-12:00']);
+        break;
+      case 'onsite':
+        slotLine(nb, ['貴賓名單欄印：開幕典禮場內作業：請確認揭幕合影貴賓抵達狀況']);
+        rehearsalNoteText(c).split('\n').forEach(l => slotLine(nb, [l]));
+        break;
+      case 'mc':
+        rehearsalNoteText(c).split('\n').forEach(l => slotLine(nb, [l]));
+        break;
+      case 'control':
+        rehearsalNoteText(c).split('\n').forEach(l => slotLine(nb, [l]));
+        break;
+    }
+    return row;
+  }
+
+  function renderReceptionList() {
+    if (!receptionListEl) return;
+    ensureReceptionOrder();
+    receptionListEl.innerHTML = '';
+    if (rollcallOfficers.length === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'empty-sub';
+      hint.style.padding = '12px 0';
+      hint.textContent = '尚未有貴賓。請先在上方「貴賓唱名名單」加入並排序，接待計畫會依唱名順序自動帶入（下方固定工作桌仍可先行安排）。';
+      receptionListEl.appendChild(hint);
+    }
+    receptionOrder.forEach((tok, pos) => {
+      let row = null;
+      if (tok.type === 'guest') {
+        const r = getRecordById(tok.id);
+        if (!r) return;
+        row = renderGuestRow(r, pos + 1);
+      } else {
+        row = renderStationRow(tok.key, pos + 1);
+      }
+      attachRowReorder(row, pos);
+      receptionListEl.appendChild(row);
+    });
+  }
+
+  // 唱名名單一有變動（新增/移除/拖曳排序），接待計畫清單同步跟著更新
+  const _origRenderRollcallList = renderRollcallList;
+  renderRollcallList = function () {
+    _origRenderRollcallList();
+    renderReceptionList();
+  };
+
+  // ---- 依唱名順序重排（把手動拖亂的整表復原成：貴賓照唱名順序 → 工作桌照預設順序） ----
+  document.getElementById('reception-resetorder-btn').addEventListener('click', () => {
+    receptionOrder = null;
+    renderReceptionList();
+  });
+
+  // ---- 一鍵把自動備註/接待時間帶入畫面（可再手動修改） ----
+  const receptionAutofillBtn = document.getElementById('reception-autofill-btn');
+  receptionAutofillBtn.addEventListener('click', () => {
+    if (rollcallOfficers.length === 0) {
+      alert('請先在上方「貴賓唱名名單」加入貴賓');
+      return;
+    }
+    const hasNote = rollcallOfficers.some(s => (getReceptionEntry(s.record).note || '').trim() !== '');
+    if (hasNote && !confirm('已有手動填寫的備註，確定要以程序表自動內容覆蓋全部備註嗎？')) return;
+    const ctx = getReceptionContext();
+    rollcallOfficers.forEach(s => {
+      const e = getReceptionEntry(s.record);
+      e.note = buildAutoNote(s.record);
+      // 接待時間：黃志芳固定 09:00-12:00，其他人統一「程序表開始前30分鐘-12:00」
+      e.time = (s.record.nameZh || '').includes('黃志芳') ? '09:00-12:00' : ctx.unified;
+    });
+    // 所有工作桌的接待時間也一起帶入
+    Object.values(stationData).forEach(st => { st.time = ctx.unified; });
+    // 表尾「註」若還是空的，順便帶入模板
+    if (!receptionFooterTa.value.trim()) receptionFooterTa.value = buildFooterTemplate();
+    renderReceptionList();
+  });
+
+  // ================= 接待計畫 Word 生成 =================
+  receptionGenerateBtn.addEventListener('click', () => {
+    if (rollcallOfficers.length === 0) {
+      alert('請先在上方「貴賓唱名名單」加入貴賓，接待計畫會依唱名順序自動帶入');
+      return;
+    }
+    ensureReceptionOrder();
+    const title = genTitleInput.value.trim() || '展覽名稱';
+    const KAI = "'DFKai-SB','標楷體','BiauKai',serif";
+    const c = getReceptionContext();
+
+    // ---- 時間/地點/定位（沿用程序表欄位） ----
+    const y = document.getElementById('sch-year').value.trim();
+    const mo = document.getElementById('sch-month').value.trim();
+    const d = document.getElementById('sch-day').value.trim();
+    let dateStr = '';
+    if (y) dateStr += `${y}.`;
+    if (mo) dateStr += `${Number(mo)}.`;
+    if (d) dateStr += `${Number(d)}`;
+    if (y && mo && d) {
+      const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+      if (!isNaN(dt)) dateStr += `（${'日一二三四五六'[dt.getDay()]}）`;
+    }
+    let clockStr = '', posLine = '';
+    if (c.startMin !== null) {
+      const dur = scheduleOfficers.length > 0 ? (5 + scheduleOfficers.length * 5 + 5 + 30) : 60;
+      clockStr = `${c.f(c.startMin)}-${c.f(c.startMin + dur)}`;
+      posLine = `${c.f(c.startMin - 90)}就定位 服裝:制服`;
+    }
+    const timeLine = `時間：${dateStr}${dateStr && clockStr ? ' ' : ''}${clockStr}`;
+    const placeLine = `地點：${c.venueStr}`;
+    const now = new Date();
+    const genTimeLine = `更新時間：${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    // ---- 表格：依畫面上的整表順序（貴賓與工作桌可混排） ----
+    const tdBase = `border:1px solid #000; padding:6px 8px; vertical-align:top; font-size:12pt; font-family:${KAI};`;
+    let rowsHtml = '';
+    let num = 0;
+    receptionOrder.forEach(tok => {
+      if (tok.type === 'guest') {
+        const r = getRecordById(tok.id);
+        if (!r) return;
+        num++;
+        const e = getReceptionEntry(r);
+        const co = (r.companyZh || '').includes('對外貿易發展協會') ? '本會' : (r.companyZh || '');
+        const line1 = `${co} ${(r.nameZh || '')}${(r.titleZh || '')}`.trim();
+        const mk = guestMark(r);
+        const guestHtml = `<div style="font-weight:bold;">${esc(line1)}</div>`
+          + (mk ? `<div style="font-weight:bold;">${esc(mk)}</div>` : '')
+          + (e.extra.trim() ? `<div>${nl2br(e.extra)}</div>` : '');
+        const staffCol = [...e.staff, ...((e.staffExtra || '').trim() ? [e.staffExtra.trim()] : [])].join('\n');
+        const timeVal = (r.nameZh || '').includes('黃志芳') ? '09:00-12:00' : ((e.time || '').trim() || c.unified);
+        const noteVal = (e.note || '').trim() !== '' ? e.note : buildAutoNote(r);
+        rowsHtml += `
+        <tr>
+          <td style="${tdBase} width:0.9cm; text-align:center;">${num}</td>
+          <td style="${tdBase} width:5.6cm;">${guestHtml}</td>
+          <td style="${tdBase} width:4.4cm;">${nl2br(staffCol)}</td>
+          <td style="${tdBase} width:2.2cm; text-align:center;">${esc(timeVal)}</td>
+          <td style="${tdBase} width:5.7cm;">${nl2br(noteVal)}</td>
+        </tr>`;
+      } else {
+        num++;
+        const st = stationData[tok.key];
+        const parts = stationWordParts(tok.key, c);
+        const timeVal = (st.time || '').trim() || c.unified;
+        rowsHtml += `
+        <tr>
+          <td style="${tdBase} width:0.9cm; text-align:center;">${num}</td>
+          <td style="${tdBase} width:5.6cm;">${nl2br(parts.guest)}</td>
+          <td style="${tdBase} width:4.4cm;">${nl2br(parts.staffTxt)}</td>
+          <td style="${tdBase} width:2.2cm; text-align:center;">${esc(timeVal)}</td>
+          <td style="${tdBase} width:5.7cm;">${nl2br(parts.note)}</td>
+        </tr>`;
+      }
+    });
+
+    // ---- 表尾「註：」：印在表格正下方，一行一項（如原始文件紅框格式） ----
+    const footerTxt = receptionFooterTa.value.trim() || buildFooterTemplate();
+    const footerHtml = `
+        <p style="font-size:12pt; margin:10px 0 2px; font-family:${KAI};">註：</p>` +
+      footerTxt.split('\n').filter(l => l.trim() !== '').map(l =>
+        `<p style="font-size:12pt; margin:2px 0 2px 1.2em; text-indent:-1.2em; padding-left:1.2em; font-family:${KAI};">${esc(l)}</p>`
+      ).join('');
+
+    const thBase = `border:1px solid #000; background:#cccccc; padding:6px; text-align:center; font-weight:bold; font-size:14pt; font-family:${KAI};`;
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8"><title>${esc(title)}接待計畫</title>
+        <style>
+          @page WordSection1 { size:21cm 29.7cm; margin:1.5cm 1.0cm 1.5cm 1.0cm; mso-page-orientation:portrait; }
+          div.WordSection1 { page:WordSection1; }
+        </style>
+      </head>
+      <body style="font-family:${KAI};">
+        <div class="WordSection1">
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:2px; font-family:${KAI};">${esc(title)}</p>
+        <p style="text-align:center; font-size:20pt; font-weight:bold; margin:2px 0 10px; font-family:${KAI};">開幕典禮  接待計畫</p>
+        <p style="font-size:14pt; margin:4px 0; font-family:${KAI};">${esc(timeLine)}</p>
+        <p style="font-size:14pt; margin:4px 0; font-family:${KAI};">${esc(placeLine)}</p>
+        ${posLine ? `<p style="font-size:14pt; font-weight:bold; margin:2px 0; text-align:right; font-family:${KAI};">${esc(posLine)}</p>` : ''}
+        <p style="font-size:12pt; margin:2px 0 6px; text-align:right; font-family:${KAI};">${esc(genTimeLine)}</p>
+        <table align="center" style="width:18.8cm; table-layout:fixed; border-collapse:collapse; margin:6px auto 0;" cellpadding="0" cellspacing="0">
+          <colgroup><col style="width:0.9cm;"><col style="width:5.6cm;"><col style="width:4.4cm;"><col style="width:2.2cm;"><col style="width:5.7cm;"></colgroup>
+          <tr>
+            <td colspan="2" style="${thBase}">貴賓名單</td>
+            <td style="${thBase}">接待人員</td>
+            <td style="${thBase}">接待時間</td>
+            <td style="${thBase}">備註</td>
+          </tr>
+          ${rowsHtml}
+        </table>
+        ${footerHtml}
+        </div>
+      </body>
+      </html>`;
+
+    downloadBlob(html, 'application/msword', `接待計畫${getTimestampSuffix()}.doc`);
+  });
+
+  // 人名列凍結切換（預設凍結，像 Excel 凍結頂端列）
+  const poolWrap = document.getElementById('staff-pool-wrap');
+  const poolPin = document.getElementById('staff-pool-pin');
+  function updatePoolPin(){
+    poolPin.textContent = poolWrap.classList.contains('staff-pool-wrap--stuck') ? '📌 解除凍結' : '📌 凍結人名列';
+  }
+  poolPin.addEventListener('click', () => {
+    poolWrap.classList.toggle('staff-pool-wrap--stuck');
+    updatePoolPin();
+  });
+  updatePoolPin();
+
+  renderReceptionPool();
+  renderReceptionList();
+
+  // ================= 工作檔存讀（Firebase 同步） =================
+  // 每格存：展名、程序表時間/地點/勾選、站位圖/程序表/唱名三份名單(id+致詞類型)、
+  // 接待計畫（每位貴賓的接待人員/時間/備註/附註、12個工作桌、整表順序、表尾註）
+  const WS_N = 5;
+  let WS_META = {}; // slotN -> {name, savedAt, hasData}
+  const wsSlotsEl = document.getElementById('ws-slots');
+  const wsSummaryEl = document.getElementById('ws-summary');
+
+  function wsGatherState(){
+    const val = id => (document.getElementById(id) ? document.getElementById(id).value : '');
+    const chk = id => !!(document.getElementById(id) && document.getElementById(id).checked);
+    const recep = {};
+    receptionData.forEach((v,k)=>{ recep[k]=v; });
+    return {
+      title: genTitleInput.value,
+      sch: {
+        y: val('sch-year'), mo: val('sch-month'), d: val('sch-day'),
+        hh: val('sch-hour'), mi: val('sch-min'),
+        v1: chk('venue-nangang1'), v2: chk('venue-nangang2'), v3: chk('venue-wtc1'),
+        extra: val('schedule-venue-extra'),
+        tentative: chk('schedule-tentative-chk'), bilingual: chk('schedule-bilingual-chk')
+      },
+      selected: selectedOfficers.map(s=>s.record.id),
+      schedule: scheduleOfficers.map(s=>({id:s.record.id, t:s.speechType||null})),
+      rollcall: rollcallOfficers.map(s=>s.record.id),
+      reception: { data: recep, stations: stationData, order: receptionOrder, footer: receptionFooterTa.value }
+    };
+  }
+
+  function wsApplyState(st){
+    if(!st) return;
+    const setV = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v||''; };
+    const setC = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked = !!v; };
+    genTitleInput.value = st.title || '';
+    if(st.sch){
+      setV('sch-year',st.sch.y); setV('sch-month',st.sch.mo); setV('sch-day',st.sch.d);
+      setV('sch-hour',st.sch.hh); setV('sch-min',st.sch.mi);
+      setC('venue-nangang1',st.sch.v1); setC('venue-nangang2',st.sch.v2); setC('venue-wtc1',st.sch.v3);
+      setV('schedule-venue-extra',st.sch.extra);
+      setC('schedule-tentative-chk',st.sch.tentative); setC('schedule-bilingual-chk',st.sch.bilingual);
+    }
+    const byId = id => allRecords.find(r=>r.id===id);
+    selectedOfficers.length=0;
+    (st.selected||[]).forEach((id,i)=>{ const r=byId(id); if(r) selectedOfficers.push({order:i+1,record:r}); });
+    scheduleOfficers.length=0;
+    (st.schedule||[]).forEach((it,i)=>{ const r=byId(it.id); if(r) scheduleOfficers.push({order:i+1,record:r,speechType:it.t||null}); });
+    rollcallOfficers.length=0;
+    (st.rollcall||[]).forEach((id,i)=>{ const r=byId(id); if(r) rollcallOfficers.push({order:i+1,record:r}); });
+    if(st.reception){
+      receptionData.clear();
+      Object.entries(st.reception.data||{}).forEach(([k,v])=>{
+        receptionData.set(k,{staff:v.staff||[],time:v.time||'',note:v.note||'',extra:v.extra||'',staffExtra:v.staffExtra||''});
+      });
+      Object.entries(st.reception.stations||{}).forEach(([k,v])=>{
+        if(stationData[k]) Object.assign(stationData[k], v);
+      });
+      receptionOrder = st.reception.order || null;
+      receptionFooterTa.value = st.reception.footer || receptionFooterTa.value;
+    }
+    renderGenResults();
+    renderScheduleList();
+    renderRollcallResults(); // 會連動重繪唱名與接待計畫
+  }
+
+  function wsRender(){
+    wsSlotsEl.innerHTML='';
+    for(let i=1;i<=WS_N;i++){
+      const m = WS_META['slot'+i] || {};
+      const row=document.createElement('div');
+      row.style.cssText='display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;';
+      row.innerHTML=`
+        <button class="btn ws-save" data-i="${i}" style="padding:9px 14px; font-size:13px;">💾 存 ${i}</button>
+        <button class="btn ws-load" data-i="${i}" style="padding:9px 14px; font-size:13px; ${m.hasData?'':'opacity:.45;'}">📁 讀 ${i}</button>
+        <input class="ws-name" data-i="${i}" type="text" placeholder="填人名/場次" value="${esc(m.name||'')}"
+          style="flex:1; min-width:120px; font-family:inherit; font-size:13px; padding:8px 10px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none;">
+        <span title="${m.hasData?('已存檔 '+(m.savedAt?new Date(m.savedAt).toLocaleString('zh-TW',{hour12:false}):'')):'空'}"
+          style="width:16px; height:16px; border-radius:50%; flex-shrink:0; background:${m.hasData?'#c0392b':'#ddd5c5'}; box-shadow:inset 0 -2px 3px rgba(0,0,0,0.18);"></span>
+        <button class="btn ws-clear" data-i="${i}" style="padding:9px 12px; font-size:13px; color:var(--warn);">✕</button>`;
+      wsSlotsEl.appendChild(row);
+    }
+    wsSummaryEl.textContent = Array.from({length:WS_N},(_,k)=>{
+      const m=WS_META['slot'+(k+1)]||{};
+      return `檔${k+1}:${m.hasData?(m.name||'(未命名)'):'空'}`;
+    }).join('｜');
+
+    wsSlotsEl.querySelectorAll('.ws-save').forEach(b=>b.addEventListener('click', async ()=>{
+      const i=b.dataset.i;
+      const m=WS_META['slot'+i]||{};
+      if(m.hasData && !confirm(`檔${i} 已有「${m.name||'(未命名)'}」的資料，確定覆蓋？`)) return;
+      const name=wsSlotsEl.querySelector(`.ws-name[data-i="${i}"]`).value.trim();
+      try{
+        await setDoc(doc(db,'genWorkspaces','slot'+i),{
+          name, savedAt: Date.now(), state: JSON.stringify(wsGatherState())
+        });
+        alert(`✅ 已存到檔${i}${name?'（'+name+'）':''}`);
+      }catch(e){ alert('存檔失敗：'+e.message); }
+    }));
+    wsSlotsEl.querySelectorAll('.ws-load').forEach(b=>b.addEventListener('click', ()=>{
+      const i=b.dataset.i;
+      const m=WS_META['slot'+i];
+      if(!m||!m.hasData){ alert(`檔${i} 是空的`); return; }
+      if(!confirm(`讀取檔${i}「${m.name||'(未命名)'}」？目前畫面上的選擇會被取代。`)) return;
+      try{ wsApplyState(JSON.parse(m.state)); }
+      catch(e){ alert('讀取失敗：'+e.message); }
+    }));
+    wsSlotsEl.querySelectorAll('.ws-clear').forEach(b=>b.addEventListener('click', async ()=>{
+      const i=b.dataset.i;
+      const m=WS_META['slot'+i];
+      if(!m||!m.hasData){ return; }
+      if(!confirm(`清空檔${i}「${m.name||'(未命名)'}」？（所有人都會看到它被清掉）`)) return;
+      try{ await deleteDoc(doc(db,'genWorkspaces','slot'+i)); }
+      catch(e){ alert('清除失敗：'+e.message); }
+    }));
+    // 人名欄：輸入即同步（存在該格 meta；沒存過資料也可先寫名字占位）
+    wsSlotsEl.querySelectorAll('.ws-name').forEach(inp=>{
+      let t=null;
+      inp.addEventListener('input', ()=>{
+        clearTimeout(t);
+        t=setTimeout(async ()=>{
+          const i=inp.dataset.i;
+          const m=WS_META['slot'+i]||{};
+          try{
+            await setDoc(doc(db,'genWorkspaces','slot'+i),
+              { name: inp.value.trim(), savedAt: m.savedAt||null, state: m.state||null }, { merge:true });
+          }catch(e){}
+        }, 600);
+      });
+    });
+  }
+
+  document.getElementById('ws-wipe-btn').addEventListener('click', async ()=>{
+    if(!confirm('確定洗白全部五格？所有存檔（含人名）都會刪除。')) return;
+    if(!confirm('再確認一次：這個動作無法復原。')) return;
+    try{
+      for(let i=1;i<=WS_N;i++) await deleteDoc(doc(db,'genWorkspaces','slot'+i));
+      alert('✅ 已全部清空');
+    }catch(e){ alert('清除失敗：'+e.message); }
+  });
+
+  // 即時同步：別人存檔/改名，所有開著的頁面立刻看到
+  onSnapshot(collection(db,'genWorkspaces'), snap=>{
+    WS_META={};
+    snap.docs.forEach(d=>{
+      const v=d.data()||{};
+      WS_META[d.id]={ name:v.name||'', savedAt:v.savedAt||null, state:v.state||null, hasData: !!v.state };
+    });
+    wsRender();
+  }, err=>{ console.error('workspaces sync', err); });
+  wsRender();
+
+  if (!receptionFooterTa.value.trim()) receptionFooterTa.value = buildFooterTemplate();
+
+</script>
+
+<style>
+  .gen-pick-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--paper-line);
+    background: #fff; color: var(--navy); font-weight: 700; font-size: 14px; cursor: pointer;
+    flex-shrink: 0; transition: all 0.15s;
+  }
+  .gen-pick-btn:hover { border-color: var(--gold); }
+  .gen-pick-btn--active { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .gen-num-badge {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .gen-drag-handle {
+    cursor: grab; color: var(--ink-soft); font-size: 18px; flex-shrink: 0; padding: 0 2px;
+    user-select: none;
+  }
+  .speech-btns { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .speech-btn {
+    font-family: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px;
+    border: 1px solid var(--paper-line); border-radius: 999px; background: #fff;
+    color: var(--ink-soft); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .speech-btn:hover { border-color: var(--gold); color: var(--navy); }
+  .speech-btn--active { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .gen-drag-item { transition: background 0.1s, opacity 0.1s; }
+  .gen-drag-item--dragging { opacity: 0.4; }
+  .gen-drag-item--over { background: #f2e7d3; border-color: var(--gold); }
+</style>
+
+<style>
+  :root {
+    --navy: #1c2b3a;
+    --navy-light: #2c4258;
+    --gold: #b08d57;
+    --gold-light: #d4b483;
+    --paper: #f4f1ea;
+    --paper-line: #e2ddd0;
+    --ink: #232323;
+    --ink-soft: #75705f;
+    --danger: #a3453b;
+    --ok: #3d6b4f;
+    --warn: #a3762f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 36px 24px 60px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    flex-wrap: wrap; gap: 16px; margin-bottom: 4px;
+  }
+  .header h1 {
+    font-size: 28px; margin: 0 0 6px; color: var(--navy);
+    letter-spacing: 0.08em; font-weight: 800;
+  }
+  .header .subtitle {
+    font-size: 12px; color: var(--ink-soft); letter-spacing: 0.15em;
+    font-family: "Courier New", monospace; text-transform: uppercase;
+  }
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 6px; font-size: 12.5px;
+    color: var(--ink-soft); padding: 6px 12px; background: #fff;
+    border: 1px solid var(--paper-line); border-radius: 999px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #999; }
+  .status-dot--ok { background: var(--ok); }
+  .status-dot--warn { background: var(--warn); }
+
+  .btn {
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 6px; border: 1px solid var(--paper-line);
+    background: #fff; color: var(--navy); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn:hover { border-color: var(--gold); }
+  .btn.spin svg { animation: spin 0.5s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn--primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .btn--primary:hover { background: var(--navy-light); }
+
+  .readonly-btn--active { background: #f2e7d3; border-color: var(--warn); color: var(--warn); }
+
+  hr.divider { border: none; border-top: 2px solid var(--navy); margin: 18px 0 14px; }
+
+  .desc { font-size: 13px; color: var(--ink-soft); margin-bottom: 20px; }
+
+  .search-box {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1px solid var(--paper-line); border-radius: 6px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+  .search-box input {
+    border: none; outline: none; font-size: 14px; flex: 1;
+    font-family: inherit; background: transparent; color: var(--ink);
+  }
+  .search-box input::placeholder { color: #a39d8e; }
+
+  .count-text { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 18px; }
+
+  .card-row {
+    display: flex; align-items: center; gap: 16px;
+    background: #fff; border: 1px solid var(--paper-line); border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 10px;
+    transition: box-shadow 0.15s;
+  }
+  .card-row:hover { box-shadow: 0 2px 8px rgba(28,43,58,0.06); }
+
+  .avatar {
+    width: 72px; height: 72px; border-radius: 50%; overflow: hidden;
+    background: var(--paper-line); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--navy); font-weight: 700; font-size: 24px;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  .info { flex: 1; min-width: 0; }
+  .info__company { font-size: 12px; color: var(--gold); font-weight: 700; margin-bottom: 3px; }
+  .info__name { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .dim { color: var(--ink-soft); font-weight: 400; }
+  .badge {
+    margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--navy-light);
+    background: #eef1f4; padding: 2px 8px; border-radius: 999px;
+  }
+
+  .info__sub { font-size: 12.5px; margin-top: 2px; }
+
+  .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .edit-btn, .delete-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--paper-line);
+    background: none; color: var(--ink-soft); cursor: pointer; font-size: 13px;
+    flex-shrink: 0; transition: all 0.15s;
+  }
+  .edit-btn:hover { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .delete-btn:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 70px 24px; gap: 10px; color: var(--ink-soft);
+  }
+  .empty-seal {
+    width: 64px; height: 64px; border: 2px dashed var(--gold-light); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; color: var(--gold-light); font-weight: 700;
+  }
+  .empty-title { font-size: 15px; font-weight: 700; color: var(--navy); }
+  .empty-sub { font-size: 13px; }
+
+  /* ---------- Modal ---------- */
+  .modal {
+    position: fixed; inset: 0; background: rgba(28,43,58,0.5);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .modal--open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 10px; width: 100%; max-width: 480px;
+    max-height: 90vh; overflow-y: auto; padding: 28px;
+  }
+  .modal-box h2 {
+    font-size: 18px; margin: 0 0 20px; color: var(--navy);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-close {
+    background: none; border: none; font-size: 18px; color: var(--ink-soft); cursor: pointer;
+  }
+  .field-group { margin-bottom: 16px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 480px) { .field-row { grid-template-columns: 1fr; } }
+  .field-group label, .field-row label {
+    display: block; font-size: 12.5px; color: var(--navy-light); font-weight: 600; margin-bottom: 6px;
+  }
+  .field-group label span, .field-row label span { color: var(--ink-soft); font-weight: 400; }
+  .field-group input, .field-row input {
+    width: 100%; font-family: inherit; font-size: 14px; padding: 10px 12px;
+    border: 1px solid var(--paper-line); border-radius: 5px; background: var(--paper);
+    color: var(--ink); outline: none;
+  }
+  .field-group input:focus, .field-row input:focus { border-color: var(--gold); background: #fff; }
+
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--gold); font-weight: 700; margin: 20px 0 10px;
+  }
+
+  .photo-row { display: flex; align-items: center; gap: 14px; }
+  .photo-preview {
+    width: 56px; height: 56px; border-radius: 8px; background: var(--paper);
+    border: 1px solid var(--paper-line); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-placeholder { font-size: 20px; color: #b8b2a0; }
+  .file-btn {
+    font-size: 13px; padding: 9px 14px; border: 1px solid var(--paper-line);
+    border-radius: 5px; background: var(--paper); color: var(--navy); cursor: pointer;
+  }
+
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;
+    border-top: 1px solid var(--paper-line); padding-top: 18px;
+  }
+
+  .note {
+    font-size: 12px; color: var(--ink-soft); line-height: 1.7; margin-top: 28px;
+    padding: 14px 18px; background: #fbf8f1; border-left: 3px solid var(--gold); border-radius: 2px;
+  }
+  .note code { background: #efe9da; padding: 1px 5px; border-radius: 2px; font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="directory-view">
+    <div class="header">
+      <div>
+        <h1>長官中英一覽表</h1>
+        <div class="subtitle">Executive Bilingual Directory</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+        <button id="gen-entry-btn" class="btn btn--primary" style="font-size:15px; font-weight:700; padding:12px 28px; box-shadow:0 2px 10px rgba(28,43,58,0.25);">📋 活動組專用</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+          <a href="https://taitraaah09-sudo.github.io/VIP_ROOM/" target="_blank" rel="noopener" class="btn" style="text-decoration:none; font-size:13.5px;">🚪 貴賓室使用查詢</a>
+          <a href="https://taitraaah09-sudo.github.io/search/gurus.html" target="_blank" rel="noopener" class="btn" style="text-decoration:none; font-size:13.5px;">👥 處內主管出席一覽表</a>
+          <a href="https://taitraaah09-sudo.github.io/search/schedule.html" target="_blank" rel="noopener" class="btn" style="text-decoration:none; font-size:13.5px;">📅 活動日程表</a>
+        </div>
+        <div class="toolbar">
+          <span class="status-pill"><span id="status-dot" class="status-dot"></span><span id="status-text">連接中…</span></span>
+          <button id="refresh-btn" class="btn">↻ 重新整理</button>
+          <button id="add-btn" class="btn btn--primary" style="display:none">＋ 新增</button>
+          <button id="readonly-btn" class="btn">🔒 編輯模式</button>
+        </div>
+        <div id="backup-row" style="display:none; gap:10px;">
+          <button id="backup-btn" class="btn">💾 備份下載</button>
+          <button id="restore-btn" class="btn">📥 還原匯入</button>
+          <input id="restore-file-input" type="file" accept=".json,application/json" style="display:none">
+        </div>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="desc" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span>此名錄由團隊共用，任何新增／刪除都會同步給所有使用者</span>
+      <button id="show-all-btn" class="btn" style="font-size:12px; padding:5px 10px;">👁 出現全部</button>
+      <button id="hide-all-btn" class="btn" style="font-size:12px; padding:5px 10px;">🙈 隱藏全部</button>
+    </div>
+
+    <div class="search-box">
+      <span>🔍</span>
+      <input id="search-input" type="text" placeholder="模糊搜尋：輸入公司、長官姓名或職稱的任一字，例如「總」…">
+    </div>
+    <div id="count-text" class="count-text">共收錄 0 筆 ／ 目前顯示 0 筆</div>
+
+    <div id="list"></div>
+    <div id="empty-state" class="empty-state">
+      <div class="empty-seal">印</div>
+      <div class="empty-title">目前還沒有任何資料</div>
+      <div class="empty-sub">點擊右上角「新增」建立第一筆資料</div>
+    </div>
+
+    <div class="note">
+      <strong>連接你自己的 Firebase：</strong>打開檔案原始碼，找到 <code>firebaseConfig</code>，
+      貼上 Firebase Console 取得的設定即可。未連接前為示範模式，重新整理頁面資料會消失。
+    </div>
+    </div>
+
+    <!-- 專卷資料產生器 -->
+    <div id="generator-view" style="display:none">
+      <div class="header">
+        <div>
+          <h1>活動組專用</h1>
+          <div class="subtitle">Dossier Photo Sheet Generator</div>
+        </div>
+        <div class="toolbar">
+          <button id="gen-back-btn" class="btn">← 返回一覽表</button>
+        </div>
+      </div>
+      <hr class="divider">
+      <div class="desc">從共用資料庫中挑選貴賓、依點擊順序自動編號，最後匯出成 Word 版合影照片表</div>
+
+            <!-- ================= 工作檔存讀（Firebase 同步，五格） ================= -->
+      <div class="card" style="margin:0 0 22px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <h2 style="margin:0;">工作檔存讀</h2>
+          <span class="desc" style="margin:0;">把目前整頁的選擇（展名、程序表、唱名、接待計畫）存進 Firebase；之後開頁按「讀」即可接續。人名欄標示這格現在誰在用。</span>
+        </div>
+        <div id="ws-slots"></div>
+        <div id="ws-summary" class="desc" style="margin:8px 0 10px;"></div>
+        <button id="ws-wipe-btn" class="btn" style="width:100%; color:var(--warn); border-color:var(--warn); font-weight:800;">🧹 洗白全部</button>
+      </div>
+
+<div class="card" style="margin-bottom:16px;">
+        <h2>展覽名稱</h2>
+        <input id="gen-title-input" type="text" placeholder="例如：2026醫療展開幕典禮合影貴賓照片"
+          style="width:100%; font-family:inherit; font-size:16px; font-weight:700; padding:12px 14px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--navy); outline:none;">
+      </div>
+
+      <div class="search-box">
+        <span>🔍</span>
+        <input id="gen-search-input" type="text" placeholder="模糊搜尋：輸入公司、長官姓名或職稱的任一字…">
+      </div>
+
+      <div id="gen-results" style="margin-bottom: 20px;"></div>
+
+      <div class="card">
+        <h2>已選擇的貴賓（依編號順序，點擊 ✕ 可移除）</h2>
+        <div id="gen-selected-list"></div>
+      </div>
+
+      <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+        <div style="display:inline-flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+            <button id="gen-lineup-word-btn" class="btn btn--primary" style="font-size:14px; padding:12px 24px;">📐 站位圖(Word)</button>
+            <button id="gen-lineup-excel-btn" class="btn" style="font-size:14px; padding:12px 24px;">📊 站位圖(Excel)</button>
+            <button id="gen-generate-btn" class="btn btn--primary" style="font-size:14px; padding:12px 24px;">📄 揭幕及合影貴賓</button>
+          </div>
+          <a href="https://taitraaah09-sudo.github.io/VIP-Photo/" target="_blank" rel="noopener" style="display:block; padding:13px 20px; border:1.5px solid var(--gold); border-radius:6px; background:#fbf8f1; color:var(--navy); font-weight:700; font-size:14px; text-decoration:none; text-align:center; box-sizing:border-box;">🔗 貴賓開幕站位產生器(當你會一直改時打開它)</a>
+          <a href="https://taitraaah09-sudo.github.io/security/" target="_blank" rel="noopener" style="display:block; padding:13px 20px; border:1.5px solid var(--gold); border-radius:6px; background:#fbf8f1; color:var(--navy); font-weight:700; font-size:14px; text-decoration:none; text-align:center; box-sizing:border-box;">🛡️ 維安簡報 點我 (使用前請先讀檔，會自動連動)</a>
+          <a href="https://taitraaah09-sudo.github.io/search/activity.html" target="_blank" rel="noopener" style="display:block; padding:13px 20px; border:1.5px solid var(--gold); border-radius:6px; background:#fbf8f1; color:var(--navy); font-weight:700; font-size:14px; text-decoration:none; text-align:center; box-sizing:border-box;">🪑 席次圖生產系統 & 手機查詢系統</a>
+        </div>
+      </div>
+
+      <!-- ================= 程序表順序貴賓 ================= -->
+      <div class="card" style="margin-top:26px;">
+        <h2 style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          程序表順序貴賓（依編號順序，點擊 ✕ 可移除）
+          <label style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:5px; color:var(--warn); cursor:pointer; user-select:none;">
+            <input type="checkbox" id="schedule-tentative-chk" style="width:16px; height:16px; cursor:pointer;"> (暫定)
+          </label>
+          <label style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:5px; color:var(--navy-light); cursor:pointer; user-select:none;">
+            <input type="checkbox" id="schedule-bilingual-chk" style="width:16px; height:16px; cursor:pointer;"> 中英版
+          </label>
+        </h2>
+        <div id="schedule-selected-list"></div>
+
+        <div style="margin-top:18px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:14px;">
+          <span style="font-size:13.5px; font-weight:700; color:var(--navy-light); flex-shrink:0;">時間：</span>
+          <input id="sch-year" type="text" inputmode="numeric" placeholder="YYYY" style="width:72px; font-family:inherit; font-size:14px; padding:10px 8px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none; text-align:center;">
+          <span>年</span>
+          <input id="sch-month" type="text" inputmode="numeric" placeholder="MM" style="width:52px; font-family:inherit; font-size:14px; padding:10px 8px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none; text-align:center;">
+          <span>月</span>
+          <input id="sch-day" type="text" inputmode="numeric" placeholder="DD" style="width:52px; font-family:inherit; font-size:14px; padding:10px 8px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none; text-align:center;">
+          <span>日</span>
+          <span style="margin-left:10px;">上午</span>
+          <input id="sch-hour" type="text" inputmode="numeric" placeholder="XX" style="width:52px; font-family:inherit; font-size:14px; padding:10px 8px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none; text-align:center;">
+          <span>時</span>
+          <input id="sch-min" type="text" inputmode="numeric" placeholder="NN" style="width:52px; font-family:inherit; font-size:14px; padding:10px 8px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none; text-align:center;">
+          <span>分</span>
+          <span style="font-size:12px; color:var(--ink-soft); margin-left:8px;">（皆選填；填了時間，Word 程序表會自動照它排時程）</span>
+        </div>
+
+        <div style="margin-top:12px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <span style="font-size:13.5px; font-weight:700; color:var(--navy-light); flex-shrink:0;">地點：</span>
+          <label style="font-size:13.5px; display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+            <input type="checkbox" id="venue-nangang1" style="width:15px; height:15px; cursor:pointer;"> 南港一館
+          </label>
+          <label style="font-size:13.5px; display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+            <input type="checkbox" id="venue-nangang2" style="width:15px; height:15px; cursor:pointer;"> 南港二館
+          </label>
+          <label style="font-size:13.5px; display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+            <input type="checkbox" id="venue-wtc1" style="width:15px; height:15px; cursor:pointer;"> 世貿一館
+          </label>
+          <input id="schedule-venue-extra" type="text" placeholder="其他地點自由填寫…"
+            style="flex:1; min-width:180px; font-family:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--paper-line); border-radius:5px; background:var(--paper); color:var(--ink); outline:none;">
+        </div>
+
+        <div style="margin-top:16px; text-align:right;">
+          <button id="schedule-generate-btn" class="btn btn--primary" style="font-size:14px; padding:12px 24px;">📋 程序表生成</button>
+        </div>
+      </div>
+
+      <!-- ================= 貴賓唱名名單 ================= -->
+      <div class="search-box" style="margin-top:26px;">
+        <span>🔍</span>
+        <input id="rollcall-search-input" type="text" placeholder="模糊搜尋：輸入公司、長官姓名或職稱的任一字…">
+      </div>
+
+      <div id="rollcall-results" style="margin-bottom: 20px;"></div>
+
+      <div class="card">
+        <h2>貴賓唱名名單順序（依編號順序，點擊 ✕ 可移除）</h2>
+        <div id="rollcall-selected-list"></div>
+        <div style="margin-top:16px; text-align:right;">
+          <button id="rollcall-generate-btn" class="btn btn--primary" style="font-size:14px; padding:12px 24px;">📢 唱名名單生成</button>
+        </div>
+      </div>
+
+      <!-- ================= 接待計畫 ================= -->
+      <div class="card" style="margin-top:26px;">
+        <h2>接待計畫（貴賓依「唱名名單」順序自動帶入）</h2>
+        <div class="desc" style="margin:6px 0 10px;">接待人員：<b>拖曳</b>下方人名到貴賓的「接待人員」欄或備註裡的 <b>XXX</b> 虛線格（也可以先<b>點一下</b>人名、再點目標格）。人名可重複使用、拖拉後不會消失。時間/地點/定位時間沿用上方程序表的欄位；貴賓後面自動接固定工作桌（大門口、貴賓室、接待桌、媒體桌、同步口譯、電梯控制、董事長貴賓室、新聞室茶水、禁止廣播、場內作業、司儀、現場掌控）。每一列左側 ⠿ 按住拖曳可上下移動整表順序；拖曳時把游標移到視窗上/下邊緣會自動捲動。</div>
+        <div id="staff-pool-wrap" class="staff-pool-wrap staff-pool-wrap--stuck">
+          <div id="reception-staff-pool" class="staff-pool"></div>
+          <button id="staff-pool-pin" class="pool-pin-btn" type="button">📌 解除凍結</button>
+        </div>
+        <div id="reception-list" style="margin-top:16px;"></div>
+        <div style="margin-top:18px;">
+          <div class="recep-label" style="display:flex; align-items:center; gap:10px;">
+            表尾「註：」（獨立印在表格正下方的編號說明，不是各列的備註欄；一行一項，可自由修改）
+            <button id="reception-footer-reset-btn" class="btn" style="font-size:12px; padding:5px 10px;">↻ 帶入預設模板</button>
+          </div>
+          <textarea id="reception-footer-note" class="recep-ta" rows="6" placeholder="按「↻ 帶入預設模板」或「⚡」自動填入，可再修改襄儀人數、公關窗口等"></textarea>
+        </div>
+        <div style="margin-top:16px; display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+          <button id="reception-resetorder-btn" class="btn" style="font-size:14px; padding:12px 24px;">↕ 依唱名順序重排整表</button>
+          <button id="reception-autofill-btn" class="btn" style="font-size:14px; padding:12px 24px;">⚡ 依程序表自動帶入備註</button>
+          <button id="reception-generate-btn" class="btn btn--primary" style="font-size:14px; padding:12px 24px;">🤝 接待計畫生成</button>
+        </div>
+      </div>
+
+      <style>
+        .staff-pool { display:flex; flex-wrap:wrap; gap:8px; }
+        .staff-pool-wrap { display:flex; align-items:flex-start; gap:10px; }
+        .staff-pool-wrap .staff-pool { flex:1; }
+        /* 凍結在視窗頂部（像 Excel 凍結窗格）：捲到下方拖人名時，人名列一直在最上面 */
+        .staff-pool-wrap--stuck {
+          position:sticky; top:0; z-index:30; background:#fff;
+          padding:10px 6px; margin:0 -6px;
+          border-bottom:1px solid var(--paper-line);
+          box-shadow:0 10px 16px -12px rgba(28,43,58,0.4);
+        }
+        .pool-pin-btn {
+          flex-shrink:0; font-family:inherit; font-size:12px; font-weight:700;
+          padding:7px 11px; border:1px solid var(--paper-line); border-radius:6px;
+          background:#fff; color:var(--navy-light); cursor:pointer; white-space:nowrap;
+        }
+        .pool-pin-btn:hover { border-color:var(--gold); color:var(--gold); }
+        .staff-chip {
+          padding:7px 12px; border:1px solid var(--paper-line); border-radius:999px; background:#fff;
+          font-size:13px; font-weight:600; color:var(--navy); cursor:grab; user-select:none; transition:all .15s;
+        }
+        .staff-chip:hover { border-color: var(--gold); box-shadow:0 1px 4px rgba(28,43,58,0.12); }
+        .staff-chip--armed { background: var(--navy); color:#fff; border-color: var(--navy); }
+        .recep-row { background:#fff; border:1px solid var(--paper-line); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+        .recep-grid { display:grid; grid-template-columns: 1.15fr 1fr 0.55fr 1.15fr; gap:10px; margin-top:10px; }
+        @media (max-width:760px) { .recep-grid { grid-template-columns:1fr; } }
+        .recep-label { font-size:11.5px; font-weight:700; color:var(--navy-light); margin-bottom:4px; }
+        .recep-input, .recep-ta {
+          width:100%; font-family:inherit; font-size:13px; padding:8px 10px; border:1px solid var(--paper-line);
+          border-radius:5px; background:var(--paper); color:var(--ink); outline:none; box-sizing:border-box;
+        }
+        .recep-input:focus, .recep-ta:focus { border-color:var(--gold); background:#fff; }
+        .recep-ta { resize:vertical; min-height:48px; }
+        .recep-drop {
+          min-height:48px; border:1.5px dashed var(--paper-line); border-radius:6px; padding:6px;
+          display:flex; flex-wrap:wrap; gap:6px; align-content:flex-start; background:var(--paper); cursor:pointer;
+        }
+        .recep-drop--over { border-color:var(--gold); background:#f2e7d3; }
+        .recep-tag {
+          display:inline-flex; align-items:center; gap:6px; background:var(--navy); color:#fff;
+          border-radius:999px; padding:4px 8px 4px 12px; font-size:12.5px; font-weight:600;
+        }
+        .recep-tag button { background:none; border:none; color:#fff; cursor:pointer; font-size:12px; padding:0; }
+        .recep-tag button:hover { color:var(--gold-light); }
+        .recep-row--station { background:#fbf8f1; border-color:var(--gold-light); }
+        .slot-note { font-size:13px; line-height:2; color:var(--ink); background:#fff; border:1px solid var(--paper-line); border-radius:6px; padding:8px 10px; }
+        .slot-line { min-height:22px; }
+        .slot-box {
+          display:inline-flex; align-items:center; gap:5px; vertical-align:middle; margin:0 3px;
+          padding:2px 10px; border:1.5px dashed var(--gold); border-radius:999px;
+          font-size:12px; font-weight:700; color:var(--gold); background:#fff; cursor:pointer; user-select:none;
+        }
+        .slot-box--filled { border-style:solid; background:var(--navy); border-color:var(--navy); color:#fff; }
+        .slot-box--filled button { background:none; border:none; color:#fff; cursor:pointer; font-size:11px; padding:0; }
+        .slot-box--over { background:#f2e7d3; border-color:var(--gold); border-style:solid; }
+        .recep-row--over { border-color:var(--gold); background:#f2e7d3; }
+        .row-drag-handle { cursor:grab; }
+        .row-drag-handle:active { cursor:grabbing; }
+      </style>
+    </div>
+  </div>
+
+  <!-- 密碼輸入 Modal -->
+  <div id="password-modal" class="modal">
+    <div class="modal-box" style="max-width:340px;">
+      <h2>輸入密碼以編輯 <button id="password-close" class="modal-close">✕</button></h2>
+      <div class="field-group">
+        <label>編輯密碼</label>
+        <input id="password-input" type="password" placeholder="請輸入密碼">
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="password-cancel" class="btn">取消</button>
+        <button type="button" id="password-submit" class="btn btn--primary">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="modal">
+    <div class="modal-box">
+      <h2 id="modal-title">新增資料 <button id="modal-close" class="modal-close">✕</button></h2>
+      <form id="modal-form">
+        <div class="field-group">
+          <label>公司名稱（中）<span>選填</span></label>
+          <input id="company-zh" type="text" placeholder="例如：總統府">
+        </div>
+        <div class="field-group">
+          <label>公司名稱（英）<span>選填</span></label>
+          <input id="company-en" type="text" placeholder="例如：Office of the President">
+        </div>
+
+        <div class="section-label">長官資訊</div>
+        <div class="field-group">
+          <label>長官姓名（中）</label>
+          <input id="name-zh" type="text" placeholder="例如：王小明" required>
+        </div>
+        <div class="field-group">
+          <label>長官姓名（英）<span>選填</span></label>
+          <input id="name-en" type="text" placeholder="例如：Wang Xiao-Ming">
+        </div>
+        <div class="field-row">
+          <div>
+            <label>職稱（中）<span>選填</span></label>
+            <input id="title-zh" type="text" placeholder="例如：秘書長">
+          </div>
+          <div>
+            <label>職稱（英）<span>選填</span></label>
+            <input id="title-en" type="text" placeholder="例如：Secretary-General">
+          </div>
+        </div>
+
+        <div class="section-label">照片</div>
+        <div class="photo-row">
+          <div id="photo-preview" class="photo-preview"><span class="photo-placeholder">🖼</span></div>
+          <label class="file-btn">
+            選擇圖片檔案
+            <input id="photo-input" type="file" accept="image/*" style="display:none">
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel" class="btn">取消</button>
+          <button type="submit" class="btn btn--primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
