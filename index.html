@@ -188,6 +188,33 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   <button class="btn-line btn-sm" style="width:100%;" onclick="toggleFixedPages()">⚙ 固定頁內容（安全戒備／平面圖席數／司儀／識別證）— 固定出現在 PPT，需修改才展開</button>
 </div>
 <div id="fixedPagesAdv" style="display:none;">
+<!-- ═══ 長官接待計畫／總統動線 動線文字 ═══ -->
+<div class="card">
+  <h2 style="margin-top:0;">4.5 長官接待計畫／總統動線 動線文字</h2>
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;min-width:260px;">
+      <span class="small-label">長官接待計畫－貴賓室動線（第一段箭頭後文字）</span>
+      <input type="text" id="vipRoomRoute" value="南港1館經貿二路1樓大門→1樓第5貴賓室" style="width:100%;">
+    </div>
+    <div style="flex:1;min-width:260px;">
+      <span class="small-label">長官接待計畫－會場動線（第二段箭頭後文字）</span>
+      <input type="text" id="venueRoute" value="南港1館經貿二路1樓大門→ 4樓開幕典禮會場" style="width:100%;">
+    </div>
+  </div>
+  <div style="margin-top:14px;">
+    <span class="small-label">總統動線（第一頁文字，靠左；每段之間空一行分段，每段第一行會粗體底線）</span>
+    <textarea id="presidentRouteText" style="width:100%;min-height:160px;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13.5px;color:var(--brown);font-family:inherit;">1. 11:00抵達總統動線 – 下車處: (星號)
+南港展覽館1館1樓大門
+
+2. 11:00-11:40總統動線 – 參觀展覽:(J區進K區出)
+詳下頁導覽路線圖
+
+3. 11:40離開總統動線 – 上車處: (星號處)
+南港展覽館1館1樓大門</textarea>
+  </div>
+  <div class="hint" style="margin-top:6px;">總統動線第二頁維持空白標題頁，之後手動貼導覽路線圖即可。</div>
+</div>
+
 <!-- ═══ 安全戒備 / 接待人力（固定頁，可編輯） ═══ -->
 <div class="card">
   <h2 style="margin-top:0;">5️⃣ 安全戒備作業＆接待人力（固定放在程序表後一頁）</h2>
@@ -888,6 +915,9 @@ function collectWork(){
     cerEnd: document.getElementById("cerEnd").value,
     cerPlace: document.getElementById("cerPlace").value,
     progRows, unveilList, photoList,
+    vipRoomRoute: document.getElementById("vipRoomRoute").value,
+    venueRoute: document.getElementById("venueRoute").value,
+    presidentRouteText: document.getElementById("presidentRouteText").value,
     secTitle: document.getElementById("secTitle").value,
     secLines: document.getElementById("secLines").value,
     staffTitle: document.getElementById("staffTitle").value,
@@ -909,6 +939,9 @@ function applyWork(w){
   document.getElementById("cerEnd").value = w.cerEnd||"11:30";
   document.getElementById("cerPlace").value = w.cerPlace||"";
   progRows = w.progRows||[]; unveilList = w.unveilList||[]; photoList = w.photoList||[];
+  if(w.vipRoomRoute!==undefined) document.getElementById("vipRoomRoute").value=w.vipRoomRoute;
+  if(w.venueRoute!==undefined) document.getElementById("venueRoute").value=w.venueRoute;
+  if(w.presidentRouteText!==undefined) document.getElementById("presidentRouteText").value=w.presidentRouteText;
   if(w.secTitle!==undefined) document.getElementById("secTitle").value=w.secTitle;
   if(w.secLines!==undefined) document.getElementById("secLines").value=w.secLines;
   if(w.staffTitle!==undefined) document.getElementById("staffTitle").value=w.staffTitle;
@@ -1050,6 +1083,9 @@ function fitRect(natW,natH,maxW,maxH){
 /* ═══ 重製目前這一份（不影響 存檔1-3 / 展名選項 / 長官一覽表）═══ */
 const SEC_DEFAULT = "國安局勤務人員\n總統府侍衛隊\n南港區憲兵隊\n台北市政府警察局南港分局執勤人員\n本會緊急應變小組4人\n(本會任務編組，配合安全作業)";
 const STAFF_DEFAULT = "主辦單位人力：主管及同仁約25位";
+const VIP_ROOM_ROUTE_DEFAULT = "南港1館經貿二路1樓大門→1樓第5貴賓室";
+const VENUE_ROUTE_DEFAULT = "南港1館經貿二路1樓大門→ 4樓開幕典禮會場";
+const PRESIDENT_ROUTE_DEFAULT = "1. 11:00抵達總統動線 – 下車處: (星號)\n南港展覽館1館1樓大門\n\n2. 11:00-11:40總統動線 – 參觀展覽:(J區進K區出)\n詳下頁導覽路線圖\n\n3. 11:40離開總統動線 – 上車處: (星號處)\n南港展覽館1館1樓大門";
 function resetCurrent(){
   if(!confirm("確定重製目前這一份？（年份、展名選取、程序表、揭幕/合影名單會清空）")) return;
   if(!confirm("再確認一次：只清畫面上這份，存檔1-3、展名選項、長官一覽表都不會動。")) return;
@@ -1066,6 +1102,9 @@ function blankCurrent(){
   document.getElementById("secLines").value = SEC_DEFAULT;
   document.getElementById("staffTitle").value = "主辦單位接待人力安排";
   document.getElementById("staffLines").value = STAFF_DEFAULT;
+  document.getElementById("vipRoomRoute").value = VIP_ROOM_ROUTE_DEFAULT;
+  document.getElementById("venueRoute").value = VENUE_ROUTE_DEFAULT;
+  document.getElementById("presidentRouteText").value = PRESIDENT_ROUTE_DEFAULT;
   unveilList = []; photoList = [];
   document.getElementById("mcTitle").value = "司儀及導覽人員";
   document.getElementById("planSeats").value = "210";
@@ -1270,15 +1309,32 @@ function generatePPT(){
     s.addText([
       {text:t5,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:6}},
       {text:(allNames.length?allNames.join("、"):"（揭幕/合影貴賓）"),options:{fontSize:16,breakLine:true,paraSpaceAfter:6}},
-      {text:"➢ 貴賓室",options:{fontSize:16,breakLine:true,paraSpaceAfter:18}},
+      {text:"➢ "+(document.getElementById("vipRoomRoute").value.trim()||"貴賓室"),options:{fontSize:16,breakLine:true,paraSpaceAfter:18}},
       {text:`${t2} 恭迎${vipLabel}`,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:6}},
       {text:(greeters.length?greeters.join("、"):"（揭幕貴賓）"),options:{fontSize:16,breakLine:true,paraSpaceAfter:6}},
-      {text:"➢ 大門口 → 會場",options:{fontSize:16}}
+      {text:"➢ "+(document.getElementById("venueRoute").value.trim()||"大門口 → 會場"),options:{fontSize:16}}
     ],{x:0.6,y:0.95,w:8.8,h:4.2,color:"000000",fontFace:FONT,valign:"top"});
   })();
 
-  /* ── 總統動線（空頁，僅標題，共2頁）── */
-  (function(){ const s=pptx.addSlide(); slideTitle(s,"總統動線"); })();
+  /* ── 總統動線（第一頁：靠左文字；第二頁：僅標題，放導覽路線圖）── */
+  (function(){
+    const s=pptx.addSlide();
+    slideTitle(s,"總統動線");
+    const txt = document.getElementById("presidentRouteText").value.trim() || PRESIDENT_ROUTE_DEFAULT;
+    const paras = txt.split(/\n\s*\n/).map(p=>p.split("\n").map(l=>l.trim()).filter(l=>l)).filter(p=>p.length);
+    const items = [];
+    paras.forEach((lines,pi)=>{
+      lines.forEach((line,li)=>{
+        items.push({ text:line, options:{
+          bold: li===0, underline: li===0,
+          fontSize: li===0?17:15,
+          breakLine:true,
+          paraSpaceAfter: li===lines.length-1 ? (pi===paras.length-1?0:20) : 4
+        }});
+      });
+    });
+    s.addText(items,{x:0.6,y:0.95,w:5.2,h:4.3,color:"000000",fontFace:FONT,valign:"top",align:"left"});
+  })();
   (function(){ const s=pptx.addSlide(); slideTitle(s,"總統動線"); })();
 
   /* ── 司儀及導覽人員 ── */
