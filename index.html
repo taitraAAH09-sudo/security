@@ -178,9 +178,14 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
 </div>
 
 
+<!-- ═══ 固定頁內容（預設收合） ═══ -->
+<div class="card" style="padding:10px 14px;">
+  <button class="btn-line btn-sm" style="width:100%;" onclick="toggleFixedPages()">⚙ 固定頁內容（安全戒備／平面圖席數／司儀／識別證）— 固定出現在 PPT，需修改才展開</button>
+</div>
+<div id="fixedPagesAdv" style="display:none;">
 <!-- ═══ 安全戒備 / 接待人力（固定頁，可編輯） ═══ -->
 <div class="card">
-  <h2 style="margin-top:0;">5️⃣ 安全戒備作業＆接待人力（固定放在合影頁之後）</h2>
+  <h2 style="margin-top:0;">5️⃣ 安全戒備作業＆接待人力（固定放在程序表後一頁）</h2>
   <div class="row" style="align-items:flex-start;">
     <div style="flex:1;min-width:260px;">
       <input type="text" id="secTitle" value="安全戒備作業" style="width:100%;font-weight:700;">
@@ -237,10 +242,12 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
   <div class="hint" style="margin-top:6px;">照片會自動壓縮後跟工作檔一起存雲端；文字一行一點。沒放照片的格子在 PPT 只留空位＋文字。</div>
 </div>
 
+</div><!-- /fixedPagesAdv -->
+
 <!-- ═══ 產生 ═══ -->
 <div class="card" style="text-align:center;">
   <button class="btn-navy" style="font-size:16px;padding:12px 26px;" onclick="generatePPT()">🎬 產生維安簡報 PPT</button>
-  <div class="hint" style="margin-top:6px;">封面｜程序表｜揭幕＋站位圖｜合影＋站位圖｜安全戒備｜平面圖｜全場席次圖(待補)｜司儀導覽｜識別證-1｜識別證-2｜其他識別證</div>
+  <div class="hint" style="margin-top:6px;">封面｜程序表｜安全戒備｜平面圖｜全場席次圖(待補)｜揭幕＋站位圖｜合影＋站位圖｜揭幕儀式｜長官接待計畫｜司儀導覽｜識別證-1｜識別證-2｜其他識別證</div>
 </div>
 
 <!-- 致詞選人視窗 -->
@@ -1135,9 +1142,6 @@ function generatePPT(){
     });
   }
 
-  if(unveilList.length){ listSlide("揭幕貴賓名單",unveilList); standSlide("揭幕站位圖",unveilList); }
-  if(photoList.length){ listSlide("合影貴賓名單",photoList); standSlide("合影站位圖",photoList); }
-
   /* ── 固定頁：安全戒備作業＋接待人力（可在網頁編輯文字）── */
   (function(){
     const s=pptx.addSlide();
@@ -1216,6 +1220,32 @@ function generatePPT(){
   /* ── 全場席次圖（待補）── */
   (function(){ const s=pptx.addSlide(); slideTitle(s,"全場席次圖 (待補)"); })();
 
+  /* ── 揭幕/合影 名單與站位圖 ── */
+  if(unveilList.length){ listSlide("揭幕貴賓名單",unveilList); standSlide("揭幕站位圖",unveilList); }
+  if(photoList.length){ listSlide("合影貴賓名單",photoList); standSlide("合影站位圖",photoList); }
+
+  /* ── 揭幕儀式（空頁，僅標題）── */
+  (function(){ const s=pptx.addSlide(); slideTitle(s,"揭幕儀式"); })();
+
+  /* ── 長官接待計畫：典禮前5分鐘，揭幕貴賓至1樓大門恭迎 ── */
+  (function(){
+    const s=pptx.addSlide();
+    slideTitle(s,"長官接待計畫");
+    const S = t2m(document.getElementById("cerStart").value||"10:00");
+    const wt = m2t(S-5);
+    let vip = null, greeters = [];
+    if(unveilList.length){
+      vip = unveilList[0]; /* 站位1號＝被恭迎者 */
+      greeters = unveilList.slice(1).map(o=>o.zn+o.zt);
+    }
+    const vipLabel = vip ? vip.zt : "總統";
+    s.addText([
+      {text:`${wt} 恭迎${vipLabel}`,options:{bold:true,underline:true,fontSize:18,breakLine:true,paraSpaceAfter:10}},
+      {text:`由${greeters.length?greeters.join("、"):"（揭幕貴賓）"}接待`,options:{fontSize:16,breakLine:true,paraSpaceAfter:10}},
+      {text:"➢ 南港1館經貿二路1樓大門 → 4樓開幕典禮會場",options:{fontSize:16}}
+    ],{x:0.6,y:1.0,w:8.8,h:3.5,color:"000000",fontFace:FONT,valign:"top"});
+  })();
+
   /* ── 司儀及導覽人員 ── */
   extraSlide(document.getElementById("mcTitle").value.trim()||"司儀及導覽人員",
     extraPages.mc.blocks,
@@ -1256,6 +1286,11 @@ function generatePPT(){
 
   const fname=`${y}${expo}_維安簡報_${todayStr().replaceAll("/","")}.pptx`;
   pptx.writeFile({fileName:fname}).then(()=>console.log("done"));
+}
+
+function toggleFixedPages(){
+  const el = document.getElementById("fixedPagesAdv");
+  el.style.display = (el.style.display==="none") ? "block" : "none";
 }
 
 /* ═══════════ 工具 ═══════════ */
