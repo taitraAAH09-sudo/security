@@ -154,6 +154,7 @@ table.ed input{width:100%;border:1px solid #eee;border-radius:5px;padding:4px 6p
     <button class="btn-gold btn-sm" onclick="if(confirm('會覆蓋目前程序表，確定重新產生？'))buildDefaultProgram()">🔄 依時間重新產生預設程序表</button>
     <button class="btn-line btn-sm" onclick="addProgRow('opening')">＋開場</button>
     <button class="btn-line btn-sm" onclick="openPicker('speech')">＋致詞（選長官）</button>
+    <button class="btn-line btn-sm" onclick="sortSpeeches();renderProg();" title="黃志芳董事長排第一、總統/副總統/行政院長排最後，其餘維持原順序">⇅ 重排致詞順序</button>
     <button class="btn-line btn-sm" onclick="addProgRow('award')">＋頒獎</button>
     <button class="btn-line btn-sm" onclick="addProgRow('unveil')">＋揭幕/合影</button>
     <button class="btn-line btn-sm" onclick="addProgRow('tour')">＋參觀展覽</button>
@@ -610,9 +611,40 @@ function autoSyncNew(i){
       en: o.en ? "Remarks by "+o.en+(o.et?", "+o.et:"")+(o.eo?", "+o.eo:"") : "",
       zh: "【致詞】 "+o.zo+" "+o.zn+o.zt
     });
+    sortSpeeches();
     renderProg();
   }
 }
+/* ═══ 致詞排序規則 ═══
+   1) 黃志芳董事長（主辦單位）永遠第一位致詞
+   2) 總統／副總統／行政院長等元首級永遠最後一位致詞（位階越高越後面）
+   3) 其他致詞者依原本加入順序排在中間
+   只重排「致詞列」，開場、頒獎、揭幕、參觀等其他列的位置完全不動。 */
+const SPEECH_LAST = ["賴清德","蕭美琴","卓榮泰"]; // 越後面代表壓軸；亦比對職稱
+function speechRank(zh){
+  const t = zh || "";
+  if(t.includes("黃志芳")) return -100;                       // 主辦單位 → 最前
+  if(t.includes("賴清德")||t.includes("總統") && !t.includes("副總統")) return 100; // 總統 → 最後
+  if(t.includes("蕭美琴")||t.includes("副總統")) return 90;
+  if(t.includes("卓榮泰")||(t.includes("行政院")&&t.includes("院長"))) return 80;
+  return 0;                                                    // 其他 → 中間
+}
+const isSpeechRow = r => r.zh && r.zh.includes("致詞");
+function sortSpeeches(){
+  // 取出所有致詞列的位置與內容
+  const idxs = [];
+  progRows.forEach((r,i)=>{ if(isSpeechRow(r)) idxs.push(i); });
+  if(idxs.length<2) return;
+  const rows = idxs.map(i=>progRows[i]);
+  const times = idxs.map(i=>progRows[i].time);        // 時段留在原位，內容重新分配
+  rows.sort((a,b)=>{
+    const ra=speechRank(a.zh), rb=speechRank(b.zh);
+    if(ra!==rb) return ra-rb;
+    return 0;                                          // 同級維持原順序（穩定排序）
+  });
+  idxs.forEach((pos,k)=>{ progRows[pos] = { ...rows[k], time: times[k] }; });
+}
+
 function speechInsertIdx(){
   let idx = progRows.findIndex(r=>r.zh && r.zh.includes("致詞") &&
     (r.zh.includes("賴清德")||r.zh.includes("蕭美琴")||r.zh.includes("卓榮泰")));
@@ -796,6 +828,8 @@ function pickSpeakerObj(o){
     en: `Remarks by ${o.en}, ${o.et}, ${o.eo}`,
     zh: `【致詞】 ${o.zo} ${o.zn}${o.zt}`
   });
+  sortSpeeches();   // 黃志芳排第一、元首排最後
+  renderProg();
   closePicker();
 }
 
