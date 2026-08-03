@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>駐臺使節名單校對台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{
+  --ink:#16233a; --ink-2:#41506b; --ink-3:#7c8699;
+  --bg:#e6eaf0; --surface:#ffffff; --line:#ccd3de;
+  --seal:#c0352c;
+  --ok:#1c6f52; --ok-bg:#e4f2ec;
+  --warn:#9a6a06; --warn-bg:#fbf0d8;
+  --miss:#b3302a; --miss-bg:#fae5e3;
+  --new:#2c5aa0; --new-bg:#e3ebf7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans TC",system-ui,-apple-system,"Microsoft JhengHei",sans-serif;
+  font-size:14px;line-height:1.6}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 80px}
+header.masthead{border-bottom:3px double var(--ink);padding-bottom:16px;margin-bottom:22px;
+  display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+h1{font-family:"Noto Serif TC",serif;font-weight:700;font-size:27px;margin:0;letter-spacing:.08em}
+.masthead .sub{color:var(--ink-3);font-size:13px;margin:0 0 3px}
+.stamp{margin-left:auto;border:2px solid var(--seal);color:var(--seal);
+  font-family:"Noto Serif TC",serif;font-weight:700;font-size:12px;padding:7px 9px;
+  line-height:1.25;text-align:center;letter-spacing:.14em;transform:rotate(-6deg);opacity:.9;border-radius:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:18px 20px;margin-bottom:18px}
+.panel h2{font-family:"Noto Serif TC",serif;font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+.step{background:var(--ink);color:#fff;font-size:11px;width:21px;height:21px;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;flex:none}
+.hint{color:var(--ink-3);font-size:12.5px;margin:0 0 14px}
+button{font-family:inherit;font-size:13.5px;font-weight:500;cursor:pointer;
+  border:1px solid var(--ink);background:var(--ink);color:#fff;padding:8px 16px;border-radius:3px;transition:.15s}
+button:hover:not(:disabled){background:#243a5e}
+button.ghost{background:transparent;color:var(--ink)}
+button.ghost:hover:not(:disabled){background:#dde3ec}
+button.big{font-size:16px;padding:13px 30px;font-weight:700;letter-spacing:.05em}
+button.danger{border-color:var(--seal);color:var(--seal);background:transparent}
+button.danger:hover:not(:disabled){background:#fae5e3}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+select,input[type=text],input[type=date]{font-family:inherit;font-size:13.5px;padding:7px 10px;
+  border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink)}
+label.inline{font-size:13px;color:var(--ink-2);display:inline-flex;align-items:center;gap:7px}
+.drop{border:2px dashed var(--line);border-radius:4px;padding:22px;text-align:center;
+  color:var(--ink-3);cursor:pointer;transition:.15s;background:#fafbfc}
+.drop:hover,.drop.over{border-color:var(--seal);background:#fdf6f5;color:var(--ink-2)}
+.drop strong{color:var(--ink);font-weight:500}
+.bar{height:6px;background:#dde3ec;border-radius:3px;overflow:hidden;margin:12px 0 6px}
+.bar>i{display:block;height:100%;background:var(--ink);width:0;transition:width .2s}
+.log{font-size:12px;color:var(--ink-3);max-height:130px;overflow:auto;
+  font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+.meta{display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin-top:10px}
+.meta b{color:var(--ink);font-weight:500}
+.master{border-left:4px solid var(--seal);background:#fbfcfd;padding:14px 16px;border-radius:0 3px 3px 0}
+.master .name{font-family:"Noto Serif TC",serif;font-size:17px;font-weight:700}
+.master .info{font-size:14px;color:var(--ink-2);margin-top:5px;line-height:1.75}
+.master .info b{color:var(--ink);font-weight:500}
+.master .none{color:var(--ink-3);font-size:13.5px}
+.dot{margin-left:auto;font-family:"Noto Sans TC",sans-serif;font-size:11.5px;font-weight:400;
+  color:var(--ink-3);border:1px solid var(--line);border-radius:2px;padding:2px 8px}
+.dot.on{color:var(--ok);border-color:var(--ok)}
+.dot.off{color:var(--miss);border-color:var(--miss)}
+.datechip{display:inline-block;border:1px solid var(--seal);color:var(--seal);border-radius:2px;
+  padding:1px 8px;font-size:12px;font-weight:700;margin-left:8px}
+.scoreboard{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 16px}
+.score{border:1px solid var(--line);border-radius:3px;padding:9px 14px;background:#fff;cursor:pointer;min-width:92px;transition:.15s}
+.score:hover{border-color:var(--ink-3)}
+.score.active{border-color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
+.score .n{font-family:"Noto Serif TC",serif;font-size:23px;font-weight:700;display:block;line-height:1.15}
+.score .l{font-size:11.5px;color:var(--ink-3)}
+.score[data-k=ok] .n{color:var(--ok)} .score[data-k=warn] .n{color:var(--warn)}
+.score[data-k=miss] .n{color:var(--miss)} .score[data-k=blank] .n{color:var(--ink-3)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;font-size:11.5px;letter-spacing:.06em;color:var(--ink-3);
+  border-bottom:1px solid var(--line);padding:8px 9px;white-space:nowrap;position:sticky;top:0;background:var(--surface);z-index:2}
+td{border-bottom:1px solid #eef1f5;padding:9px;vertical-align:top}
+tr.r-ok td{background:var(--ok-bg)} tr.r-warn td{background:var(--warn-bg)}
+tr.r-miss td{background:var(--miss-bg)} tr.r-blank td{background:#f2f4f7}
+tr.r-new td{background:var(--new-bg)}
+tr.r-manual td{background:#e9eef6}
+.t-manual{color:#4a5b7a}
+.okbtn{font-size:11px;padding:2px 7px;margin-top:5px;display:block;width:100%;
+  border-radius:2px;font-weight:400}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:2px;border:1px solid currentColor;white-space:nowrap}
+.t-ok{color:var(--ok)} .t-warn{color:var(--warn)} .t-miss{color:var(--miss)}
+.t-blank{color:var(--ink-3)} .t-new{color:var(--new)}
+.score[data-k=manual] .n{color:#4a5b7a}
+.diff{color:var(--seal);font-weight:500}
+.tblwrap{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:4px;background:#fff}
+.src{font-size:11px;color:var(--ink-3)}
+a{color:var(--new)}
+.empty{padding:40px;text-align:center;color:var(--ink-3)}
+details.help{margin-top:12px;font-size:12.5px;color:var(--ink-2)}
+details.help summary{cursor:pointer;color:var(--ink);font-size:13px}
+textarea{width:100%;min-height:110px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+  border:1px solid var(--line);border-radius:3px;padding:9px;resize:vertical}
+.alert{border:1px solid var(--miss);background:var(--miss-bg);color:var(--miss);
+  padding:10px 13px;border-radius:3px;font-size:13px;margin-top:12px}
+.vlist{font-size:12.5px;margin-top:10px}
+.vlist div{display:flex;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #eef1f5}
+.vlist .vn{flex:1}
+ul.baselist{columns:2;font-size:12px;color:var(--ink-2);margin:8px 0 0;padding-left:18px}
+@media (max-width:640px){h1{font-size:21px}.stamp{display:none}.wrap{padding:18px 12px 60px}
+  th,td{padding:7px 6px;font-size:12px} ul.baselist{columns:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div>
+    <h1>駐臺使節名單校對台</h1>
+    <p class="sub">存一份總檔，每次發通知前按一下查詢，跟外交部官網現況對一次<span id="ver" class="src"></span></p>
+  </div>
+  <div class="stamp">核<br>對<br>訖</div>
+</header>
+
+<!-- 主檔案 -->
+<section class="panel">
+  <h2><span class="step">1</span>目前的總檔案<span id="cloudDot" class="dot">連線中…</span></h2>
+  <div class="master" id="masterCard">
+    <div class="none">還沒有總檔案。上傳一份名單 Excel，之後每次查詢都以它為準。</div>
+  </div>
+  <div class="btnrow" style="margin-top:14px">
+    <button class="ghost" id="btnUploadMaster">上傳／更新總檔案</button>
+    <button class="ghost" id="btnDownloadMaster" disabled>下載目前總檔</button>
+    <button class="ghost" id="btnHistory">版本紀錄</button>
+    <input type="file" id="fileMaster" accept=".xlsx,.xls" hidden>
+  </div>
+
+  <div id="uploadForm" hidden style="margin-top:14px">
+    <div class="drop" id="drop"><strong>把 .xlsx 拖進來</strong>，或點一下選檔
+      <input type="file" id="fileXlsx" accept=".xlsx,.xls" hidden></div>
+    <div class="btnrow" style="margin-top:12px">
+      <label class="inline">押日期 <input type="date" id="stampDate"></label>
+      <label class="inline">更新者 <input type="text" id="stampBy" placeholder="你的名字" size="8"></label>
+      <label class="inline">備註 <input type="text" id="stampNote" placeholder="例如：更新荷蘭、盧森堡" size="22"></label>
+      <button id="btnSaveMaster" disabled>存成新版總檔</button>
+      <button class="ghost" id="btnCancelUpload">取消</button>
+    </div>
+    <div class="src" id="pendingInfo"></div>
+  </div>
+
+  <div id="historyBox" hidden class="vlist"></div>
+  <p class="src" style="margin-top:12px">總檔存在共用的 Firebase，同事開這個網頁看到的都是同一份最新版。</p>
+</section>
+
+<!-- 查詢 -->
+<section class="panel">
+  <h2><span class="step">2</span>查詢外交部現況</h2>
+  <p class="hint">每次發通知前按這裡。會重新讀外交部「駐臺使館」與「駐臺外國機構」全部館別，再跟總檔逐筆核對。</p>
+  <div class="btnrow">
+    <button class="big" id="btnRun" disabled>開始查詢</button>
+    <label class="inline">連線方式
+      <select id="proxy">
+        <option value="auto">自動嘗試（建議）</option>
+        <option value="jina">r.jina.ai</option>
+        <option value="allorigins">allorigins</option>
+        <option value="codetabs">codetabs</option>
+        <option value="direct">直接連線</option>
+      </select>
+    </label>
+    <label class="inline"><input type="checkbox" id="chkCache"> 沿用上次抓到的名單，不重抓</label>
+  </div>
+  <div class="bar"><i id="barFetch"></i></div>
+  <div class="log" id="logFetch">尚未查詢。</div>
+  <div id="fetchAlert"></div>
+  <div class="meta" id="baseMeta" hidden></div>
+
+  <details class="help" id="baseDetails" hidden>
+    <summary>看抓到哪些館（用來確認有沒有漏）</summary>
+    <div class="btnrow" style="margin:10px 0">
+      <button class="ghost" id="btnSaveBase">匯出基準名單 JSON</button>
+      <button class="ghost" id="btnLoadBase">匯入基準名單 JSON</button>
+      <input type="file" id="fileBase" accept=".json" hidden>
+    </div>
+    <ul class="baselist" id="baseList"></ul>
+  </details>
+
+  <details class="help">
+    <summary>抓不到資料怎麼辦</summary>
+    <p>瀏覽器不能直接讀外交部網站，要透過中繼站，公司網路有時會擋。先換一個「連線方式」重試；都不行就用手動貼上：開啟該國頁面 → 全選複製 → 貼進下框 → 解析。</p>
+    <textarea id="pasteBox" placeholder="貼上外交部單一國家頁面的文字內容"></textarea>
+    <div class="btnrow" style="margin-top:8px"><button class="ghost" id="btnPaste">解析貼上的內容</button></div>
+  </details>
+</section>
+
+<!-- 校對通知 -->
+<section class="panel" id="resultPanel" hidden>
+  <h2><span class="step">3</span>校對通知</h2>
+  <div id="verdict"></div>
+  <div class="scoreboard" id="scoreboard"></div>
+  <div class="btnrow" style="margin-bottom:14px">
+    <button id="btnRecheck">只重查有問題的</button>
+    <button id="btnExport">匯出標紅總檔</button>
+    <button class="ghost" id="btnExportDetail">匯出校對明細</button>
+    <button class="ghost" id="btnCopy">複製待確認清單</button>
+    <label class="inline"><input type="checkbox" id="chkNew" checked> 列出「外交部有、總檔沒有」的館</label>
+  </div>
+  <div class="tblwrap">
+    <table id="tbl">
+      <thead><tr>
+        <th style="width:78px">狀態</th><th>館名</th><th>總檔上的姓名</th><th>外交部現況</th><th style="width:180px">說明</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<script type="module">
+/* ══ Firebase 設定：要換專案改這一段就好 ══ */
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getDatabase,ref,onValue,set,remove,get}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+const FB_CONFIG = {
+  apiKey:"AIzaSyBf6xXcjmAZtdJxnzz5T2-Ds7NT-COlWOY",
+  authDomain:"security-9481e.firebaseapp.com",
+  databaseURL:"https://security-9481e-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"security-9481e",
+  storageBucket:"security-9481e.firebasestorage.app",
+  messagingSenderId:"79511024068",
+  appId:"1:79511024068:web:92ffe9a82a8cd8b7e6b491"
+};
+const ROOT = "envoy";
+const TOOL_VERSION = "2026-08-03j";   // 顯示在標題下方，用來確認大家開的是同一版
+const PARSER_VERSION = 3;             // 解析規則版本；舊版抓的基準名單一律作廢重抓          // 這個工具用的節點，不會動到座位系統的資料
+const KEEP_VERSIONS = 8;
+/* ══════════════════════════════════════ */
+
+let DBOK = false, db = null;
+try{ db = getDatabase(initializeApp(FB_CONFIG)); DBOK = true; }catch(e){ console.error(e); }
+const node = p => ref(db, ROOT + "/" + p);
+
+const LIST_URLS = [
+  {url:"https://www.mofa.gov.tw/Embassy.aspx?n=171&sms=86", kind:"駐臺使館"},
+  {url:"https://www.mofa.gov.tw/OfficesInROC.aspx?n=169&sms=86", kind:"駐臺外國機構"}
+];
+const NAME_LABELS = ["館名","機構名稱","名稱"];
+const PERSON_LABELS = ["機構首長","機構負責人","代表人","首長","大使","代表","處長","館長",
+  "首席代表","總代表","代辦","主任","會長","院長","執行長","商務代表","貿易代表","負責人","總監"];
+// 這些欄位一定不是人名，避免誤抓
+const NON_PERSON = ["館址","地址","通訊地址","電話","傳真","EMAIL","Email","email","網址","網站",
+  "郵遞區號","轄區","資料來源","更新日期","備註","服務時間","辦公時間"];
+// 值裡出現這些字樣才視為人名（給沒列在白名單的欄位當備援）
+const PERSON_HINT = /(Mr\.|Ms\.|Mrs\.|Miss|Dr\.|H\.E\.|Prof\.|Ambassador|Representative|Director|Chargé|Charge d|Head of Office|Chairperson|大使|代表|處長|館長|主任|院長|會長|代辦|首長)/;
+const TITLE_WORDS = ["H.E.","HE","Ambassador","Chargé d'Affaires","Charge d'Affaires","a.i.","Rev.","Monsignor",
+  "Chief Representative","Deputy Representative","Resident Representative","Trade Representative","Representative",
+  "Director General","Executive Director","Acting Director","Managing Director","Director",
+  "Head of Office","Acting Trade Commissioner","Trade Commissioner","Trade Director","Trade Analyst",
+  "Assistant Trade Officer","Chairperson","Secretary General","Mr.","Ms.","Mrs.","Miss","Dr.","Prof.","&"];
+const TITLE_ZH = ["特命全權大使","駐華商務處處長","臨時代辦","代理處長","代理館長","首席代表","商務代表",
+  "貿易代表","貿易專員","外貿特助","副代表","總代表","大使","代表","處長","館長","主任","會長","院長",
+  "執行長","代辦","閣下","總監"];
+const TITLE_SORTED = [...TITLE_WORDS].sort((a,b)=>b.length-a.length);
+const TITLE_ZH_SORTED = [...TITLE_ZH].sort((a,b)=>b.length-a.length);
+
+const PROXIES = {
+  jina:      u => "https://r.jina.ai/" + u,
+  allorigins:u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  codetabs:  u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+  direct:    u => u
+};
+const PROXY_ORDER = ["jina","allorigins","codetabs","direct"];
+
+let BASE = null, MASTER = null, PENDING = null, RESULT = null, FILTER = "all", workingProxy = null;
+let OVERRIDES = {};   // 人工確認過沒問題的列（共用）
+const $ = s => document.querySelector(s);
+const logBox = $("#logFetch");
+function log(m){ logBox.textContent = m + "\n" + logBox.textContent; }
+function setBar(p){ $("#barFetch").style.width = (p*100).toFixed(1)+"%"; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); }
+function today(){ const d=new Date(),p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+
+/* ── 正規化 ── */
+function toHalf(s){ return s.replace(/[\uFF01-\uFF5E]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/\u3000/g," "); }
+function normOrg(s){
+  if(!s) return "";
+  let t = toHalf(String(s)).toLowerCase().replace(/臺/g,"台");
+  t = t.replace(/[\s\u00a0]/g,"").replace(/[，,、。.·．\-–—－_()（）「」【】\[\]"'’‘“”:：;；/／]/g,"");
+  return t.replace(/^the/,"");
+}
+function normName(s){
+  if(!s) return "";
+  let t = toHalf(String(s));
+  const lines = t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  t = (lines.length>1 && /^\(x\)/i.test(lines[0])) ? lines[lines.length-1] : lines.join(" ");
+  t = t.replace(/^\(x\)\s*/i,"");
+  TITLE_SORTED.forEach(w=>{
+    const e = w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const pre = /^[A-Za-z0-9]/.test(w)?"\\b":"", post = /[A-Za-z0-9]$/.test(w)?"\\b":"";
+    t = t.replace(new RegExp(pre+e+post,"gi")," ");
+  });
+  TITLE_ZH_SORTED.forEach(w=>{ t = t.split(w).join(" "); });
+  t = t.replace(/[·．・‧、,.'’\-–—]/g," ");
+  return t.replace(/\s+/g," ").trim().toLowerCase();
+}
+function bigrams(s){ const g=new Set(); for(let i=0;i<s.length-1;i++) g.add(s.slice(i,i+2)); if(s.length===1)g.add(s); return g; }
+function sim(a,b){ if(!a||!b) return 0; if(a===b) return 1;
+  const A=bigrams(a),B=bigrams(b); let h=0; A.forEach(x=>{if(B.has(x))h++;}); return 2*h/(A.size+B.size); }
+function nameMatch(a,b){
+  if(!a||!b) return {score:0};
+  if(a===b) return {score:1};
+  const s = sim(a,b);
+  const ta = a.split(" ").filter(x=>x.length>1), tb = b.split(" ").filter(x=>x.length>1);
+  if(ta.length && tb.length && (ta.every(x=>tb.includes(x)) || tb.every(x=>ta.includes(x))))
+    return {score:Math.max(s,0.95), partial:true};
+  return {score:s};
+}
+
+/* ── 抓取 ── */
+async function grab(url){
+  const sel = $("#proxy").value;
+  const order = sel==="auto"
+    ? (workingProxy ? [workingProxy, ...PROXY_ORDER.filter(p=>p!==workingProxy)] : PROXY_ORDER)
+    : [sel];
+  let last;
+  for(const p of order){
+    try{
+      const ctl = new AbortController();
+      const timer = setTimeout(()=>ctl.abort(), 25000);
+      let r;
+      try{ r = await fetch(PROXIES[p](url), {signal:ctl.signal}); }
+      finally{ clearTimeout(timer); }
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const t = await r.text();
+      if(t.length < 300) throw new Error("內容過短");
+      workingProxy = p; return {text:t, via:p};
+    }catch(e){ last = e; }
+  }
+  throw last || new Error("連線失敗");
+}
+function extractLinks(txt){
+  const set = new Set();
+  const re = /https?:\/\/www\.mofa\.gov\.tw\/(?:Embassy|OfficesInROC)_Content\.aspx\?[^\s"')<>\]]+/gi;
+  let m; while((m = re.exec(txt))) set.add(m[0].replace(/&amp;/g,"&"));
+  return [...set];
+}
+// 把整頁化成「標籤：值」的順序清單（markdown 與 HTML 都吃）
+function toLabelLines(txt){
+  const out = [];
+  if(/<li|<html|<body/i.test(txt)){
+    const doc = new DOMParser().parseFromString(txt,"text/html");
+    doc.querySelectorAll("script,style,nav,header,footer").forEach(n=>n.remove());
+    doc.querySelectorAll("br").forEach(b=>b.replaceWith(doc.createTextNode("\n")));
+    doc.querySelectorAll("li,p,td,dd,div").forEach(n=>{
+      if(n.querySelector("li,p,td")) return;
+      const t = n.textContent.replace(/[ \t]+/g," ").trim();
+      if(t && t.length < 400) out.push(t);
+    });
+  }else{
+    txt.split(/\n/).forEach(l=>{
+      const t = l.replace(/^[-*]\s*/,"").replace(/[ \t]+/g," ").trim();
+      if(t) out.push(t);
+    });
+  }
+  return out;
+}
+// 從頁面標題取國名：「…-澳洲辦事處 Australian Office [澳大利亞聯邦 Commonwealth of Australia]」
+function extractCountry(txt){
+  let title = "";
+  const m1 = txt.match(/<title>([\s\S]*?)<\/title>/i);
+  if(m1) title = m1[1];
+  else { const m2 = txt.match(/^Title:\s*(.+)$/m); if(m2) title = m2[1]; }
+  if(!title) return null;
+  const b = title.match(/\[([^\]]+)\]/);
+  if(!b) return null;
+  const raw = b[1].trim();
+  const i = raw.search(/[A-Za-z]/);
+  const zh = (i > 0 ? raw.slice(0,i) : raw).trim();
+  const en = (i > 0 ? raw.slice(i) : "").trim();
+  return {zh, en};
+}
+
+// 一頁可能有多個機構：遇到「館名」就開新一段
+function parseDetailMulti(txt, url){
+  const country = extractCountry(txt);
+  const lines = toLabelLines(txt);
+  const recs = []; let cur = null;
+  const isName = k => NAME_LABELS.includes(k);
+  const isPerson = k => PERSON_LABELS.includes(k);
+  for(let i=0;i<lines.length;i++){
+    const m = lines[i].match(/^([^：:\n]{1,8})[：:]\s*([\s\S]*)$/);
+    if(!m) continue;
+    const k = m[1].trim();
+    let v = m[2].trim();
+    if(NON_PERSON.includes(k)) continue;
+    const nameField = isName(k);
+    if(!nameField && !isPerson(k) && !PERSON_HINT.test(v)) continue;
+    // 值分兩行放中英文時，把下一行接上
+    if(!v.includes("\n") && lines[i+1] && !/^[^：:\n]{1,8}[：:]/.test(lines[i+1]) && lines[i+1].length<140){
+      const nxt = lines[i+1].trim();
+      if(/^[A-Za-z(]/.test(nxt) || /[A-Za-z]/.test(nxt)!==/[A-Za-z]/.test(v)){ v += "\n"+nxt; i++; }
+    }
+    if(nameField){
+      const [org,orgEn] = splitZhEn(v);
+      cur = {org, orgEn, person:"", personEn:"", title:"", url,
+             countryZh: country ? country.zh : "", countryEn: country ? country.en : ""};
+      recs.push(cur);
+    }else if(cur && !cur.person){
+      const [p,pEn] = splitZhEn(v);
+      cur.person = p; cur.personEn = pEn; cur.title = k;
+    }
+  }
+  return recs.filter(r=>r.org);
+}
+function splitZhEn(s){
+  const parts = String(s).split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length === 1){
+    // 中英黏在一起時，從第一個 ASCII 字母切開
+    const one = parts[0];
+    const idx = one.search(/[A-Za-z(]/);
+    const hasZh = /[\u4e00-\u9fff]/.test(one);
+    if(hasZh && idx > 0) return [one.slice(0,idx).trim(), one.slice(idx).trim()];
+    return hasZh ? [one,""] : ["",one];
+  }
+  const zh = parts.find(x=>/[\u4e00-\u9fff]/.test(x)) || "";
+  const en = parts.find(x=>x!==zh && /[A-Za-z]/.test(x)) || "";
+  return [zh,en];
+}
+
+async function fetchBaseline(){
+  logBox.textContent = ""; setBar(0); $("#fetchAlert").innerHTML = "";
+  log("正在讀取外交部索引頁…");
+  const links = []; const perSource = {};
+  for(const L of LIST_URLS){
+    try{
+      const r = await grab(L.url);
+      const ls = extractLinks(r.text);
+      perSource[L.kind] = ls.length;
+      ls.forEach(u=>links.push({url:u, kind:L.kind}));
+      log(`${L.kind}：索引頁找到 ${ls.length} 個國家（經由 ${r.via}）`);
+    }catch(e){
+      perSource[L.kind] = 0;
+      log(`✗ ${L.kind} 索引頁讀取失敗：${e.message}`);
+    }
+  }
+  const zero = Object.keys(perSource).filter(k=>!perSource[k]);
+  if(zero.length){
+    $("#fetchAlert").innerHTML =
+      `<div class="alert">「${zero.join("、")}」這一份完全沒讀到，屬於這份名單的館別都會顯示「查無此館」。請換一個連線方式重試。</div>`;
+  }
+  if(!links.length){ log("✗ 沒有取得任何國家連結。"); return false; }
+
+  const entries = [];
+  const seen = new Set();
+  const addRecs = (ds, kind) => {
+    ds.forEach(d=>{
+      const key = normOrg(d.org);
+      if(!key || seen.has(key)) return;
+      seen.add(key); d.kind = kind; entries.push(d);
+    });
+  };
+
+  // 跑一輪，回傳這一輪仍然失敗的頁面
+  async function runRound(items, roundLabel){
+    const queue = items.slice();
+    const failed = [];
+    let done = 0;
+    const total = items.length;
+    async function worker(){
+      while(queue.length){
+        const it = queue.shift();
+        try{
+          const r = await grab(it.url);
+          const ds = parseDetailMulti(r.text, it.url);
+          if(ds.length) addRecs(ds, it.kind);
+          else failed.push(it);
+        }catch(e){ failed.push(it); }
+        done++; setBar(done/total);
+        if(done%5===0 || done===total) log(`${roundLabel} ${done}/${total} 個國家，累計取得 ${entries.length} 個館處`);
+      }
+    }
+    await Promise.all([worker(),worker(),worker(),worker()]);
+    return failed;
+  }
+
+  let failed = await runRound(links, "已讀");
+  for(let round=1; round<=3 && failed.length; round++){
+    log(`有 ${failed.length} 個國家頁沒讀到，第 ${round} 次重試…`);
+    await new Promise(r=>setTimeout(r, 1200*round));
+    failed = await runRound(failed, `重試${round}`);
+  }
+
+  if(!entries.length){ log("✗ 沒有解析出任何館別。"); return false; }
+  if(failed.length){
+    $("#fetchAlert").innerHTML =
+      `<div class="alert">重試後仍有 <b>${failed.length}</b> 個國家頁讀不到，這些國家底下的館會顯示「查無此館」。
+        <div style="margin-top:8px"><button class="ghost" id="btnRetry">再重試這 ${failed.length} 頁</button></div>
+        <div class="src" style="margin-top:8px">或直接開這幾頁手動貼上：
+        ${failed.map((f,i)=>`<a href="${f.url}" target="_blank" rel="noopener">頁${i+1}</a>`).join("　")}</div>
+       </div>`;
+    const rb = $("#btnRetry");
+    if(rb) rb.onclick = async () => {
+      rb.disabled = true; rb.textContent = "重試中…";
+      const still = await runRound(failed, "補抓");
+      BASE.entries = entries; BASE.fetchedAt = new Date().toISOString();
+      saveBaseline(); renderBaseMeta();
+      log(still.length ? `補抓後仍有 ${still.length} 頁失敗` : "補抓完成，全部頁面都讀到了");
+      $("#fetchAlert").innerHTML = still.length ? $("#fetchAlert").innerHTML : "";
+      rb.disabled = false; rb.textContent = "再重試";
+      if(MASTER) compare();
+    };
+  }
+  const fail = failed.length;
+
+  BASE = {fetchedAt:new Date().toISOString(), parserVersion:PARSER_VERSION, perSource, entries,
+          failed: failed.map(f=>({url:f.url, kind:f.kind}))};
+  saveBaseline();
+  const cc = $("#chkCache"); cc.disabled = false; cc.parentElement.style.color = "";
+  log(`完成：共 ${entries.length} 個館處` + (fail?`，${fail} 個國家頁重試 3 次後仍未取得`:"，全部頁面都讀到了"));
+  renderBaseMeta();
+  return true;
+}
+
+function staleBaseline(){
+  BASE = null;
+  renderBaseMeta();
+  const c = $("#chkCache");
+  c.checked = false; c.disabled = true;
+  c.parentElement.style.color = "var(--ink-3)";
+  log("雲端／本機的基準名單是舊版解析規則抓的（外交部「機構首長」欄位當時讀不到），已作廢。請直接按查詢重抓一次。");
+}
+function saveBaseline(){
+  try{ localStorage.setItem("mofa_baseline", JSON.stringify(BASE)); }catch(e){}
+  if(DBOK) set(node("baseline"), BASE).catch(e=>console.error(e));
+}
+function renderBaseMeta(){
+  const m = $("#baseMeta");
+  if(!BASE){ m.hidden = true; return; }
+  m.hidden = false;
+  const src = BASE.perSource ? Object.entries(BASE.perSource).map(([k,v])=>`${k} ${v} 國`).join("／") : "";
+  m.innerHTML = `<span>基準名單：<b>${BASE.entries.length}</b> 個館處</span>
+    <span>取得時間：<b>${new Date(BASE.fetchedAt).toLocaleString("zh-TW")}</b></span>
+    ${src?`<span>${src}</span>`:""}`;
+  $("#baseDetails").hidden = false;
+  $("#baseList").innerHTML = BASE.entries
+    .slice().sort((a,b)=>a.org.localeCompare(b.org,"zh-Hant"))
+    .map(e=>`<li>${esc(e.org)} — ${esc(e.person||"（未列）")}</li>`).join("");
+}
+
+function parsePasted(){
+  const txt = $("#pasteBox").value;
+  if(!txt.trim()) return;
+  const ds = parseDetailMulti(txt, "");
+  if(!ds.length){ alert("這段文字裡找不到「館名」欄位，請確認是否複製到整頁內容。"); return; }
+  if(!BASE) BASE = {fetchedAt:new Date().toISOString(), parserVersion:PARSER_VERSION, perSource:{}, entries:[]};
+  ds.forEach(d=>{
+    const i = BASE.entries.findIndex(e=>normOrg(e.org)===normOrg(d.org));
+    if(i>=0) BASE.entries[i] = d; else BASE.entries.push(d);
+  });
+  BASE.fetchedAt = new Date().toISOString();
+  BASE.parserVersion = PARSER_VERSION;
+  $("#pasteBox").value = "";
+  log(`手動加入 ${ds.length} 個館處：` + ds.map(d=>d.org).join("、"));
+  saveBaseline();
+  renderBaseMeta();
+}
+
+/* ── 總檔案（Firebase 共用） ── */
+function setDot(state, text){
+  const d = $("#cloudDot");
+  d.className = "dot " + state;
+  d.textContent = text;
+}
+async function listVersions(){
+  if(!DBOK) return [];
+  try{
+    const snap = await get(node("versions"));
+    const v = snap.val() || {};
+    return Object.values(v).sort((a,b)=>b.id-a.id);
+  }catch(e){ return []; }
+}
+async function saveVersion(meta, fileB64){
+  await set(node("files/"+meta.id), fileB64);   // 原始 xlsx，只有按下載才會抓
+  await set(node("versions/"+meta.id), meta);
+  await set(node("master"), meta);
+}
+async function deleteVersion(id){
+  await remove(node("versions/"+id));
+  await remove(node("files/"+id));
+}
+
+const COL_KEYS = {
+  orgZh:["館名(中文)","館名（中文）","館名中文","單位中文","機構中文"],
+  orgEn:["館名(外文)","館名（外文）","館名外文","單位外文","機構外文","館名(英文)"],
+  nameZh:["姓名(中文)","姓名（中文）","姓名中文","代表中文","中文姓名"],
+  nameEn:["姓名(英文)","姓名（英文）","姓名英文","代表英文","英文姓名","姓名(外文)"]
+};
+function findCols(grid){
+  for(let r=0;r<Math.min(grid.length,15);r++){
+    const row = grid[r]||[], map = {};
+    row.forEach((cell,ci)=>{
+      const c = normOrg(String(cell||"").replace(/^[\*＊]/,""));
+      for(const key in COL_KEYS){
+        if(map[key]!=null) continue;
+        if(COL_KEYS[key].some(k=>c===normOrg(k))) map[key]=ci;
+      }
+    });
+    if(map.orgZh!=null && (map.nameZh!=null||map.nameEn!=null)) return {header:r,map};
+  }
+  return null;
+}
+function parseWorkbook(buf){
+  const wb = XLSX.read(new Uint8Array(buf),{type:"array"});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const grid = XLSX.utils.sheet_to_json(ws,{header:1,defval:"",blankrows:true});
+  const found = findCols(grid);
+  if(!found) return null;
+  const {header,map} = found, rows = [];
+  for(let r=header+1;r<grid.length;r++){
+    const g = grid[r]||[];
+    const orgZh = String(g[map.orgZh]||"").trim();
+    if(!orgZh || /^\d+$/.test(orgZh) || /館名|機構名稱/.test(orgZh)) continue;
+    rows.push({
+      excelRow:r+1, orgZh,
+      orgEn : String(map.orgEn !=null ? g[map.orgEn ]||"" : "").trim(),
+      nameZh: String(map.nameZh!=null ? g[map.nameZh]||"" : "").trim(),
+      nameEn: String(map.nameEn!=null ? g[map.nameEn]||"" : "").trim()
+    });
+  }
+  return {rows, sheet:wb.SheetNames[0]};
+}
+function readPending(file){
+  const rd = new FileReader();
+  rd.onload = e => {
+    const parsed = parseWorkbook(e.target.result);
+    if(!parsed){ alert("找不到「館名(中文)」等欄位標題，請確認上傳的是名單工作表。"); return; }
+    PENDING = {file, buf:e.target.result, ...parsed};
+    $("#pendingInfo").textContent = `${file.name}　工作表「${parsed.sheet}」　讀到 ${parsed.rows.length} 筆`;
+    $("#btnSaveMaster").disabled = false;
+  };
+  rd.readAsArrayBuffer(file);
+}
+function bufToB64(buf){
+  let s = ""; const b = new Uint8Array(buf);
+  for(let i=0;i<b.length;i+=8192) s += String.fromCharCode.apply(null,b.subarray(i,i+8192));
+  return btoa(s);
+}
+function b64ToBuf(b64){
+  const s = atob(b64), a = new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) a[i] = s.charCodeAt(i);
+  return a.buffer;
+}
+async function commitMaster(){
+  if(!PENDING) return;
+  if(!DBOK){ alert("目前沒連上 Firebase，無法存檔。請確認網路後重新整理。"); return; }
+  const by = $("#stampBy").value.trim();
+  try{ localStorage.setItem("envoy_by", by); }catch(e){}
+  const v = {
+    id: Date.now(),
+    fileName: PENDING.file.name,
+    stamp: $("#stampDate").value || today(),
+    note: $("#stampNote").value.trim(),
+    by, sheet: PENDING.sheet, count: PENDING.rows.length,
+    savedAt: new Date().toISOString(),
+    rows: PENDING.rows
+  };
+  const btn = $("#btnSaveMaster"); btn.disabled = true; btn.textContent = "上傳中…";
+  try{
+    await saveVersion(v, bufToB64(PENDING.buf));
+    const all = await listVersions();
+    for(const old of all.slice(KEEP_VERSIONS)) await deleteVersion(old.id);
+    PENDING = null;
+    $("#uploadForm").hidden = true;
+    $("#pendingInfo").textContent = ""; $("#stampNote").value = "";
+    renderHistory();
+  }catch(e){
+    alert("上傳失敗：" + e.message);
+  } finally { btn.textContent = "存成新版總檔"; btn.disabled = !PENDING; }
+}
+function renderMaster(){
+  const c = $("#masterCard");
+  if(!MASTER){
+    c.innerHTML = `<div class="none">還沒有總檔案。上傳一份名單 Excel，之後每次查詢都以它為準。</div>`;
+    $("#btnRun").disabled = true; $("#btnDownloadMaster").disabled = true;
+    return;
+  }
+  c.innerHTML = `<div class="name">${esc(MASTER.fileName)}<span class="datechip">${esc(MASTER.stamp)}</span></div>
+    <div class="info">${MASTER.count} 筆名單　工作表「${esc(MASTER.sheet)}」${MASTER.by?"　更新者：<b>"+esc(MASTER.by)+"</b>":""}${MASTER.note?"　備註：<b>"+esc(MASTER.note)+"</b>":""}</div>`;
+  $("#btnRun").disabled = false; $("#btnDownloadMaster").disabled = false;
+}
+async function renderHistory(){
+  const box = $("#historyBox");
+  const all = await listVersions();
+  if(!all.length){ box.innerHTML = `<div class="src">還沒有版本紀錄。</div>`; return; }
+  box.innerHTML = all.map(v=>`<div>
+    <span class="vn"><b>${esc(v.stamp)}</b>　${esc(v.fileName)}　<span class="src">${v.count} 筆${v.by?"・"+esc(v.by):""}${v.note?"・"+esc(v.note):""}</span></span>
+    <button class="ghost" data-use="${v.id}">設為目前</button>
+    <button class="danger" data-del="${v.id}">刪除</button>
+  </div>`).join("");
+  box.querySelectorAll("[data-use]").forEach(b=>b.onclick = async()=>{
+    const v = (await listVersions()).find(x=>x.id==b.dataset.use);
+    if(v) await set(node("master"), v);   // meta 已含 rows，不需再抓原始檔
+  });
+  box.querySelectorAll("[data-del]").forEach(b=>b.onclick = async()=>{
+    await deleteVersion(Number(b.dataset.del));
+    renderHistory();
+  });
+}
+function watchMaster(){
+  if(!DBOK){ setDot("off","未連上雲端"); return; }
+  onValue(node("master"), snap => {
+    setDot("on","雲端已連線");
+    const v = snap.val();
+    if(!v || !v.rows){ MASTER = null; renderMaster(); return; }
+    MASTER = v;
+    renderMaster();
+  }, err => { setDot("off","雲端連線失敗"); console.error(err); });
+}
+
+/* ── 比對 ── */
+// 館名一律精準比對：以名單上寫的館名去對外交部的館名，對不到就是對不到。
+// 只忽略無意義的差異（臺/台、全半形、空白、括號、破折號、標點）——normOrg 已處理。
+// 模糊比對只用在「人名」，因為職稱與中間名的寫法本來就有出入。
+// 國名可能寫成「澳大利亞、澳洲」或「丹麥王國」，全部拆成可比對的別名
+const CTY_TAIL = /(聯邦|王國|共和國|合眾國|國協|酋長國|公國|大公國|聯合王國)$/;
+const EN_HEAD = /^(the\s+)?(commonwealth|kingdom|republic|state|states|federation|principality|united\s+states)\s+of\s+/i;
+function countryAliases(e){
+  const out = [];
+  String(e.countryZh||"").split(/[、,，\/]/).forEach(x=>{
+    const t = x.trim(); if(!t) return;
+    out.push(t);
+    const stem = t.replace(CTY_TAIL,""); if(stem && stem!==t) out.push(stem);
+  });
+  String(e.countryEn||"").split(/[,\/]/).forEach(x=>{
+    const t = x.trim(); if(!t) return;
+    out.push(t);
+    const stem = t.replace(EN_HEAD,""); if(stem && stem!==t) out.push(stem);
+  });
+  return out;
+}
+// 名單上的館名去掉機構尾綴，取出前面的國家部分：英國在台辦事處 → 英國
+const ORG_TAIL = /(?:在[台臺]北?|駐[台臺]北?)?(?:經濟|文化|貿易|商務|經貿|代表|科技|科學|技術|投資|旅遊|友誼及貿易)*(?:辦事處|代表處|協會|委員會|中心|大使館|總領事館|辦公室|事務所)$/;
+function orgCountryPart(name){
+  const t = String(name||"").trim();
+  if(!t) return "";
+  const cut = t.replace(ORG_TAIL,"").trim();
+  return cut && cut.length>=2 && cut!==t ? cut : "";
+}
+
+// 這一列的識別碼：館名＋名單姓名＋外交部姓名。任何一邊改了，先前的人工確認就自動失效
+function ovKey(row, e){
+  const s = normOrg(row.orgZh) + "|" + normName(row.nameZh) + "/" + normName(row.nameEn)
+          + "|" + (e ? normName(e.person) + "/" + normName(e.personEn) : "NONE");
+  let h = 5381;
+  for(let i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0;
+  return "k" + h.toString(36);
+}
+async function setOverride(key, on){
+  const by = (()=>{ try{ return localStorage.getItem("envoy_by")||""; }catch(e){ return ""; } })();
+  if(on){
+    const v = {by, at:new Date().toISOString()};
+    OVERRIDES[key] = v;
+    if(DBOK) await set(node("overrides/"+key), v);
+  }else{
+    delete OVERRIDES[key];
+    if(DBOK) await remove(node("overrides/"+key));
+  }
+  compare();
+}
+
+function compare(){
+  const rows = MASTER.rows, ents = BASE.entries;
+  const idxZh = new Map(), idxEn = new Map(), idxCty = new Map();
+  const put = (map,k,i) => { if(!k) return; if(!map.has(k)) map.set(k,[]); map.get(k).push(i); };
+  ents.forEach((e,i)=>{
+    put(idxZh, normOrg(e.org), i);
+    put(idxEn, normOrg(e.orgEn), i);
+    countryAliases(e).forEach(a=>put(idxCty, normOrg(a), i));
+  });
+  const taken = {};
+  const pick = list => {
+    if(!list || !list.length) return undefined;
+    const free = list.find(i=>!taken[i]);
+    return free !== undefined ? free : list[0];   // 名單上重複的館可共用同一筆
+  };
+  // 對不到時，找出外交部最接近的館名當線索（僅供參考，不當成配對結果）
+  const closest = row => {
+    const k = normOrg(row.orgZh); if(!k) return null;
+    let best = null, bs = 0;
+    ents.forEach(e=>{ const s = sim(k, normOrg(e.org)); if(s>bs){ bs=s; best=e; } });
+    return bs >= 0.4 ? {org:best.org, pct:Math.round(bs*100)} : null;
+  };
+
+  const out = [];
+  rows.forEach(row=>{
+    // 一、中文館名精準比對 → 二、英文館名 → 三、國名（只有唯一對應時才採用）
+    let ei = pick(idxZh.get(normOrg(row.orgZh)));
+    if(ei === undefined) ei = pick(idxEn.get(normOrg(row.orgEn)));
+    if(ei === undefined){
+      const keys = [row.orgZh, row.orgEn, orgCountryPart(row.orgZh), orgCountryPart(row.orgEn)]
+        .filter(Boolean).map(normOrg);
+      for(const k of keys){
+        const c = idxCty.get(k);
+        if(c && c.length===1){ ei = pick(c); break; }   // 只在唯一對應時採用
+      }
+    }
+    if(ei === undefined){
+      const c = closest(row);
+      out.push({row, status:"miss",
+        note: c ? `外交部名單沒有同名的館。最接近的是「${c.org}」（相似 ${c.pct}%），確認是不是改了名稱`
+                : "外交部名單沒有同名的館，確認館名寫法或該館是否已裁撤"});
+      return;
+    }
+    taken[ei] = 1;
+    const e = ents[ei];
+    if(!e.person && !e.personEn){ out.push({row,entry:e,status:"blank",
+      note:"外交部頁面沒有列出機構首長，無法核對，請自行上網確認"}); return; }
+    if(!row.nameZh && !row.nameEn){ out.push({row,entry:e,status:"blank",
+      note:"總檔沒填姓名，請照右邊外交部現況補上"}); return; }
+    const en = nameMatch(normName(row.nameEn), normName(e.personEn));
+    const zh = nameMatch(normName(row.nameZh), normName(e.person));
+    const score = Math.max(en.score, zh.score);
+    if(score >= 0.88){
+      out.push({row,entry:e,status:"ok",
+        note:(en.partial||zh.partial)&&score<1 ? "同一人，只是寫法詳略不同，可以不改" : "一致"});
+    }else if(score >= 0.5){
+      out.push({row,entry:e,status:"warn",
+        note:"疑似同一人但寫法差很多，請人工比對一次"});
+    }else{
+      out.push({row,entry:e,status:"warn",
+        note:"外交部登記的不是這個人，總檔可能過期，請更新姓名"});
+    }
+  });
+  out.forEach(r=>{
+    r.key = ovKey(r.row, r.entry);
+    const ov = OVERRIDES[r.key];
+    if(r.status !== "ok" && ov){
+      r.origStatus = r.status;
+      r.status = "manual";
+      r.note = "已人工確認沒問題" + (ov.by ? `（${ov.by}）` : "") + (ov.at ? `　${ov.at.slice(0,10)}` : "");
+    }
+  });
+  const extras = ents.filter((e,ei)=>e.person && !taken[ei]);
+  RESULT = {rows:out, extras};
+  render();
+  $("#resultPanel").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+const LABEL = {ok:"一致",manual:"手動確認",warn:"待確認",miss:"查無此館",blank:"缺姓名",new:"總檔未收"};
+function render(){
+  $("#resultPanel").hidden = false;
+  const c = {ok:0,warn:0,miss:0,blank:0,manual:0};
+  RESULT.rows.forEach(r=>c[r.status]++);
+  const need = c.warn + c.blank;   // 手動確認過的不算
+  const items = [];
+  if(c.warn)  items.push(`<li><b>待確認 ${c.warn} 筆</b>：外交部登記的姓名跟總檔不一樣，逐筆看過後把總檔改成外交部的版本</li>`);
+  if(c.blank) items.push(`<li><b>缺姓名 ${c.blank} 筆</b>：總檔或外交部其中一邊沒有姓名，需要自行查證</li>`);
+  if(c.miss)  items.push(`<li><b>查無此館 ${c.miss} 筆</b>：外交部名單裡對不到，確認館名是否更名或已裁撤</li>`);
+  if(RESULT.extras.length) items.push(`<li><b>總檔未收 ${RESULT.extras.length} 館</b>：外交部有但總檔沒有，確認這次要不要一併發送</li>`);
+  const manualNote = c.manual ? `<div style="font-size:12.5px;margin-top:6px">另有 <b>${c.manual}</b> 筆已人工確認沒問題，不列入待處理，匯出時也不會標紅。</div>` : "";
+  $("#verdict").innerHTML = (need || c.miss)
+    ? `<div class="alert">
+        <div style="font-weight:700;margin-bottom:6px">總檔 ${esc(MASTER.stamp)} 版跟外交部現況有出入，建議處理完再發通知</div>
+        <ul style="margin:0 0 8px;padding-left:20px">${items.join("")}</ul>
+        <div style="font-size:12.5px">按「匯出標紅總檔」會拿到原檔並把有問題的整列標紅，改完再回到上面上傳新版、押新日期。查過確定沒問題的，按該列的「標記無誤」就會從清單移除。</div>${manualNote}
+       </div>`
+    : `<div class="alert" style="border-color:var(--ok);background:var(--ok-bg);color:var(--ok)">
+        <b>總檔 ${esc(MASTER.stamp)} 版與外交部現況一致，可以發送。</b>
+        ${RESULT.extras.length?`<div style="font-size:12.5px;margin-top:5px">另有 ${RESULT.extras.length} 館外交部有、總檔沒有，確認是否要一併發送。</div>`:""}${manualNote}
+       </div>`;
+
+  const sb = $("#scoreboard");
+  sb.innerHTML = [["all",RESULT.rows.length,"全部"],["warn",c.warn,LABEL.warn],
+    ["miss",c.miss,LABEL.miss],["blank",c.blank,LABEL.blank],
+    ["manual",c.manual,LABEL.manual],["ok",c.ok,LABEL.ok]]
+    .map(([k,n,l])=>`<div class="score${FILTER===k?" active":""}" data-k="${k}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join("");
+  sb.querySelectorAll(".score").forEach(el=>el.onclick=()=>{FILTER=el.dataset.k;render();});
+
+  const bad = RESULT.rows.filter(r=>r.status!=="ok" && r.status!=="manual").length;
+  $("#btnRecheck").textContent = bad ? `只重查有問題的 ${bad} 筆` : "只重查有問題的";
+  $("#btnRecheck").disabled = !bad;
+
+  const list = RESULT.rows.filter(r=>FILTER==="all"||r.status===FILTER);
+  let html = list.map(r=>{
+    const e = r.entry;
+    const mine = [r.row.nameZh,r.row.nameEn].filter(Boolean).map(esc).join("<br>") || "<i class='src'>（空白）</i>";
+    const theirs = e ? [e.person,e.personEn].filter(Boolean).map(esc).join("<br>") : "—";
+    return `<tr class="r-${r.status}">
+      <td><span class="tag t-${r.status}">${LABEL[r.status]}</span>
+        ${r.status==="ok" ? "" : (r.status==="manual"
+          ? `<button class="ghost okbtn" data-ov="${r.key}" data-on="0">取消標記</button>`
+          : `<button class="ghost okbtn" data-ov="${r.key}" data-on="1">標記無誤</button>`)}</td>
+      <td>${esc(r.row.orgZh)}<div class="src">${esc(r.row.orgEn)}　列 ${r.row.excelRow}</div></td>
+      <td>${mine}</td>
+      <td class="${r.status==="warn"?"diff":""}">${theirs}${e&&e.url?`<div class="src"><a href="${e.url}" target="_blank" rel="noopener">外交部頁面</a>　${esc(e.title||"")}</div>`:""}</td>
+      <td class="src">${esc(r.note)}</td></tr>`;
+  }).join("");
+  if($("#chkNew").checked && FILTER==="all" && RESULT.extras.length){
+    html += RESULT.extras.map(e=>`<tr class="r-new">
+      <td><span class="tag t-new">${LABEL.new}</span></td>
+      <td>${esc(e.org)}<div class="src">${esc(e.orgEn)}</div></td>
+      <td class="src">—</td>
+      <td>${esc(e.person)}<br>${esc(e.personEn)}<div class="src"><a href="${e.url}" target="_blank" rel="noopener">外交部頁面</a></div></td>
+      <td class="src">外交部有這一館，總檔沒有</td></tr>`).join("");
+  }
+  $("#tbl tbody").innerHTML = html || `<tr><td colspan="5" class="empty">這個狀態沒有資料。</td></tr>`;
+  $("#tbl tbody").querySelectorAll("[data-ov]").forEach(b=>{
+    b.onclick = () => setOverride(b.dataset.ov, b.dataset.on === "1");
+  });
+}
+
+// 只針對「待確認／缺姓名／查無此館」重新讀那幾個外交部頁面，不整批重跑
+async function recheckProblems(){
+  if(!RESULT || !BASE) return;
+  const btn = $("#btnRecheck");
+  const urls = new Set();
+  RESULT.rows.forEach(r=>{ if(r.status!=="ok" && r.status!=="manual" && r.entry && r.entry.url) urls.add(r.entry.url); });
+  (BASE.failed||[]).forEach(f=>urls.add(f.url));
+  const list = [...urls];
+  const noUrl = RESULT.rows.filter(r=>r.status==="miss" && !r.entry).length;
+  if(!list.length){
+    alert(noUrl ? `這 ${noUrl} 筆「查無此館」在外交部名單裡沒有對應頁面，重查也抓不到。\n請確認館名寫法，或用下方「手動貼上」補。`
+                : "沒有需要重查的項目。");
+    return;
+  }
+  btn.disabled = true; btn.textContent = "重查中…";
+  logBox.textContent = "";
+  log(`重新讀取 ${list.length} 個外交部頁面…`);
+  setBar(0);
+  let ok = 0, done = 0;
+  const queue = list.slice();
+  async function worker(){
+    while(queue.length){
+      const u = queue.shift();
+      try{
+        const r = await grab(u);
+        const ds = parseDetailMulti(r.text, u);
+        ds.forEach(d=>{
+          const k = normOrg(d.org);
+          const i = BASE.entries.findIndex(e=>normOrg(e.org)===k);
+          if(i>=0){ d.kind = BASE.entries[i].kind; BASE.entries[i] = d; }
+          else { d.kind = ""; BASE.entries.push(d); }
+        });
+        if(ds.length) ok++;
+      }catch(e){}
+      done++; setBar(done/list.length);
+    }
+  }
+  await Promise.all([worker(),worker(),worker()]);
+  BASE.fetchedAt = new Date().toISOString();
+  BASE.failed = [];
+  saveBaseline(); renderBaseMeta();
+  log(`重查完成：${ok}/${list.length} 頁成功`
+      + (noUrl ? `。另有 ${noUrl} 筆查無此館沒有對應頁面，無法重查。` : ""));
+  btn.disabled = false; btn.textContent = "只重查有問題的";
+  compare();
+}
+
+async function exportMarked(){
+  if(!MASTER || !RESULT) return;
+  const btn = $("#btnExport"); btn.disabled = true; btn.textContent = "產生中…";
+  try{
+    const snap = await get(node("files/"+MASTER.id));
+    const b64 = snap.val();
+    if(!b64){ alert("雲端沒有這一版的原始檔，請重新上傳一次總檔。"); return; }
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(b64ToBuf(b64));
+    const ws = wb.getWorksheet(MASTER.sheet) || wb.worksheets[0];
+    const lastCol = Math.max(ws.columnCount || 0, 15);
+    const bad = RESULT.rows.filter(r=>r.status!=="ok" && r.status!=="manual");
+    bad.forEach(r=>{
+      const row = ws.getRow(r.row.excelRow);
+      for(let c=1;c<=lastCol;c++){
+        const cell = row.getCell(c);
+        // 必須整個 style 換新物件，直接改 cell.fill 會污染共用樣式、把別列一起染紅
+        cell.style = {...cell.style, fill:{type:"pattern", pattern:"solid", fgColor:{argb:"FFFFC7CE"}}};
+      }
+      // 把原因寫成註解掛在館名那格，不動任何欄位
+      try{
+        const 外交部 = r.entry ? (r.entry.person + " " + r.entry.personEn).trim() : "（查無）";
+        row.getCell(6).note = {texts:[{text:`【${LABEL[r.status]}】${r.note}\n外交部現況：${外交部}`}]};
+      }catch(e){}
+      row.commit && row.commit();
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const base = MASTER.fileName.replace(/\.xlsx?$/i,"");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${base}_校對${today().replace(/-/g,"")}.xlsx`;
+    a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ alert("產生失敗："+e.message); }
+  finally{ btn.disabled = false; btn.textContent = "匯出標紅總檔"; }
+}
+
+function exportXlsx(){
+  const head = ["Excel列","館名(中文)","館名(外文)","總檔姓名(中文)","總檔姓名(英文)",
+    "校對狀態","外交部姓名(中文)","外交部姓名(英文)","職稱欄位","說明","外交部連結"];
+  const data = RESULT.rows.map(r=>[r.row.excelRow,r.row.orgZh,r.row.orgEn,r.row.nameZh,r.row.nameEn,
+    LABEL[r.status], r.entry?r.entry.person:"", r.entry?r.entry.personEn:"", r.entry?r.entry.title:"",
+    r.note, r.entry?r.entry.url:""]);
+  RESULT.extras.forEach(e=>data.push(["",e.org,e.orgEn,"","",LABEL.new,e.person,e.personEn,e.title,"外交部有這一館，總檔沒有",e.url]));
+  const ws = XLSX.utils.aoa_to_sheet([head,...data]);
+  ws["!cols"]=[{wch:8},{wch:34},{wch:44},{wch:20},{wch:38},{wch:10},{wch:20},{wch:38},{wch:10},{wch:30},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"校對結果");
+  XLSX.writeFile(wb, `校對結果_總檔${MASTER.stamp}_查於${today()}.xlsx`);
+}
+function copyPending(){
+  const lines = RESULT.rows.filter(r=>r.status!=="ok").map(r=>
+    `【${LABEL[r.status]}】${r.row.orgZh}\n　總檔：${r.row.nameZh} ${r.row.nameEn}\n　外交部：${r.entry?(r.entry.person+" "+r.entry.personEn):"（查無）"}`);
+  RESULT.extras.forEach(e=>lines.push(`【${LABEL.new}】${e.org}\n　外交部：${e.person} ${e.personEn}`));
+  const txt = `駐臺使節名單校對　總檔 ${MASTER.stamp}　查詢日 ${today()}\n\n` + (lines.join("\n\n")||"全部一致。");
+  navigator.clipboard.writeText(txt).then(
+    ()=>{ const b=$("#btnCopy"); b.textContent="已複製"; setTimeout(()=>b.textContent="複製待確認清單",1600); },
+    ()=>alert(txt));
+}
+
+/* ── 綁定 ── */
+$("#btnUploadMaster").onclick = () => {
+  $("#uploadForm").hidden = false;
+  $("#stampDate").value = today();
+  $("#historyBox").hidden = true;
+};
+$("#btnCancelUpload").onclick = () => { $("#uploadForm").hidden = true; PENDING=null; $("#pendingInfo").textContent=""; };
+$("#btnSaveMaster").onclick = commitMaster;
+$("#btnHistory").onclick = () => { const b=$("#historyBox"); b.hidden=!b.hidden; if(!b.hidden) renderHistory(); };
+$("#btnDownloadMaster").onclick = async () => {
+  const b = $("#btnDownloadMaster"); b.disabled = true; b.textContent = "取檔中…";
+  try{
+    const snap = await get(node("files/"+MASTER.id));
+    const b64 = snap.val();
+    if(!b64){ alert("雲端沒有這一版的原始檔（可能是舊版本）。"); return; }
+    const blob = new Blob([b64ToBuf(b64)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = MASTER.fileName; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ alert("下載失敗："+e.message); }
+  finally{ b.disabled = false; b.textContent = "下載目前總檔"; }
+};
+const drop = $("#drop");
+drop.onclick = () => $("#fileXlsx").click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over");
+  const f = e.dataTransfer.files[0]; if(f) readPending(f); };
+$("#fileXlsx").onchange = e => { const f = e.target.files[0]; if(f) readPending(f); };
+
+$("#btnRun").onclick = async () => {
+  if(!MASTER) return;
+  const btn = $("#btnRun"); btn.disabled = true; btn.textContent = "查詢中…";
+  try{
+    let ok = true;
+    if(!($("#chkCache").checked && BASE)) ok = await fetchBaseline();
+    else log("沿用上次抓到的基準名單。");
+    if(BASE) compare();
+    else if(!ok) log("沒有基準名單可比對。");
+  } finally { btn.disabled = false; btn.textContent = "開始查詢"; }
+};
+$("#btnPaste").onclick = parsePasted;
+$("#btnSaveBase").onclick = () => {
+  const blob = new Blob([JSON.stringify(BASE,null,1)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "外交部基準名單_"+BASE.fetchedAt.slice(0,10)+".json"; a.click(); URL.revokeObjectURL(a.href);
+};
+$("#btnLoadBase").onclick = () => $("#fileBase").click();
+$("#fileBase").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ev => { try{
+      BASE = JSON.parse(ev.target.result);
+      saveBaseline();
+      renderBaseMeta(); log(`已匯入 JSON：${BASE.entries.length} 個館處`);
+    }catch(err){ alert("這個 JSON 讀不開："+err.message); } };
+  rd.readAsText(f);
+};
+$("#btnRecheck").onclick = recheckProblems;
+$("#btnExport").onclick = exportMarked;
+$("#btnExportDetail").onclick = exportXlsx;
+$("#btnCopy").onclick = copyPending;
+$("#chkNew").onchange = () => { if(RESULT) render(); };
+
+(function init(){
+  try{
+    const by = localStorage.getItem("envoy_by");
+    if(by) $("#stampBy").value = by;
+    const s = localStorage.getItem("mofa_baseline");
+    if(s){
+      const b = JSON.parse(s);
+      if(b.parserVersion === PARSER_VERSION){ BASE = b; renderBaseMeta(); }
+      else { localStorage.removeItem("mofa_baseline"); staleBaseline(); }
+    }
+  }catch(e){}
+  $("#ver").textContent = "　版本 " + TOOL_VERSION;
+  watchMaster();
+  if(DBOK){
+    onValue(node("overrides"), snap => {
+      OVERRIDES = snap.val() || {};
+      if(RESULT && MASTER && BASE) compare();
+    }, ()=>{});
+    onValue(node("baseline"), snap => {
+      const v = snap.val();
+      if(!v || !v.entries) return;
+      if(v.parserVersion !== PARSER_VERSION){ staleBaseline(); return; }
+      if(!BASE || new Date(v.fetchedAt) > new Date(BASE.fetchedAt)){
+        BASE = v;
+        try{ localStorage.setItem("mofa_baseline", JSON.stringify(BASE)); }catch(e){}
+        renderBaseMeta();
+        log(`已同步同事在 ${new Date(v.fetchedAt).toLocaleString("zh-TW")} 抓的基準名單，可勾選「沿用」略過重抓。`);
+      }
+    }, ()=>{});
+  }
+})();
+</script>
+</div>
+</body>
+</html>
