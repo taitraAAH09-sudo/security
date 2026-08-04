@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V23</title>
+<title>盤後篩選台 V24</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -214,7 +214,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V23</span>
+    <h1>盤後篩選台</h1><span class="ver">V24</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -312,6 +312,7 @@ tbody tr{cursor:pointer}
  <div class="mgrid">
   <div class="mleft">
   <div id="warnBox"></div>
+  <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線、成交量與大戶散戶比例。</div></div>
   <div class="perf" id="perf" style="display:none">
     <h3>近 30 交易日表現 · 前 50 檔</h3><div id="perfBody"></div>
   </div>
@@ -332,7 +333,6 @@ tbody tr{cursor:pointer}
   <div class="tblwrap" id="tblwrap">
     <div class="empty"><b>還沒有資料</b>按左邊「更新並篩選」開始。第一次要補歷史，之後每天只要幾秒。</div>
   </div>
-  <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線、成交量與大戶散戶比例。</div></div>
   <div class="note" id="foot"></div>
   </div>
 
@@ -1217,7 +1217,10 @@ window.drawChart=function drawChart(code){
     INSPECTED=code;
     paintBig({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,
       baseDate:DB.dates[DB.dates.length-1],ser:{c,q,h,l,o,d}});
-    big.scrollIntoView({behavior:'smooth',block:'nearest'});
+    big.scrollIntoView({behavior:'smooth',block:'center'});
+    big.style.transition='box-shadow .2s';
+    big.style.boxShadow='0 0 0 3px var(--amber)';
+    setTimeout(()=>{big.style.boxShadow='none';},900);
   }catch(err){
     big.innerHTML=`<div class="ihint" style="padding:24px;color:var(--up);text-align:center">
       畫圖錯誤：${err.message}<br>請把這行貼給我。</div>`;
