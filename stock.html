@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V3</title>
+<title>盤後篩選台 V19</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -41,8 +41,10 @@ a{color:var(--amber)}
 .blk>h2 .lk[aria-pressed=true]{color:var(--amber);border-color:var(--amber-d)}
 
 .guard{position:relative}
-.guard.locked{opacity:.62}
-.guard.locked::after{content:"";position:absolute;inset:-4px;border-radius:5px;background:repeating-linear-gradient(-45deg,transparent,transparent 7px,rgba(38,55,74,.28) 7px,rgba(38,55,74,.28) 14px);cursor:not-allowed}
+.guard.locked{display:none}
+.locknote{display:none;font-size:12px;color:var(--dim);line-height:1.6;padding:6px 0}
+.locknote.show{display:block}
+.locknote b{color:var(--muted)}
 
 label.row{display:flex;align-items:flex-start;gap:9px;padding:7px 0;cursor:pointer}
 label.row input[type=checkbox]{margin-top:4px;accent-color:var(--amber);width:15px;height:15px;flex:0 0 auto;cursor:pointer}
@@ -74,6 +76,17 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .note{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:10px}
 
 /* funnel */
+.grp{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:16px;background:var(--panel)}
+.grp h3{margin:0 0 12px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
+.gcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.gcard{border:1px solid var(--line);border-radius:5px;padding:11px 12px;background:var(--panel2);cursor:pointer;transition:border-color .12s}
+.gcard:hover{border-color:var(--amber)}
+.gcard.on{border-color:var(--amber);background:rgba(242,181,68,.07)}
+.gcard .gt{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.gcard .gt b{font-family:var(--mono);color:var(--amber);font-size:15px}
+.gcard .gd{font-size:11px;color:var(--dim);line-height:1.5}
+.gcard .gcodes{margin-top:7px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;line-height:1.7}
+.gdot{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
 .fun{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:16px;background:var(--panel)}
 .fun h3{margin:0 0 11px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
 .fstep{display:grid;grid-template-columns:132px 1fr 62px;align-items:center;gap:10px;padding:3px 0;font-size:12px}
@@ -110,7 +123,6 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .asof{border:1px solid var(--line);border-radius:5px;padding:7px 11px;margin-bottom:12px;background:var(--panel)}
 .asof span{color:var(--paper);font-size:13px;font-weight:500}
 /* 鎖住時隱藏所有參數欄，只留條件清單 */
-.guard.locked .adv{display:none}
 .chip{display:inline-block;padding:1px 8px;border-radius:3px;font-weight:700;font-size:11.5px}
 .chip.b3{background:var(--up);color:#fff}
 .chip.b2{background:var(--amber);color:var(--ink)}
@@ -153,7 +165,16 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .chk .t{flex:1;min-width:0}
 .chk .t em{display:block;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:1px}
 .chk.dis{opacity:.38}
-.cbig{margin-top:16px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:14px 16px}
+.cbig{margin-top:16px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:16px 20px;transition:border-color .15s,background .15s;font-size:14px}
+.cbig .ihint{font-size:14px;line-height:1.7}
+.cbig .drop-hint{font-size:15px}
+.cbig .bt h4{font-size:12px}
+.cbig .btrow{font-size:13.5px}
+.cbig .ctitle .n{font-size:18px}
+.cbig .ctitle .c{font-size:14px}
+.cbig .ctitle .p{font-size:19px}
+.cbig.dragover{border-color:var(--amber);background:rgba(242,181,68,.06)}
+.chip-drag{cursor:grab}
 .cbig .chd{margin-bottom:6px}
 .cbig .ctitle{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .cbig .ctitle .c{font-family:var(--mono);color:var(--amber);font-weight:700}
@@ -193,7 +214,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V3</span>
+    <h1>盤後篩選台</h1><span class="ver">V19</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -219,6 +240,7 @@ tbody tr{cursor:pointer}
         <button data-v="1" aria-pressed="false">前一天</button>
       </div>
     </div>
+    <div class="locknote show" id="locknote"><b>條件已鎖定</b>，全部套用中。按上方「解鎖」可調整。</div>
     <div class="guard locked" id="guard">
       <label class="row"><input type="checkbox" id="cMA" checked><span class="tx">收盤站上 5/10/20/60 日均線</span></label>
       <label class="row sub2"><input type="checkbox" id="cMAorder" checked><span class="tx">多頭排列<small>MA5 &gt; MA10 &gt; MA20 &gt; MA60</small></span></label>
@@ -232,7 +254,7 @@ tbody tr{cursor:pointer}
       </div>
       <label class="row"><input type="checkbox" id="cBig" checked><span class="tx">大戶持股比例增加<small>集保週資料，要兩週才比得出來</small></span></label>
       <div class="fld sub2 adv"><span>大戶定義</span>
-        <select id="bigLv"><option value="400">400 張以上</option><option value="1000">1000 張以上</option></select>
+        <select id="bigLv"><option value="200" selected>200 張以上</option><option value="400">400 張以上</option><option value="1000">1000 張以上</option></select>
       </div>
       <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口</span></label>
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
@@ -255,6 +277,8 @@ tbody tr{cursor:pointer}
       <label class="row adv"><input type="checkbox" id="mOtc"><span class="tx">一併納入上櫃<small>櫃買 API 常改版，抓不到就取消</small></span></label>
     </div>
     <button class="btn ghost sm" id="btnRun" style="margin-top:12px">只重新篩選（不抓資料）</button>
+    <button class="btn ghost sm" id="btnDiag" style="margin-top:8px">檢查資料完整度</button>
+    <div class="log" id="diagLog"></div>
   </div>
 
   <div class="blk">
@@ -262,7 +286,7 @@ tbody tr{cursor:pointer}
     <button class="btn ghost sm" id="btnTdcc">抓最新一週</button>
     <div class="log" id="tdccLog"></div>
     <div class="note">集保只公布最新一週，每週五之後點一次，累積兩週才算得出增減。抓不到就到
-      <a href="https://opendata.tdcc.com.tw/getOD.ashx?id=1-5" target="_blank">集保開放資料</a>。</div>
+      <a href="https://opendata.tdcc.com.tw/getOD.ashx?id=1-5" target="_blank">集保開放資料</a>。集保網站常擋跨域，自動抓不到時就點連結手動下載，之後我可以再幫你加回上傳。</div>
   </div>
 
   <div class="blk">
@@ -291,6 +315,9 @@ tbody tr{cursor:pointer}
   <div class="perf" id="perf" style="display:none">
     <h3>近 30 交易日表現 · 前 50 檔</h3><div id="perfBody"></div>
   </div>
+  <div class="grp" id="grp" style="display:none">
+    <h3>量價型態分組 · 近 5 日均量基準</h3><div id="grpBody"></div>
+  </div>
   <div class="fun" id="fun" style="display:none">
     <h3>條件漏斗</h3><div id="funBody"></div>
   </div>
@@ -301,13 +328,11 @@ tbody tr{cursor:pointer}
       <button data-v="i" aria-pressed="false">投信</button>
     </div>
     <span class="count" id="cnt"></span>
-    <span class="sp"></span>
-    <button class="btn ghost sm" id="btnCsv" style="width:auto;padding:7px 14px">匯出 CSV</button>
   </div>
   <div class="tblwrap" id="tblwrap">
     <div class="empty"><b>還沒有資料</b>按左邊「更新並篩選」開始。第一次要補歷史，之後每天只要幾秒。</div>
   </div>
-  <div class="cbig" id="cbig"><div class="ihint" style="padding:40px 0;text-align:center">點上面表格任一列，或在右邊輸入代號，這裡會顯示 K 線與勝率回測。</div></div>
+  <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線、成交量與大戶散戶比例。</div></div>
   <div class="note" id="foot"></div>
   </div>
 
@@ -316,6 +341,7 @@ tbody tr{cursor:pointer}
     <div class="ibox">
       <input type="text" id="ipCode" placeholder="輸入代號，如 2330" maxlength="6" inputmode="numeric">
       <button id="ipGo">查</button>
+      <button id="ipChart" title="畫 K 線">📈</button>
     </div>
     <div id="ipBody"><div class="ihint">輸入代號，或直接點左邊表格的任一列。</div></div>
   </aside>
@@ -510,11 +536,32 @@ function trimAll(maxD){
   for(const c in DB.stocks){const s=DB.stocks[c];
     if(!s.c.some(x=>x!=null))delete DB.stocks[c];}
 }
-const validCount=s=>s.c.reduce((a,x)=>a+(x!=null?1:0),0);
+const validCount=s=>Array.isArray(s&&s.c)?s.c.reduce((a,x)=>a+(x!=null?1:0),0):0;
 
 /* ═══ 更新流程 ═══ */
 async function runFetch(){
+  if($('#btnFetch').disabled)return;
   ABORT=false; $('#btnFetch').disabled=true; $('#btnStop').style.display='block'; $('#log').innerHTML='';
+  try{ await doFetch(); }
+  catch(err){ log('更新中止：'+(err&&err.message||err),'err'); }
+  finally{ finish(); }
+}
+// 修正 DB.stocks 裡結構不完整的股票（雲端舊資料常缺 o 或欄位長度不齊）
+function sanitizeDB(){
+  const L=DB.dates.length;
+  for(const c of Object.keys(DB.stocks)){
+    const s=DB.stocks[c];
+    if(!s||typeof s!=='object'){delete DB.stocks[c];continue;}
+    for(const k of ['c','q','h','l','o']){
+      if(!Array.isArray(s[k]))s[k]=new Array(L).fill(null);
+      while(s[k].length<L)s[k].push(null);
+      if(s[k].length>L)s[k].length=L;
+    }
+    if(!s.n)s.n=c; if(!s.m)s.m='上市';
+  }
+}
+async function doFetch(){
+  sanitizeDB();
   if($('#fbAuto').checked&&fbEnd()&&!DB.dates.length){log('先從雲端取回既有資料…');await fbPull(true);}
   const want=Math.max(65,+$('#days').value||100),gap=Math.max(600,+$('#gap').value||1600);
   const nR=+$('#nRank').value||100, otc=$('#mOtc').checked;
@@ -527,11 +574,16 @@ async function runFetch(){
     if(w!==0&&w!==6){ const s=ymd(d0);
       if(DB.insts[s]&&Object.keys(DB.insts[s].f||{}).length){iDays.push(s);}
       else{
+        const isToday=(s===ymd(new Date()));
         try{ const r=await fetchInst(s);
           const nf=Object.keys(r.f).length,ni=Object.keys(r.i).length;
           if(nf||ni){DB.insts[s]={f:r.f,i:r.i};iDays.push(s);log(`法人 ${fmtD(s)} ✓　外資 ${nf} 檔 / 投信 ${ni} 檔`,'ok');}
+          else if(isToday)log(`${fmtD(s)} 今日尚未收盤，略過`);   // 灰字，正常情況
           else log(`${fmtD(s)} 解析到 0 檔（欄位可能又改版了）`,'err');
-        }catch(e){ log(`${fmtD(s)} 法人：${e.message}`,'err'); }
+        }catch(e){
+          if(isToday)log(`${fmtD(s)} 今日尚未收盤，略過`);        // 灰字，正常情況
+          else log(`${fmtD(s)} 法人：${e.message}`,'err');
+        }
         await sleep(gap);
       }
     }
@@ -589,8 +641,9 @@ async function runFetch(){
 
   trimAll(want+15);
   if(!await store.set(KEY,DB))log('快取寫入失敗，建議匯出備份。','err');
-  finish(); paintStrip(); run();
+  paintStrip(); run();
   if($('#fbAuto').checked&&fbEnd())await fbPush(true);
+  log('完成。','ok');
 }
 function finish(){$('#btnFetch').disabled=false;$('#btnStop').style.display='none';$('#pbar').style.width='0';}
 
@@ -667,12 +720,20 @@ function run(){
     st.inst++;
     if(useB){const dd=bigDelta[code];if(dd==null||dd<=0)continue;} st.big++;
     const ratio=volRatio(q,vb);           // 爆量只標示、不過濾
+    const r5=volRatio(q,5);               // 近 5 日均量比（短線爆量）
     const hasHL=h.some(x=>x!=null)&&l.some(x=>x!=null);
     if(!hasHL)noHL++;
     const gp=hasHL?findGap(h,l,gDays,gPct,gUnf):null;   // 多缺口只標示、不過濾
     const p30=c.length>=31?c[c.length-31]:null;
-    cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,lamps,gap:gp,
-      r30:p30?(px-p30)/p30*100:null,
+    // 型態判斷用的量價特徵
+    const q5avg=q.slice(-6,-1).reduce((a,b)=>a+b,0)/5||0;      // 前 5 日均量
+    const q5prev=q.slice(-11,-6).reduce((a,b)=>a+b,0)/5||0;    // 更早 5 日均量
+    const volTrend=q5prev>0?(q5avg-q5prev)/q5prev*100:0;       // 量能趨勢：近5日均量 vs 前5日
+    const hi5=Math.max(...c.slice(-5)),lo5=Math.min(...c.slice(-5));
+    const hi20=Math.max(...c.slice(-20));
+    const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
+    cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
+      r30:p30?(px-p30)/p30*100:null,volTrend,near20High,
       f:IN.f?.[code]??null,i:IN.i?.[code]??null,big:bigDelta[code]??null,days:c.length});
   }
   RESULT=cand;
@@ -693,12 +754,51 @@ function run(){
   if($('#cBig').checked&&!bigReady)warn.push(`集保資料只有 ${keys.length} 週，「大戶持股增加」這項無法判斷，本次已跳過。每週五之後點一次「抓最新一週」，累積兩週就會生效。`);
   if(noHL>0)warn.push(`有 ${noHL} 檔沒有最高／最低價（舊版快取留下的），無法判斷多缺口。按一次「清除全部快取」再重新更新就會補齊。`);
   $('#warnBox').innerHTML=warn.map(w=>`<div class="warn">${w}</div>`).join('');
-  paintFunnel(); paintTable(); paintPerf();
+  paintFunnel(); paintGroups(); paintTable(); paintPerf();
   $('#foot').textContent=`基準日 ${fmtD(baseDate)}${OFFSET?'（前一天）':''}　`+
     (bigReady?`大戶 ${fmtD(keys[keys.length-2])} → ${fmtD(keys[keys.length-1])}`:'大戶：資料不足');
 }
 
 /* ═══ 畫面 ═══ */
+let GROUP_FILTER=null;
+/* 依量價型態把結果分組（近 5 日均量為基準） */
+function classify(r){
+  const surge=r.r5>=2, mild=r.r5>=1.3&&r.r5<2;
+  const rising=r.volTrend>=20, shrinking=r.volTrend<=-20;
+  if(surge&&r.near20High)return'breakout';   // 爆量+逼近高點：量能突破
+  if(surge)return'surge';                     // 爆量但未創高：短線放量
+  if(rising&&r.chg>0)return'accum';           // 量能漸增+上漲：溫和進場
+  if(shrinking&&r.chg>0)return'divergence';   // 價漲量縮：背離，留意
+  if(mild)return'mild';                       // 小幅放量
+  return'quiet';                              // 量能平淡
+}
+const GDEFS={
+  breakout:{t:'爆量突破',c:'var(--up)',d:'近5日量 ≥2倍且逼近20日高點，最強勢的量價齊揚'},
+  surge:{t:'短線放量',c:'var(--amber)',d:'近5日量 ≥2倍，帶量上攻但尚未創高'},
+  accum:{t:'溫和進場',c:'#6FA8DC',d:'量能較前一週增加 ≥20% 且收紅，買盤漸進'},
+  mild:{t:'小幅放量',c:'#9C6ADE',d:'近5日量 1.3–2倍，量能略溫'},
+  divergence:{t:'價漲量縮',c:'var(--down)',d:'上漲但量能萎縮 ≥20%，背離、留意追高風險'},
+  quiet:{t:'量能平淡',c:'var(--dim)',d:'量能無明顯變化'}
+};
+function paintGroups(){
+  const box=$('#grp');
+  if(!RESULT.length){box.style.display='none';GROUP_FILTER=null;return;}
+  box.style.display='block';
+  const buckets={};
+  for(const r of RESULT){const g=classify(r);(buckets[g]=buckets[g]||[]).push(r);}
+  const order=['breakout','surge','accum','mild','divergence','quiet'];
+  $('#grpBody').innerHTML=`<div class="gcards">`+order.filter(g=>buckets[g]).map(g=>{
+    const list=buckets[g].sort((a,b)=>b.r5-a.r5);
+    const codes=list.slice(0,12).map(r=>r.code).join(' ')+(list.length>12?` +${list.length-12}`:'');
+    return`<div class="gcard ${GROUP_FILTER===g?'on':''}" data-g="${g}">
+      <div class="gt"><span class="gdot" style="background:${GDEFS[g].c}"></span>${GDEFS[g].t}<b>${list.length}</b></div>
+      <div class="gd">${GDEFS[g].d}</div>
+      <div class="gcodes">${codes}</div></div>`;}).join('')+`</div>
+    <div class="ihint" style="margin-top:10px">點卡片只看該組。量比＝今日量÷近5日均量；量能趨勢＝近5日均量 vs 更早5日。</div>`;
+  box.querySelectorAll('.gcard').forEach(c=>c.onclick=()=>{
+    GROUP_FILTER=GROUP_FILTER===c.dataset.g?null:c.dataset.g;
+    paintGroups();paintTable();paintPerf();});
+}
 function paintFunnel(){
   const f=$('#fun'); f.style.display='block';
   const max=Math.max(1,FUNNEL[0][1]);
@@ -708,7 +808,8 @@ function paintFunnel(){
       <span class="fn">${on?n:'—'}</span></div>`).join('');
 }
 function sorted(){
-  const R=TAB==='f'?RESULT.filter(r=>r.f>0):TAB==='i'?RESULT.filter(r=>r.i>0):RESULT;
+  let R=TAB==='f'?RESULT.filter(r=>r.f>0):TAB==='i'?RESULT.filter(r=>r.i>0):RESULT;
+  if(GROUP_FILTER)R=R.filter(r=>classify(r)===GROUP_FILTER);
   return[...R].sort((a,b)=>{const k=SORT.k;let x=a[k],y=b[k];
   if(k==='lamps'){x=a.lamps.filter(Boolean).length;y=b.lamps.filter(Boolean).length;}
   if(k==='gap'){x=a.gap?a.gap.pct:null;y=b.gap?b.gap.pct:null;}
@@ -766,7 +867,7 @@ function paintTable(){
   const R=sorted();
   let h='<table><thead><tr>'+COLS.map(([k,t])=>
     `<th data-k="${k}" class="${SORT.k===k?'on':''}">${k==='ratio'?`量比 (${VOLBASE}日)`:k==='gap'?`多缺口 (近${$('#gapDays').value}日)`:t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
-  for(const r of R)h+='<tr>'+
+  for(const r of R)h+=`<tr data-code="${r.code}">`+
     `<td class="code">${r.code}</td>`+
     `<td class="nm">${r.name}<span class="mkt">${r.mkt}</span></td>`+
     `<td>${r.px.toFixed(2)}</td>`+
@@ -782,8 +883,12 @@ function paintTable(){
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
-  $('#tblwrap').querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{
-    const c=tr.firstChild.textContent.trim(); $('#ipCode').value=c; paintInspect(c);});
+  $('#tblwrap').querySelectorAll('tbody tr').forEach(tr=>{
+    const c=tr.dataset.code;
+    tr.style.cursor='pointer';
+    tr.setAttribute('draggable','true');
+    tr.ondragstart=ev=>{DRAG_CODE=c;try{ev.dataTransfer.setData('text/plain',c);}catch(_){}ev.dataTransfer.effectAllowed='copy';};
+  });
 }
 function paintStrip(){
   const keys=Object.keys(TD.snaps).sort();
@@ -869,7 +974,10 @@ function evaluate(code){
 }
 /* K 線 + 成交量（SVG，紅漲綠跌） */
 function chartSVG(ser,n,W0,H0x){
-  const N=Math.min(n,ser.c.length); if(N<3)return'';
+  const N=Math.min(n,ser.c.length);
+  if(N<3)return`<div class="ihint" style="padding:30px 0;text-align:center;color:var(--up)">這檔目前只有 ${ser.c.length} 根資料，畫不出 K 線。<br>請先按左上「更新並篩選」把歷史補齊（v4 升版後需重補一次）。</div>`;
+  const hasO=ser.o&&ser.o.some(x=>x!=null);
+  if(!hasO)return`<div class="ihint" style="padding:30px 0;text-align:center;color:var(--up)">這檔沒有開盤價（舊版快取資料）。<br>按左側「清除本機快取」再「更新並篩選」重抓即可畫出 K 線。</div>`;
   const sl=a=>a.slice(-N);
   const C=sl(ser.c),Q=sl(ser.q),D=sl(ser.d);
   const H=sl(ser.h).map((v,i)=>v??C[i]), L=sl(ser.l).map((v,i)=>v??C[i]), O=sl(ser.o).map((v,i)=>v??C[i]);
@@ -931,6 +1039,49 @@ function backtest(ser){
   }
   return{signals,res,span:Math.max(0,c.length-59)};
 }
+/* 過去 window 日內，各均線作為支撐的表現：回檔觸及後隔日是否守住 */
+function supportStats(ser,win){
+  const{c,l}=ser;
+  const N=c.length; const start=Math.max(60,N-win);
+  const defs=[['MA5',5],['MA10',10],['MA20',20],['MA60',60]];
+  const out=[];
+  for(const[nm,pp]of defs){
+    let touch=0,hold=0,lastNearHold=null;
+    for(let i=start;i<N-1;i++){
+      const sub=c.slice(0,i+1); const m=ma(sub,pp); if(m==null)continue;
+      const low=l[i]??c[i];
+      // 當日最低觸及或略破均線（1.5% 內），且收盤仍在均線之上或當日站回
+      const near=low<=m*1.015 && low>=m*0.97;
+      if(!near)continue;
+      touch++;
+      // 隔一日收盤是否高於觸及日收盤（守住並反彈）
+      if(c[i+1]>c[i]){hold++;lastNearHold=DB.dates?fmtD(ser.d[i]):'';}
+    }
+    out.push({nm,pp,touch,hold,rate:touch?hold/touch*100:null});
+  }
+  const px=c[N-1];
+  const cur=defs.map(([nm,pp])=>{const m=ma(c,pp);return{nm,pp,m,dist:m?((px-m)/m*100):null};});
+  return{out,cur,px,win:N-start};
+}
+function supportHTML(ser){
+  const st=supportStats(ser,100);
+  if(!st.win)return'';
+  const valid=st.out.filter(r=>r.touch>=2).sort((a,b)=>(b.rate??-1)-(a.rate??-1));
+  const best=valid[0];
+  const rows=st.out.map(r=>{
+    const cu=st.cur.find(c=>c.nm===r.nm);
+    const distTxt=cu.m==null?'—':`均線 ${cu.m.toFixed(2)}　現價${cu.dist>=0?'高於':'低於'} ${Math.abs(cu.dist).toFixed(1)}%`;
+    if(r.touch<2)return`<div class="btrow"><span>${r.nm}</span><span class="btbar"></span><b>—</b><em>測試不足</em><em>${distTxt}</em></div>`;
+    return`<div class="btrow"><span>${r.nm}${best&&best.nm===r.nm?' ★':''}</span>
+      <span class="btbar"><i style="width:${r.rate}%;background:${r.rate>=60?'var(--down)':r.rate>=40?'var(--amber)':'var(--up)'}"></i></span>
+      <b class="${r.rate>=50?'up':'dn'}">${r.rate.toFixed(0)}%</b>
+      <em>守 ${r.hold}/${r.touch} 次</em><em>${distTxt}</em></div>`;}).join('');
+  const concl=best
+    ? `近 100 日，<b style="color:var(--amber)">${best.nm}</b> 最像支撐：回測 ${best.touch} 次守住 ${best.hold} 次（${best.rate.toFixed(0)}%）。`
+    : '近 100 日回檔測試次數太少，看不出明顯的支撐均線。';
+  return`<div class="bt"><h4>支撐均線分析 · 近 ${st.win} 個交易日</h4>${rows}
+    <div class="ihint" style="margin-top:9px">${concl}<br>判定：當日最低觸及均線（±1.5%）算一次測試，隔日收紅算守住。★ 為守住率最高者。純歷史統計，不保證未來。</div></div>`;
+}
 function backtestHTML(ser){
   const b=backtest(ser);
   if(!b.span)return'';
@@ -945,9 +1096,37 @@ function backtestHTML(ser){
   return`<div class="bt"><h4>勝率回測 · 訊號 ${b.signals} 次 / 可回測 ${b.span} 個交易日</h4>${rows}
     <div class="ihint" style="margin-top:9px">只計入價格類條件（均線、多頭排列、多缺口）。法人買超與大戶持股沒有歷史資料，無法納入回測。樣本很小，只能當參考，不是預測。</div></div>`;
 }
+/* 大戶（≥400張）／中實戶（200-400）／散戶 比例，取集保各週 */
+function ownershipHTML(code){
+  const keys=Object.keys(TD.snaps).sort();
+  if(!keys.length)return`<div class="bt"><h4>大戶／散戶比例</h4>
+    <div class="ihint">尚未載入集保資料。左側「大戶資料（集保）」按「抓最新一週」，或每週五後累積。</div></div>`;
+  const rows=keys.slice(-6).map(k=>{
+    const m=TD.snaps[k][code];
+    if(!m)return`<div class="btrow"><span>${fmtD(k).slice(5)}</span><span class="btbar"></span><b>—</b><em>無資料</em><em></em></div>`;
+    const big=m.p400||0;            // ≥400 張視為大戶
+    const mid=(m.p200||0)-(m.p400||0);  // 200-400 張中實戶
+    const retail=Math.max(0,100-(m.p200||0)); // <200 張散戶
+    return`<div class="btrow" style="grid-template-columns:60px 1fr 132px">
+      <span>${fmtD(k).slice(5)}</span>
+      <span class="btbar" style="display:flex">
+        <i style="width:${big}%;background:var(--up)" title="大戶 ${big.toFixed(1)}%"></i>
+        <i style="width:${mid}%;background:var(--amber)" title="中實戶 ${mid.toFixed(1)}%"></i>
+        <i style="width:${retail}%;background:var(--dim)" title="散戶 ${retail.toFixed(1)}%"></i>
+      </span>
+      <em style="text-align:left">大戶 ${big.toFixed(1)}%／散戶 ${retail.toFixed(1)}%</em></div>`;
+  }).join('');
+  return`<div class="bt"><h4>大戶／散戶比例 · 集保近 ${Math.min(6,keys.length)} 週</h4>${rows}
+    <div class="ihint" style="margin-top:9px">
+      <span style="color:var(--up)">■</span> 大戶（≥400張）　
+      <span style="color:var(--amber)">■</span> 中實戶（200-400張）　
+      <span style="color:var(--dim)">■</span> 散戶（<200張）。
+      大戶比例逐週上升＝籌碼集中，通常偏多。</div></div>`;
+}
 let CHARTN=60,INSPECTED='';
 function paintBig(e){
   const box=$('#cbig'); if(!e){box.innerHTML='';return;}
+  try{
   const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
   box.innerHTML=
     `<div class="ctitle"><span class="c">${e.code}</span><span class="n">${e.name}</span>
@@ -956,17 +1135,23 @@ function paintBig(e){
       <span style="flex:1"></span>
       <span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`+
     chartSVG(e.ser,CHARTN,880,430)+
+    ownershipHTML(e.code)+
+    supportHTML(e.ser)+
     backtestHTML(e.ser);
   box.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;paintBig(e);});
+  }catch(err){box.innerHTML=`<div class="ihint" style="padding:30px 0;text-align:center;color:var(--up)">畫圖時發生錯誤：${err.message}<br>請把這行貼給我。</div>`;}
 }
 function paintInspect(code){
   const box=$('#ipBody');
   if(!/^[1-9]\d{3}$/.test(code)){box.innerHTML='<div class="ihint">代號要是 4 位數字。</div>';return;}
   const e=evaluate(code);
   if(!e){
-    box.innerHTML=`<div class="ihint">${code} 不在追蹤名單裡（名單只含外資／投信買超前 ${$('#nRank').value} 名）。<br>可以單獨把它的歷史抓下來，約 10 秒。</div>
+    const has=DB.stocks[code];
+    box.innerHTML=`<div class="ihint">${has?`${code} 資料還不足以判斷條件。`:`${code} 不在追蹤名單裡（名單只含外資／投信買超前 ${$('#nRank').value} 名）。`}<br>可以單獨把它的歷史抓下來，約 10 秒。</div>
       <button class="ibtn" id="ipFetch">抓 ${code} 的歷史</button>`;
     $('#ipFetch').onclick=()=>fetchOne(code);
+    // 即使條件算不出，只要有價格序列就先把 K 線畫出來
+    if(has)drawChart(code); else $('#cbig').innerHTML=noChartMsg(code);
     return;
   }
   const on={ma:$('#cMA').checked,ord:$('#cMAorder').checked,f:$('#cFor').checked,
@@ -1001,8 +1186,25 @@ function paintInspect(code){
     `<div class="chk"><span class="m ${e.r30>0?'y':'n'}">${e.r30>0?'✓':'✕'}</span>
       <span class="t">近 30 交易日上漲<em>${sgn(e.r30)}%</em></span></div>`+
     `<div class="iscore"><s>符合已啟用條件</s><b class="${hits===total&&total?'up':''}">${hits} / ${total}</b></div>`+
-    `<div class="ihint" style="margin-top:11px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}　K 線與勝率在左下方大圖。</div>`;
-  INSPECTED=code; paintBig(e);
+    `<div class="ihint" style="margin-top:11px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}</div>`+
+    `<button class="ibtn" id="ipDraw" style="margin-top:10px;background:var(--amber);color:var(--ink);font-weight:700;border:0">📈 畫出 K 線 / 成交量 / 大戶散戶比例</button>`;
+  INSPECTED=code;
+  const drawBtn=document.getElementById('ipDraw');
+  if(drawBtn)drawBtn.onclick=()=>drawChart(code);
+  drawChart(code);   // 自動畫一次
+}
+// 統一畫圖入口：重新取序列，保證有資料就畫
+function drawChart(code){
+  const s=DB.stocks[code];
+  const big=document.getElementById('cbig');
+  if(!s){big.innerHTML=noChartMsg(code);return;}
+  const{c,q,h,l,o,d}=series(s);   // 一律到最新一天，K 線不受基準日影響
+  if(!c||c.length<3){big.innerHTML=noChartMsg(code);return;}
+  const px=c[c.length-1],prev=c.length>=2?c[c.length-2]:px;
+  INSPECTED=code;
+  paintBig({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,
+    baseDate:DB.dates[DB.dates.length-1],ser:{c,q,h,l,o,d}});
+  big.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 async function fetchOne(code){
   $('#ipBody').innerHTML='<div class="ihint">抓取中…先找上市，找不到再找上櫃，約 10-20 秒。</div>';
@@ -1074,13 +1276,17 @@ async function fbPull(quiet){
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
     if(!j||!j.DB||!j.DB.dates||!j.DB.dates.length){fbLog('雲端還沒有資料。');return false;}
-    if(j.DB.v!==4){fbLog('雲端是舊版結構（沒有開盤價），略過。請先在本機更新一次再上傳。','err');return false;}
+    // 直接檢查雲端資料裡有沒有開盤價（比版本號可靠）
+    const sample=Object.values(j.DB.stocks||{}).slice(0,20);
+    const hasOpen=sample.some(st=>st.o&&st.o.some(x=>x!=null));
+    if(!hasOpen){fbLog('雲端資料沒有開盤價（舊結構），已略過、不覆蓋本機。請在本機「更新並篩選」補齊後按「上傳雲端」。','err');return false;}
     const cloudLast=j.DB.dates[j.DB.dates.length-1];
     const localLast=DB.dates.length?DB.dates[DB.dates.length-1]:'';
     if(quiet&&localLast&&localLast>cloudLast){
       fbLog(`本機（${fmtD(localLast)}）比雲端（${fmtD(cloudLast)}）新，保留本機。`);return false;}
     DB=Object.assign({v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}},j.DB);
     if(!DB.insts)DB.insts={};
+    sanitizeDB();
     if(j.TD&&j.TD.snaps)TD=j.TD;
     await store.set(KEY,DB); await store.set(KEY2,TD);
     fbLog(`已下載：${DB.dates.length} 個交易日、${Object.keys(DB.stocks).length} 檔，最新 ${fmtD(cloudLast)}`,'ok');
@@ -1103,9 +1309,10 @@ function parseTdcc(text){
     const code=r[iC],lvl=+r[iL],pct=num(r[iP]);
     if(!/^[1-9]\d{3}$/.test(code)||!isFinite(lvl)||pct==null||lvl>=16)continue;
     if(!date&&iD>=0)date=String(r[iD]).replace(/\D/g,'');
-    if(!map[code])map[code]={p400:0,p1000:0};
-    if(lvl>=12)map[code].p400+=pct;
-    if(lvl>=15)map[code].p1000+=pct;
+    if(!map[code])map[code]={p200:0,p400:0,p1000:0};
+    if(lvl>=11)map[code].p200+=pct;   // 第 11 級起 = 200 張以上
+    if(lvl>=12)map[code].p400+=pct;   // 第 12 級起 = 400 張以上
+    if(lvl>=15)map[code].p1000+=pct;  // 第 15 級   = 1000 張以上
   }
   if(!date)date=ymd(new Date());
   return{date,map};
@@ -1122,15 +1329,43 @@ async function loadTdcc(text){
 
 /* ═══ events ═══ */
 $('#lock').onclick=e=>{
-  const on=e.target.getAttribute('aria-pressed')==='true';
-  e.target.setAttribute('aria-pressed',!on);
-  e.target.textContent=on?'🔒 解鎖':'🔓 鎖定';
-  $('#guard').classList.toggle('locked',on);
-  $('#guard').querySelectorAll('input,select,button').forEach(x=>x.disabled=on);
+  // aria-pressed=true 代表「已解鎖」
+  const unlocked=e.target.getAttribute('aria-pressed')==='true';
+  const nowUnlocked=!unlocked;   // 切換
+  e.target.setAttribute('aria-pressed',nowUnlocked);
+  e.target.textContent=nowUnlocked?'🔓 鎖定':'🔒 解鎖';
+  const locked=!nowUnlocked;
+  $('#guard').classList.toggle('locked',locked);
+  $('#locknote').classList.toggle('show',locked);
+  $('#guard').querySelectorAll('input,select,button').forEach(x=>x.disabled=locked);
 };
 $('#btnFetch').onclick=runFetch;
 $('#btnStop').onclick=()=>{ABORT=true;};
 $('#btnRun').onclick=run;
+$('#btnDiag').onclick=()=>{
+  const nD=DB.dates.length, codes=Object.keys(DB.stocks);
+  if(!nD){$('#diagLog').innerHTML='<span class="err">本機沒有任何行情資料。請按「更新並篩選」。</span>';return;}
+  let full=0,noOpen=0,shortH=0;
+  for(const c of codes){const s=DB.stocks[c];
+    const valid=s.c.filter(x=>x!=null).length;
+    const hasO=s.o&&s.o.some(x=>x!=null);
+    if(valid>=61&&hasO)full++;
+    if(!hasO)noOpen++;
+    if(valid<61)shortH++;
+  }
+  const last=DB.dates[nD-1];
+  let msg=`交易日 ${nD} 天，最新 ${fmtD(last)}，共 ${codes.length} 檔。
+`;
+  msg+=`可畫 K 線（≥61根且有開盤價）：${full} 檔
+`;
+  if(noOpen)msg+=`<span class="err">缺開盤價：${noOpen} 檔 → K 線畫不出，需清快取重抓</span>
+`;
+  if(shortH)msg+=`歷史不足 61 根：${shortH} 檔（新進榜，會逐次補）
+`;
+  if(nD<61)msg+=`<span class="err">交易日只有 ${nD} 天，不足 61 天，均線／K線都不準 → 按更新補滿 100 天</span>`;
+  else if(!noOpen&&full)msg+=`<span class="ok">資料正常，點任一檔應可看到 K 線。</span>`;
+  $('#diagLog').innerHTML=msg;
+};
 $('#segLogic').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   LOGIC=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));};
 $('#segTab').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -1149,11 +1384,68 @@ $('#gapUnf').onchange=()=>{if(DB.dates.length)run();};
   document.querySelectorAll('.nrk').forEach(e=>e.textContent=$('#nRank').value);paintStrip();});
 $('#mOtc').onchange=paintStrip;
 $('#btnTdcc').onclick=async()=>{
-  $('#tdccLog').textContent='下載中…（數 MB）';
-  try{await loadTdcc(await get('https://opendata.tdcc.com.tw/getOD.ashx?id=1-5','text'));}
-  catch(e){$('#tdccLog').innerHTML=`<span class="err">失敗：${e.message}</span>`;}
+  $('#tdccLog').textContent='下載中…（集保檔約數 MB，較慢）';
+  const proxies=[
+    u=>u,
+    u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
+  ];
+  const src='https://opendata.tdcc.com.tw/getOD.ashx?id=1-5';
+  for(let i=0;i<proxies.length;i++){
+    try{
+      const r=await fetch(proxies[i](src),{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const t=await r.text();
+      if(t&&t.length>1000){await loadTdcc(t);return;}
+      throw new Error('內容為空');
+    }catch(e){
+      $('#tdccLog').innerHTML=`<span class="err">第 ${i+1} 種方式失敗（${e.message}）${i<proxies.length-1?'，換下一種…':'。集保網站擋跨域，改用下方手動下載。'}</span>`;
+    }
+  }
 };
+let DRAG_CODE='';
+function noChartMsg(code){
+  const s=DB.stocks[code];
+  const valid=s?s.c.filter(x=>x!=null).length:0;
+  const hasO=s&&s.o&&s.o.some(x=>x!=null);
+  let why;
+  if(!s)why='本機沒有這檔的資料。';
+  else if(!hasO)why=`這檔的 ${valid} 根資料<b style="color:var(--up)">沒有開盤價</b>——是升版前抓的舊資料，K 線需要開盤價才畫得出來。`;
+  else if(valid<3)why=`這檔只有 ${valid} 根資料，太少畫不出 K 線。`;
+  else why='資料不明原因不足。';
+  return `<div class="ihint" style="padding:34px 20px;text-align:center;line-height:1.9">
+    <div style="font-size:15px;color:var(--up);margin-bottom:10px">畫不出 K 線</div>
+    ${why}<br><br>
+    <b style="color:var(--muted)">解法（順序別錯）：</b><br>
+    1. 左側取消勾「自動同步」<br>
+    2. 按「清除本機快取」<br>
+    3. 按「更新並篩選」，等 2-3 分鐘跑滿（若秒跳完成就再清一次）<br>
+    4. 跑完再點這檔，K 線就會出來<br>
+    5. 確認有圖後按「上傳雲端」，再把自動同步勾回來
+  </div>`;
+}   // 備援：某些瀏覽器 getData 在 drop 前拿不到
+function bindDrop(){
+  const box=$('#cbig'); if(!box)return;
+  box.addEventListener('dragenter',e=>{e.preventDefault();box.classList.add('dragover');});
+  box.addEventListener('dragover',e=>{e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';box.classList.add('dragover');});
+  box.addEventListener('dragleave',e=>{if(e.target===box)box.classList.remove('dragover');});
+  box.addEventListener('drop',e=>{
+    e.preventDefault();box.classList.remove('dragover');
+    let c='';try{c=(e.dataTransfer.getData('text/plain')||'').trim();}catch(_){}
+    if(!/^[1-9]\d{3}$/.test(c))c=DRAG_CODE;
+    if(/^[1-9]\d{3}$/.test(c)){$('#ipCode').value=c;paintInspect(c);}
+  });
+}
+bindDrop();
+// 事件代理：點表格任一列 → 畫圖（綁一次，不受重繪影響）
+$('#tblwrap').addEventListener('click',ev=>{
+  const tr=ev.target.closest('tbody tr'); if(!tr)return;
+  const c=tr.dataset.code; if(!/^[1-9]\d{3}$/.test(c))return;
+  $('#ipCode').value=c; paintInspect(c);
+  const big=document.getElementById('cbig'); if(big)big.scrollIntoView({behavior:'smooth',block:'nearest'});
+});
 $('#ipGo').onclick=()=>paintInspect($('#ipCode').value.trim());
+$('#ipChart').onclick=()=>{const c=$('#ipCode').value.trim();if(/^[1-9]\d{3}$/.test(c)){paintInspect(c);drawChart(c);}};
 $('#ipCode').onkeydown=e=>{if(e.key==='Enter')paintInspect(e.target.value.trim());};
 $('#fbFind').onclick=()=>fbDetect();
 $('#fbUp').onclick=()=>{fbSaveCfg();fbPush();};
@@ -1163,18 +1455,8 @@ $('#fbAuto').onchange=fbSaveCfg;
 $('#btnClr').onclick=async()=>{
   if(!confirm('確定清除所有快取？下次要重新補歷史。'))return;
   DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};TD={snaps:{}};
-  await store.del(KEY);await store.del(KEY2);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';
+  await store.del(KEY);await store.del(KEY2);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';$('#grp').style.display='none';
   $('#cbig').innerHTML='';};
-$('#btnCsv').onclick=()=>{
-  if(!RESULT.length){alert('沒有結果可以匯出。');return;}
-  const head=['代號','名稱','市場','收盤','漲跌%','成交量(張)','量比','30日%','多缺口%','缺口幾日前','未回補','站上均線數','外資(張)','投信(張)','大戶Δ%'];
-  const rows=RESULT.map(r=>[r.code,r.name,r.mkt,r.px,r.chg.toFixed(2),r.vol,r.ratio.toFixed(2),r.r30==null?'':r.r30.toFixed(2),
-    r.gap?r.gap.pct.toFixed(2):'',r.gap?r.gap.ago:'',r.gap?(r.gap.unf?'是':'否'):'',
-    r.lamps.filter(Boolean).length,r.f??'',r.i??'',r.big??'']);
-  const csv='\uFEFF'+[head,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='screen_'+ymd(new Date())+'.csv';a.click();};
 
 /* ═══ boot ═══ */
 (async()=>{
@@ -1182,6 +1464,7 @@ $('#btnCsv').onclick=()=>{
   let migrated=false;
   if(a&&a.dates){ if(a.v===4)DB=Object.assign(DB,a); else migrated=true; }
   if(!DB.insts)DB.insts={};
+  if(DB.dates&&DB.dates.length)sanitizeDB();
   if(DB.inst&&DB.inst.date&&!DB.insts[DB.inst.date])DB.insts[DB.inst.date]={f:DB.inst.f,i:DB.inst.i};
   const b=await store.get(KEY2); if(b&&b.snaps)TD=b;
   $('#guard').querySelectorAll('input,select,button').forEach(x=>x.disabled=true);
