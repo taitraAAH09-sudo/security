@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V20</title>
+<title>盤後篩選台 V23</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -214,7 +214,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V20</span>
+    <h1>盤後篩選台</h1><span class="ver">V23</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -1003,13 +1003,15 @@ function chartSVG(ser,n,W0,H0x){
     return`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`;};
   return`<svg viewBox="0 0 ${W} ${H0}" width="${W}" height="${H0}" style="display:block;width:100%;height:auto;margin-top:4px">
     <line x1="0" y1="${PH}" x2="${W}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
-    ${k}${line(5,'var(--amber)')}${line(20,'#6FA8DC')}${v}
+    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${v}
     <text x="${W-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
     <text x="${W-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
     <text x="0" y="${H0-2}" fill="var(--dim)" font-size="${FS}">${fmtD(D[0])}</text>
     <text x="${W}" y="${H0-2}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${fmtD(D[N-1])}</text>
     <text x="0" y="${FS}" fill="var(--amber)" font-size="${FS}">MA5</text>
-    <text x="${FS*3.4}" y="${FS}" fill="#6FA8DC" font-size="${FS}">MA20</text>
+    <text x="${FS*3.4}" y="${FS}" fill="#5FD08A" font-size="${FS}">MA10</text>
+    <text x="${FS*7.2}" y="${FS}" fill="#6FA8DC" font-size="${FS}">MA20</text>
+    <text x="${FS*11}" y="${FS}" fill="#C77DD6" font-size="${FS}">MA60</text>
     <text x="0" y="${PH+GAP+FS}" fill="var(--dim)" font-size="${FS}">量 ${qmax.toLocaleString()} 張</text>
   </svg>`;
 }
@@ -1126,20 +1128,22 @@ function ownershipHTML(code){
 let CHARTN=60,INSPECTED='';
 function paintBig(e){
   const box=$('#cbig'); if(!e){box.innerHTML='';return;}
-  try{
   const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
-  box.innerHTML=
-    `<div class="ctitle"><span class="c">${e.code}</span><span class="n">${e.name}</span>
-      <span class="mkt">${e.mkt}</span><span class="p">${e.px.toFixed(2)}</span>
-      <span class="p ${e.chg>0?'up':e.chg<0?'dn':''}" style="font-size:14px">${sgn(e.chg)}%</span>
-      <span style="flex:1"></span>
-      <span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`+
-    chartSVG(e.ser,CHARTN,880,430)+
-    ownershipHTML(e.code)+
-    supportHTML(e.ser)+
-    backtestHTML(e.ser);
+  // 標題
+  let html=`<div class="ctitle"><span class="c">${e.code}</span><span class="n">${e.name||''}</span>`
+    +`<span class="mkt">${e.mkt||''}</span><span class="p">${e.px.toFixed(2)}</span>`
+    +`<span class="p ${e.chg>0?'up':e.chg<0?'dn':''}" style="font-size:14px">${sgn(e.chg)}%</span>`
+    +`<span style="flex:1"></span>`
+    +`<span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`;
+  // K 線本體（獨立，最重要，先確保它出來）
+  try{ html+=chartSVG(e.ser,CHARTN,880,430); }
+  catch(err){ html+=`<div class="ihint" style="color:var(--up);padding:20px">K 線繪製錯誤：${err.message}</div>`; }
+  // 附加區塊各自 try，壞一個不拖垮其他
+  try{ html+=ownershipHTML(e.code); }catch(err){ html+=`<div class="ihint">大戶散戶比例無法顯示</div>`; }
+  try{ html+=supportHTML(e.ser); }catch(err){}
+  try{ html+=backtestHTML(e.ser); }catch(err){}
+  box.innerHTML=html;
   box.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;paintBig(e);});
-  }catch(err){box.innerHTML=`<div class="ihint" style="padding:30px 0;text-align:center;color:var(--up)">畫圖時發生錯誤：${err.message}<br>請把這行貼給我。</div>`;}
 }
 function paintInspect(code){
   const box=$('#ipBody');
@@ -1195,16 +1199,30 @@ function paintInspect(code){
 }
 // 統一畫圖入口：重新取序列，保證有資料就畫
 window.drawChart=function drawChart(code){
-  const s=DB.stocks[code];
   const big=document.getElementById('cbig');
-  if(!s){big.innerHTML=noChartMsg(code);return;}
-  const{c,q,h,l,o,d}=series(s);   // 一律到最新一天，K 線不受基準日影響
-  if(!c||c.length<3){big.innerHTML=noChartMsg(code);return;}
-  const px=c[c.length-1],prev=c.length>=2?c[c.length-2]:px;
-  INSPECTED=code;
-  paintBig({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,
-    baseDate:DB.dates[DB.dates.length-1],ser:{c,q,h,l,o,d}});
-  big.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(!big){alert('找不到繪圖區');return;}
+  try{
+    const s=DB&&DB.stocks&&DB.stocks[code];
+    if(!s){big.innerHTML=noChartMsg(code);return;}
+    // 內建獨立 series（不依賴外部函式，跟 kline_test 一致）
+    const c=[],q=[],h=[],l=[],o=[],d=[];
+    const len=s.c?s.c.length:0;
+    for(let i=0;i<len;i++){ if(s.c[i]==null)continue;
+      c.push(s.c[i]); q.push(s.q?s.q[i]||0:0);
+      h.push(s.h?s.h[i]:null); l.push(s.l?s.l[i]:null);
+      o.push(s.o?s.o[i]:null); d.push(DB.dates[i]);
+    }
+    if(c.length<3){big.innerHTML=noChartMsg(code);return;}
+    const px=c[c.length-1],prev=c.length>=2?c[c.length-2]:px;
+    INSPECTED=code;
+    paintBig({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,
+      baseDate:DB.dates[DB.dates.length-1],ser:{c,q,h,l,o,d}});
+    big.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }catch(err){
+    big.innerHTML=`<div class="ihint" style="padding:24px;color:var(--up);text-align:center">
+      畫圖錯誤：${err.message}<br>請把這行貼給我。</div>`;
+    console.error('drawChart error',err);
+  }
 }
 async function fetchOne(code){
   $('#ipBody').innerHTML='<div class="ihint">抓取中…先找上市，找不到再找上櫃，約 10-20 秒。</div>';
