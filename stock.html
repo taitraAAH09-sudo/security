@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V2</title>
+<title>盤後篩選台 V3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -153,6 +153,20 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .chk .t{flex:1;min-width:0}
 .chk .t em{display:block;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:1px}
 .chk.dis{opacity:.38}
+.cbig{margin-top:16px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:14px 16px}
+.cbig .chd{margin-bottom:6px}
+.cbig .ctitle{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cbig .ctitle .c{font-family:var(--mono);color:var(--amber);font-weight:700}
+.cbig .ctitle .n{font-size:16px;font-weight:700}
+.cbig .ctitle .p{font-family:var(--mono);font-size:17px;font-weight:700}
+.bt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.bt h4{margin:0 0 9px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
+.btrow{display:grid;grid-template-columns:64px 1fr 76px 84px 62px;align-items:center;gap:10px;padding:4px 0;font-size:12.5px}
+.btrow span:first-child{color:var(--muted)}
+.btbar{height:13px;background:var(--panel2);border-radius:2px;overflow:hidden}
+.btbar i{display:block;height:100%;background:var(--up)}
+.btrow b{font-family:var(--mono);text-align:right;font-weight:700}
+.btrow em{font-family:var(--mono);font-style:normal;text-align:right;color:var(--dim);font-size:11.5px}
 .cwrap{margin-top:14px;padding-top:11px;border-top:1px solid var(--line)}
 .chd{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--dim);letter-spacing:.1em}
 .cseg b{display:inline-block;padding:1px 6px;margin-left:3px;border:1px solid var(--line);border-radius:2px;font-family:var(--mono);font-weight:500;cursor:pointer;font-size:10px}
@@ -179,7 +193,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V2</span>
+    <h1>盤後篩選台</h1><span class="ver">V3</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -293,6 +307,7 @@ tbody tr{cursor:pointer}
   <div class="tblwrap" id="tblwrap">
     <div class="empty"><b>還沒有資料</b>按左邊「更新並篩選」開始。第一次要補歷史，之後每天只要幾秒。</div>
   </div>
+  <div class="cbig" id="cbig"><div class="ihint" style="padding:40px 0;text-align:center">點上面表格任一列，或在右邊輸入代號，這裡會顯示 K 線與勝率回測。</div></div>
   <div class="note" id="foot"></div>
   </div>
 
@@ -853,17 +868,17 @@ function evaluate(code){
     ratio,ratio5,ratio60,vb,vx,gap:gp,gapN:gDays,r30:p30?(px-p30)/p30*100:null,ser:{c,q,h,l,o,d}};
 }
 /* K 線 + 成交量（SVG，紅漲綠跌） */
-function chartSVG(ser,n){
+function chartSVG(ser,n,W0,H0x){
   const N=Math.min(n,ser.c.length); if(N<3)return'';
   const sl=a=>a.slice(-N);
   const C=sl(ser.c),Q=sl(ser.q),D=sl(ser.d);
   const H=sl(ser.h).map((v,i)=>v??C[i]), L=sl(ser.l).map((v,i)=>v??C[i]), O=sl(ser.o).map((v,i)=>v??C[i]);
-  const W=264,PH=136,VH=44,GAP=10,H0=PH+GAP+VH+13;
+  const W=W0||264, TOT=H0x||203, PH=Math.round(TOT*0.70), VH=Math.round(TOT*0.22), GAP=Math.round(TOT*0.05), H0=TOT;
   const hi=Math.max(...H),lo=Math.min(...L),span=(hi-lo)||1,pad=span*0.05;
   const y=v=>PH-(v-(lo-pad))/(span+pad*2)*PH;
   const qmax=Math.max(...Q,1);
   const vy=v=>PH+GAP+VH-(v/qmax)*VH;
-  const bw=W/N,cw=Math.max(1.2,bw*0.6);
+  const bw=W/N,cw=Math.max(1.2,bw*0.62),FS=Math.max(8.5,Math.round(TOT*0.032));
   let k='',v='';
   for(let i=0;i<N;i++){
     const x=i*bw+bw/2, up=C[i]>=O[i], col=up?'var(--up)':'var(--down)';
@@ -878,19 +893,72 @@ function chartSVG(ser,n){
     for(let i=p-1;i<N;i++){const t=C.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p;
       d+=(d?'L':'M')+(i*bw+bw/2).toFixed(1)+' '+y(t).toFixed(1);}
     return`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`;};
-  return`<svg viewBox="0 0 ${W} ${H0}" width="100%" style="display:block;margin-top:4px">
+  return`<svg viewBox="0 0 ${W} ${H0}" width="${W}" height="${H0}" style="display:block;width:100%;height:auto;margin-top:4px">
     <line x1="0" y1="${PH}" x2="${W}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
     ${k}${line(5,'var(--amber)')}${line(20,'#6FA8DC')}${v}
-    <text x="${W-1}" y="9" text-anchor="end" fill="var(--dim)" font-size="8.5">${hi.toFixed(2)}</text>
-    <text x="${W-1}" y="${PH-2}" text-anchor="end" fill="var(--dim)" font-size="8.5">${lo.toFixed(2)}</text>
-    <text x="0" y="${H0-2}" fill="var(--dim)" font-size="8.5">${fmtD(D[0]).slice(5)}</text>
-    <text x="${W}" y="${H0-2}" text-anchor="end" fill="var(--dim)" font-size="8.5">${fmtD(D[N-1]).slice(5)}</text>
-    <text x="0" y="9" fill="var(--amber)" font-size="8.5">MA5</text>
-    <text x="26" y="9" fill="#6FA8DC" font-size="8.5">MA20</text>
-    <text x="0" y="${PH+GAP+10}" fill="var(--dim)" font-size="8.5">量 ${qmax.toLocaleString()} 張</text>
+    <text x="${W-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
+    <text x="${W-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
+    <text x="0" y="${H0-2}" fill="var(--dim)" font-size="${FS}">${fmtD(D[0])}</text>
+    <text x="${W}" y="${H0-2}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${fmtD(D[N-1])}</text>
+    <text x="0" y="${FS}" fill="var(--amber)" font-size="${FS}">MA5</text>
+    <text x="${FS*3.4}" y="${FS}" fill="#6FA8DC" font-size="${FS}">MA20</text>
+    <text x="0" y="${PH+GAP+FS}" fill="var(--dim)" font-size="${FS}">量 ${qmax.toLocaleString()} 張</text>
   </svg>`;
 }
-let CHARTN=60;
+/* 勝率回測：只用價格類條件（法人／大戶沒有歷史資料，無法回測） */
+function backtest(ser){
+  const{c,h,l}=ser;
+  const useMA=$('#cMA').checked,useOrd=$('#cMAorder').checked,useG=$('#cGap').checked;
+  const gDays=Math.max(1,+$('#gapDays').value||5),gPct=+$('#gapPct').value||0,gUnf=$('#gapUnf').checked;
+  const HS=[5,10,20];
+  const res=HS.map(H=>({H,n:0,win:0,sum:0,best:-1e9,worst:1e9}));
+  let signals=0;
+  for(let i=59;i<c.length;i++){
+    const sub=c.slice(0,i+1);
+    const m5=ma(sub,5),m10=ma(sub,10),m20=ma(sub,20),m60=ma(sub,60);
+    if(m60==null)continue;
+    const px=c[i];
+    if(useMA&&!(px>m5&&px>m10&&px>m20&&px>m60))continue;
+    if(useOrd&&!(m5>m10&&m10>m20&&m20>m60))continue;
+    if(useG&&!findGap(h.slice(0,i+1),l.slice(0,i+1),gDays,gPct,gUnf))continue;
+    signals++;
+    for(const r of res){
+      const j=i+r.H; if(j>=c.length)continue;
+      const ret=(c[j]-px)/px*100;
+      r.n++; if(ret>0)r.win++; r.sum+=ret;
+      if(ret>r.best)r.best=ret; if(ret<r.worst)r.worst=ret;
+    }
+  }
+  return{signals,res,span:Math.max(0,c.length-59)};
+}
+function backtestHTML(ser){
+  const b=backtest(ser);
+  if(!b.span)return'';
+  const rows=b.res.map(r=>{
+    if(!r.n)return`<div class="btrow"><span>${r.H} 日後</span><span class="btbar"></span><b>—</b><em>樣本不足</em><em></em></div>`;
+    const wr=r.win/r.n*100, avg=r.sum/r.n;
+    return`<div class="btrow"><span>${r.H} 日後</span>
+      <span class="btbar"><i style="width:${wr}%"></i></span>
+      <b class="${wr>=50?'up':'dn'}">${wr.toFixed(0)}%</b>
+      <em class="${avg>0?'up':'dn'}">平均 ${avg>0?'+':''}${avg.toFixed(2)}%</em>
+      <em>${r.n} 筆</em></div>`;}).join('');
+  return`<div class="bt"><h4>勝率回測 · 訊號 ${b.signals} 次 / 可回測 ${b.span} 個交易日</h4>${rows}
+    <div class="ihint" style="margin-top:9px">只計入價格類條件（均線、多頭排列、多缺口）。法人買超與大戶持股沒有歷史資料，無法納入回測。樣本很小，只能當參考，不是預測。</div></div>`;
+}
+let CHARTN=60,INSPECTED='';
+function paintBig(e){
+  const box=$('#cbig'); if(!e){box.innerHTML='';return;}
+  const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
+  box.innerHTML=
+    `<div class="ctitle"><span class="c">${e.code}</span><span class="n">${e.name}</span>
+      <span class="mkt">${e.mkt}</span><span class="p">${e.px.toFixed(2)}</span>
+      <span class="p ${e.chg>0?'up':e.chg<0?'dn':''}" style="font-size:14px">${sgn(e.chg)}%</span>
+      <span style="flex:1"></span>
+      <span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`+
+    chartSVG(e.ser,CHARTN,880,430)+
+    backtestHTML(e.ser);
+  box.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;paintBig(e);});
+}
 function paintInspect(code){
   const box=$('#ipBody');
   if(!/^[1-9]\d{3}$/.test(code)){box.innerHTML='<div class="ihint">代號要是 4 位數字。</div>';return;}
@@ -933,11 +1001,8 @@ function paintInspect(code){
     `<div class="chk"><span class="m ${e.r30>0?'y':'n'}">${e.r30>0?'✓':'✕'}</span>
       <span class="t">近 30 交易日上漲<em>${sgn(e.r30)}%</em></span></div>`+
     `<div class="iscore"><s>符合已啟用條件</s><b class="${hits===total&&total?'up':''}">${hits} / ${total}</b></div>`+
-    `<div class="cwrap"><div class="chd"><span>K 線 · 日</span>
-        <span class="cseg">${[30,60,120].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>
-      ${chartSVG(e.ser,CHARTN)}</div>`+
-    `<div class="ihint" style="margin-top:9px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}</div>`;
-  box.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;paintInspect(code);});
+    `<div class="ihint" style="margin-top:11px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}　K 線與勝率在左下方大圖。</div>`;
+  INSPECTED=code; paintBig(e);
 }
 async function fetchOne(code){
   $('#ipBody').innerHTML='<div class="ihint">抓取中…先找上市，找不到再找上櫃，約 10-20 秒。</div>';
@@ -1098,7 +1163,8 @@ $('#fbAuto').onchange=fbSaveCfg;
 $('#btnClr').onclick=async()=>{
   if(!confirm('確定清除所有快取？下次要重新補歷史。'))return;
   DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};TD={snaps:{}};
-  await store.del(KEY);await store.del(KEY2);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';};
+  await store.del(KEY);await store.del(KEY2);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';
+  $('#cbig').innerHTML='';};
 $('#btnCsv').onclick=()=>{
   if(!RESULT.length){alert('沒有結果可以匯出。');return;}
   const head=['代號','名稱','市場','收盤','漲跌%','成交量(張)','量比','30日%','多缺口%','缺口幾日前','未回補','站上均線數','外資(張)','投信(張)','大戶Δ%'];
