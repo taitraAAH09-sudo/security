@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V26</title>
+<title>盤後篩選台 V37</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -142,6 +142,9 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .pbar i.g{background:var(--up)} .pbar i.r{background:var(--down)}
 .plabel{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:5px}
 .gapt{color:var(--up);font-weight:700}
+.patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
+.patdot.t1{background:#6FA8DC}
+.patdot.t2{background:var(--up)}
 .gapt.filled{color:var(--dim);font-weight:400}
 .ago{color:var(--dim);font-size:10.5px;margin-left:5px}
 
@@ -173,6 +176,27 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .cbig .ctitle .n{font-size:18px}
 .cbig .ctitle .c{font-size:14px}
 .cbig .ctitle .p{font-size:19px}
+.pbanner{border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:12px 14px;margin:10px 0 14px}
+.ptags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px}
+.ptag{font-size:12px;font-weight:700;padding:3px 11px;border-radius:4px}
+.ptag.t1{background:#6FA8DC;color:#fff}
+.ptag.t2{background:var(--up);color:#fff}
+.ptag.blink{animation:tagblink 1s ease-in-out infinite;box-shadow:0 0 0 0 rgba(229,72,77,.6)}
+@keyframes tagblink{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.7)}50%{box-shadow:0 0 0 6px rgba(229,72,77,0)}}
+@media (prefers-reduced-motion:reduce){.ptag.blink{animation:none}}
+.ptag.flat{background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+.pcells{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px}
+.pcells s{text-decoration:none;color:var(--dim);font-size:10.5px;letter-spacing:.08em;display:block}
+.pcells b{font-family:var(--mono);font-size:17px;font-weight:700;display:block;margin:2px 0}
+.pcells em{font-style:normal;color:var(--dim);font-size:10.5px}
+.pnote{margin-top:10px;font-size:12.5px;color:var(--amber)}
+.pstops{margin-top:11px;padding-top:9px;border-top:1px solid var(--line);font-size:13px;color:var(--paper)}
+.pstops .plabel{color:var(--dim);font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.pstops .pslist{display:flex;flex-wrap:wrap;gap:8px}
+.pstops .pschip{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 10px;font-family:var(--mono);font-size:12.5px}
+.pstops .pschip b{color:var(--dn,#1F9E6E);font-weight:700}
+.pstops .pschip .nm{color:var(--muted);margin-right:6px;font-family:var(--sans);font-size:11.5px}
+.pdisc{margin-top:8px;font-size:10.5px;color:var(--dim)}
 .cbig.dragover{border-color:var(--amber);background:rgba(242,181,68,.06)}
 .chip-drag{cursor:grab}
 .cbig .chd{margin-bottom:6px}
@@ -214,7 +238,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V26</span>
+    <h1>盤後篩選台</h1><span class="ver">V37</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -260,6 +284,10 @@ tbody tr{cursor:pointer}
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
       <div class="fld sub2 adv"><span>最小幅度 %</span><input type="number" id="gapPct" value="0" min="0" step="0.5"></div>
       <label class="row sub2 adv"><input type="checkbox" id="gapUnf"><span class="tx">只算未回補<small>不勾則已回補的也一併標示</small></span></label>
+      <label class="row"><input type="checkbox" id="cHHLL"><span class="tx">型態1<small>波段型態</small></span></label>
+      <label class="row"><input type="checkbox" id="cW"><span class="tx">型態2<small>符合型態</small></span></label>
+      <div class="fld sub2 adv"><span>突破後幾日內</span><input type="number" id="wDays" value="5" min="1" max="15"></div>
+      <label class="row sub2 adv"><input type="checkbox" id="wVol" checked><span class="tx">須帶量<small>突破日量 ≥ 1.5 倍 20 日均量</small></span></label>
       <div class="fld adv"><span>爆量對比基準</span>
         <select id="volBase">
           <option value="5">5 日均量</option>
@@ -274,7 +302,7 @@ tbody tr{cursor:pointer}
       <div class="fld adv"><span>回補交易日</span><input type="number" id="days" value="100" min="65" max="140" step="5"></div>
       <div class="note adv" style="margin-top:0">MA60 至少要 61 根，設 70 較保險。設越少，爆量的均量基準期也跟著變短。</div>
       <div class="fld adv"><span>請求間隔 (ms)</span><input type="number" id="gap" value="1600" min="600" step="100"></div>
-      <label class="row adv"><input type="checkbox" id="mOtc"><span class="tx">一併納入上櫃<small>櫃買 API 常改版，抓不到就取消</small></span></label>
+      <label class="row adv"><input type="checkbox" id="mOtc" checked><span class="tx">一併納入上櫃<small>已預設開啟；櫃買 API 若改版抓不到，取消再更新</small></span></label>
     </div>
     <button class="btn ghost sm" id="btnRun" style="margin-top:12px">只重新篩選（不抓資料）</button>
     <button class="btn ghost sm" id="btnDiag" style="margin-top:8px">檢查資料完整度</button>
@@ -655,6 +683,67 @@ function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
     o.push(s.o?s.o[i]:null);d.push(DB.dates[i]);}
   return{c,q,h,l,o,d};}
 const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.length;i++)t+=a[i];return t/n;};
+/* ZigZag 轉折點：以百分比幅度過濾雜訊 */
+function zigzag(c,pct){
+  const th=pct/100; const piv=[];
+  if(c.length<3)return piv;
+  let dir=0, extIdx=0, extPx=c[0];
+  for(let i=1;i<c.length;i++){
+    if(dir<=0){
+      if(c[i]<extPx){extPx=c[i];extIdx=i;}
+      else if((c[i]-extPx)/extPx>=th){piv.push({i:extIdx,price:extPx,type:'L'});dir=1;extPx=c[i];extIdx=i;}
+    }
+    if(dir>=0){
+      if(c[i]>extPx){extPx=c[i];extIdx=i;}
+      else if((extPx-c[i])/extPx>=th){piv.push({i:extIdx,price:extPx,type:'H'});dir=-1;extPx=c[i];extIdx=i;}
+    }
+  }
+  piv.push({i:extIdx,price:extPx,type:dir>0?'H':'L'});
+  return piv;
+}
+/* 頭頭高、底底高：最近 nH 個高點遞增 且 最近 nL 個低點遞增（中等敏感度 8%） */
+function isHHLL(c,nH,nL,pct){
+  const piv=zigzag(c,pct||3);
+  const H=piv.filter(p=>p.type==='H').map(p=>p.price);
+  const L=piv.filter(p=>p.type==='L').map(p=>p.price);
+  if(H.length<nH||L.length<nL)return false;
+  const lastH=H.slice(-nH), lastL=L.slice(-nL);
+  for(let i=1;i<lastH.length;i++)if(!(lastH[i]>lastH[i-1]))return false;
+  for(let i=1;i<lastL.length;i++)if(!(lastL[i]>lastL[i-1]))return false;
+  return true;
+}
+/* 蔡森 W 底突破頸線：
+   結構 L-H-L（兩個底 + 中間反彈高=頸線），第二底不深破第一底，
+   近期收盤帶量突破頸線。回傳 null 或 {neck,bottom,breakIdx,ago,volOK,target,pct} */
+function detectW(c,q,within,needVol){
+  const piv=zigzag(c,3);
+  if(piv.length<4)return null;
+  const N=c.length;
+  // 從最近往回找 L-H-L 結構
+  for(let e=piv.length-1;e>=2;e--){
+    const p3=piv[e],p2=piv[e-1],p1=piv[e-2];
+    if(!(p1.type==='L'&&p2.type==='H'&&p3.type==='L'))continue;
+    const bottom1=p1.price, neck=p2.price, bottom2=p3.price;
+    // 兩底相近（第二底不低於第一底的 96%），頸線明顯高於底（≥5%）
+    if(bottom2<bottom1*0.96)continue;
+    if(neck<Math.max(bottom1,bottom2)*1.05)continue;
+    // 在 p3 之後找「收盤突破頸線」的那天
+    for(let i=p3.i+1;i<N;i++){
+      if(c[i]>neck){
+        const ago=N-1-i;
+        if(ago>within)return null;              // 突破太久以前，不算近期訊號
+        const avg20=q.slice(Math.max(0,i-20),i).reduce((a,b)=>a+b,0)/Math.min(20,i||1);
+        const volOK=avg20>0 && q[i]>=avg20*1.5;
+        if(needVol&&!volOK)return null;
+        const height=neck-Math.min(bottom1,bottom2);
+        return{neck,bottom:Math.min(bottom1,bottom2),neckIdx:p2.i,b1Idx:p1.i,b2Idx:p3.i,
+          breakIdx:i,ago,volOK,target:neck+height,pct:height/neck*100};
+      }
+    }
+    return null;   // 有結構但還沒突破
+  }
+  return null;
+}
 /* 量比：今日量 ÷ 前 n 日均量（不含今日） */
 function volRatio(q,n){
   const base=q.slice(Math.max(0,q.length-1-n),q.length-1);
@@ -689,7 +778,8 @@ function run(){
   const IN=DB.insts[baseDate]||{f:{},i:{}};
   const instReady=Object.keys(IN.f).length>0;
   const useMA=$('#cMA').checked,useOrd=$('#cMAorder').checked,useF=$('#cFor').checked,
-    useI=$('#cIt').checked;
+    useI=$('#cIt').checked,useHH=$('#cHHLL').checked,useW=$('#cW').checked;
+  const wDays=Math.max(1,+$('#wDays').value||5),wVol=$('#wVol').checked;
   const nR=+$('#nRank').value||200,vx=+$('#volX').value||3,mv=+$('#minVol').value||0,lv=$('#bigLv').value;
   const gDays=Math.max(1,+$('#gapDays').value||1),gPct=+$('#gapPct').value||0,gUnf=$('#gapUnf').checked;
   const vb=+$('#volBase').value||60;
@@ -703,7 +793,7 @@ function run(){
   const bigReady=keys.length>=2;
   const useB=$('#cBig').checked&&bigReady;
 
-  let cand=[],st={base:0,vol:0,ma:0,ord:0,inst:0,big:0};let noHL=0;
+  let cand=[],st={base:0,vol:0,ma:0,ord:0,inst:0,big:0,hhll:0,w:0};let noHL=0;
   for(const code in DB.stocks){
     const s=DB.stocks[code],{c,q,h,l}=series(s,cut);
     if(c.length<61)continue;
@@ -719,6 +809,10 @@ function run(){
     else if(useF&&!inF)continue; else if(useI&&!inI)continue;
     st.inst++;
     if(useB){const dd=bigDelta[code];if(dd==null||dd<=0)continue;} st.big++;
+    const hhll=isHHLL(c,2,2,3);
+    if(useHH&&!hhll)continue; st.hhll++;
+    const wpat=detectW(c,q,wDays,wVol);
+    if(useW&&!wpat)continue; st.w++;
     const ratio=volRatio(q,vb);           // 爆量只標示、不過濾
     const r5=volRatio(q,5);               // 近 5 日均量比（短線爆量）
     const hasHL=h.some(x=>x!=null)&&l.some(x=>x!=null);
@@ -733,7 +827,7 @@ function run(){
     const hi20=Math.max(...c.slice(-20));
     const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
     cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
-      r30:p30?(px-p30)/p30*100:null,volTrend,near20High,
+      r30:p30?(px-p30)/p30*100:null,volTrend,near20High,hhll,wpat,
       f:IN.f?.[code]??null,i:IN.i?.[code]??null,big:bigDelta[code]??null,days:c.length});
   }
   RESULT=cand;
@@ -743,7 +837,9 @@ function run(){
     ['站上四均線',st.ma,useMA],
     ['多頭排列',st.ord,useOrd],
     ['法人排行',st.inst,useF||useI],
-    ['大戶增加',st.big,useB]
+    ['大戶增加',st.big,useB],
+    ['頭頭高底底高',st.hhll,useHH],
+    ['W 底突破頸線',st.w,useW]
   ];
   const warn=[];
   const today=ymd(new Date()),wd=new Date().getDay();
@@ -844,7 +940,13 @@ function paintPerf(){
 }
 
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['big','大戶Δ%']];
+  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['big','大戶Δ%']];
+function patCell(r){
+  const dots=[];
+  if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
+  if(r.wpat)dots.push('<span class="patdot t2" title="型態2 符合型態">2</span>');
+  return dots.length?dots.join(''):'<span style="color:var(--dim)">—</span>';
+}
 function gapCell(g){
   if(!g||!$('#cGap').checked)return'—';
   const N=Math.max(1,+$('#gapDays').value||5);
@@ -874,8 +976,9 @@ function paintTable(){
     `<td class="${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}</td>`+
     `<td>${r.vol.toLocaleString()}</td>`+
     `<td>${burstCell(r.ratio)}</td>`+
-    `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td>${gapCell(r.gap)}</td>`+
+    `<td>${patCell(r)}</td>`+
+    `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
     `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
@@ -970,10 +1073,12 @@ function evaluate(code){
     baseDate,enough,days:c.length,m,lamps,
     ord:enough&&m[5]>m[10]&&m[10]>m[20]&&m[20]>m[60],
     f:IN.f?.[code]??null,i:IN.i?.[code]??null,rf,ri,nR,big,bigReady:keys.length>=2,
-    ratio,ratio5,ratio60,vb,vx,gap:gp,gapN:gDays,r30:p30?(px-p30)/p30*100:null,ser:{c,q,h,l,o,d}};
+    ratio,ratio5,ratio60,vb,vx,gap:gp,gapN:gDays,r30:p30?(px-p30)/p30*100:null,
+    hhll:isHHLL(c,2,2,3),wpat:detectW(c,q,Math.max(1,+$('#wDays').value||5),$('#wVol').checked),
+    ser:{c,q,h,l,o,d}};
 }
 /* K 線 + 成交量（SVG，紅漲綠跌） */
-function chartSVG(ser,n,W0,H0x){
+function chartSVG(ser,n,W0,H0x,wpat,plan){
   const N=Math.min(n,ser.c.length);
   if(N<3)return`<div class="ihint" style="padding:30px 0;text-align:center;color:var(--up)">這檔目前只有 ${ser.c.length} 根資料，畫不出 K 線。<br>請先按左上「更新並篩選」把歷史補齊（v4 升版後需重補一次）。</div>`;
   const hasO=ser.o&&ser.o.some(x=>x!=null);
@@ -987,6 +1092,64 @@ function chartSVG(ser,n,W0,H0x){
   const qmax=Math.max(...Q,1);
   const vy=v=>PH+GAP+VH-(v/qmax)*VH;
   const bw=W/N,cw=Math.max(1.2,bw*0.62),FS=Math.max(8.5,Math.round(TOT*0.032));
+  const _usedY=[];
+  function tagLabel(txt,W,ly,col,fs,pos){
+    const w=txt.length*fs*0.62+8, h=fs+5;
+    let ty = pos==='above' ? ly-3 : ly+h;
+    // 避免與已放置標籤重疊：往上下推移
+    let guard=0;
+    while(_usedY.some(u=>Math.abs(u-ty)<h+1)&&guard<20){ ty += (pos==='above'?-(h+1):(h+1)); guard++; }
+    _usedY.push(ty);
+    const rx=W-w-2, ry=ty-fs;
+    return `<rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="#0D1319" opacity=".78"/>`
+      +`<text x="${(W-4).toFixed(1)}" y="${(ty-2).toFixed(1)}" text-anchor="end" fill="${col}" font-size="${fs}" font-weight="700">${txt}</text>`;
+  }
+  // ZigZag 轉折疊圖
+  let zz='';
+  try{
+    const piv=zigzag(C,3);
+    if(piv.length>=2){
+      let path='';
+      piv.forEach((pp,idx)=>{ path+=(idx?'L':'M')+(pp.i*bw+bw/2).toFixed(1)+' '+y(pp.price).toFixed(1); });
+      zz+=`<path d="${path}" fill="none" stroke="#E8E8E8" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>`;
+      piv.slice(-4).forEach(pp=>{
+        const x=pp.i*bw+bw/2, yy=y(pp.price), col=pp.type==='H'?'#E5484D':'#1F9E6E';
+        zz+=`<circle cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" r="3" fill="${col}"/>`
+          +`<text x="${x.toFixed(1)}" y="${(pp.type==='H'?yy-6:yy+13).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="${FS}" font-weight="700">${pp.type}</text>`;
+      });
+    }
+  }catch(e){}
+  // W 底疊圖：頸線、滿足點、突破圈
+  let wov='';
+  try{
+    if(wpat){
+      const off=C.length-N, toX=gi=>((gi-off)*bw+bw/2);
+      const nly=y(wpat.neck), tgy=y(wpat.target);
+      wov+=`<line x1="0" y1="${nly.toFixed(1)}" x2="${W}" y2="${nly.toFixed(1)}" stroke="#F2B544" stroke-width="1" stroke-dasharray="5 3" opacity=".85"/>`
+        +tagLabel(`頸線 ${wpat.neck.toFixed(2)}`, W, nly, '#F2B544', FS, 'below');
+      if(tgy>4&&tgy<PH)wov+=`<line x1="0" y1="${tgy.toFixed(1)}" x2="${W}" y2="${tgy.toFixed(1)}" stroke="#6FA8DC" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>`
+        +tagLabel(`滿足 ${wpat.target.toFixed(2)}`, W, tgy, '#6FA8DC', FS, 'above');
+      const bi=wpat.breakIdx-off;
+      if(bi>=0&&bi<N)wov+=`<circle cx="${toX(wpat.breakIdx).toFixed(1)}" cy="${y(C[bi]).toFixed(1)}" r="4.5" fill="none" stroke="#F2B544" stroke-width="2"/>`;
+    }
+  }catch(e){}
+  // 停損虛線（紅）：買賣建議的主停損價
+  let stopL='';
+  try{
+    if(plan&&plan.stop!=null){
+      const sy=y(plan.stop);
+      if(sy>4&&sy<PH)stopL+=`<line x1="0" y1="${sy.toFixed(1)}" x2="${W}" y2="${sy.toFixed(1)}" stroke="#E5484D" stroke-width="1.2" stroke-dasharray="6 3" opacity=".85"/>`
+        +tagLabel(`停損 ${plan.stop.toFixed(2)}`, W, sy, '#E5484D', FS, 'below');
+      // 停利虛線（綠）
+      if(plan.target!=null){const ty=y(plan.target);
+        if(ty>4&&ty<PH)stopL+=`<line x1="0" y1="${ty.toFixed(1)}" x2="${W}" y2="${ty.toFixed(1)}" stroke="#1F9E6E" stroke-width="1.2" stroke-dasharray="6 3" opacity=".8"/>`
+          +tagLabel(`停利 ${plan.target.toFixed(2)}`, W, ty, '#1F9E6E', FS, 'above');}
+      // 壓力虛線（紫紅）：上方前高
+      if(plan.resist!=null && plan.resist!==plan.target){const ry=y(plan.resist);
+        if(ry>4&&ry<PH)stopL+=`<line x1="0" y1="${ry.toFixed(1)}" x2="${W}" y2="${ry.toFixed(1)}" stroke="#D6568C" stroke-width="1.2" stroke-dasharray="3 3" opacity=".85"/>`
+          +tagLabel(`壓力 ${plan.resist.toFixed(2)}`, W, ry, '#D6568C', FS, 'above');}
+    }
+  }catch(e){}
   let k='',v='';
   for(let i=0;i<N;i++){
     const x=i*bw+bw/2, up=C[i]>=O[i], col=up?'var(--up)':'var(--down)';
@@ -1003,7 +1166,7 @@ function chartSVG(ser,n,W0,H0x){
     return`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`;};
   return`<svg viewBox="0 0 ${W} ${H0}" width="${W}" height="${H0}" style="display:block;width:100%;height:auto;margin-top:4px">
     <line x1="0" y1="${PH}" x2="${W}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
-    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${v}
+    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${zz}${wov}${stopL}${v}
     <text x="${W-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
     <text x="${W-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
     <text x="0" y="${H0-2}" fill="var(--dim)" font-size="${FS}">${fmtD(D[0])}</text>
@@ -1042,6 +1205,98 @@ function backtest(ser){
   return{signals,res,span:Math.max(0,c.length-59)};
 }
 /* 過去 window 日內，各均線作為支撐的表現：回檔觸及後隔日是否守住 */
+/* 買賣建議：依過去百日均線支撐表現 + 型態，給買點/停損/目標
+   核心邏輯：百日內最常在某條均線反彈 → 那條均線=接的位置=停損參考 */
+function tradePlan(ser,wpat){
+  const st=supportStats(ser,100);
+  const px=st.px;
+  const c=ser.c, l=ser.l||c, q=ser.q||[];
+  const N=c.length;
+
+  // 停損候選（都取「最低價」而非收盤）：
+  // 1) 前波段低點：最近一個 ZigZag 低點
+  // 2) 百日均線支撐：守住率最高的均線價
+  // 3) 近 20 日大量日的低點：量最大那天的最低
+  const stops=[];
+  // 1 前波段低
+  try{ const piv=zigzag(c,3).filter(p=>p.type==='L'); if(piv.length){const lp=piv[piv.length-1]; stops.push({type:'前波段低點',price:l[lp.i]??c[lp.i],idx:lp.i}); } }catch(e){}
+  // 2 均線支撐（列出每一條在現價下方的均線＝慣性支撐；標註守住率）
+  const cand=st.out.filter(r=>r.touch>=3&&r.rate!=null).sort((a,b)=>b.rate-a.rate);
+  const best=cand[0]||null; const bestCur=best?st.cur.find(x=>x.nm===best.nm):null;
+  st.cur.forEach(mc=>{
+    if(mc.m&&mc.m<px){
+      const stat=st.out.find(o=>o.nm===mc.nm);
+      const rateTxt=stat&&stat.rate!=null?`守${stat.rate.toFixed(0)}%`:'';
+      stops.push({type:`跌破 ${mc.nm}${rateTxt?'（'+rateTxt+'）':''}`,price:mc.m,idx:N-1,isMA:true});
+    }
+  });
+  // 3 近 20 日大量低點
+  try{
+    let mi=-1,mq=-1; for(let i=Math.max(0,N-20);i<N;i++){ if(q[i]>mq){mq=q[i];mi=i;} }
+    if(mi>=0)stops.push({type:'近20日大量低點',price:l[mi]??c[mi],idx:mi});
+  }catch(e){}
+
+  // 取「在現價下方、且最靠近現價」的當主停損（最不容易被洗掉、風險最小）
+  const below=stops.filter(x=>x.price<px).sort((a,b)=>b.price-a.price);
+  const mainStop=below[0]||stops.sort((a,b)=>b.price-a.price)[0]||null;
+
+  let plan={px,support:null,supRate:null,supPrice:null,stops,mainStop,stop:null,stopType:null,stopIdx:null,
+    buyLo:null,buyHi:null,target:null,note:''};
+  if(best&&bestCur&&bestCur.m){
+    plan.support=best.nm; plan.supRate=best.rate; plan.supPrice=bestCur.m;
+    plan.buyLo=+bestCur.m.toFixed(2); plan.buyHi=+(bestCur.m*1.02).toFixed(2);
+  }
+  if(mainStop){ plan.stop=+mainStop.price.toFixed(2); plan.stopType=mainStop.type; plan.stopIdx=mainStop.idx; }
+
+  // 壓力區：百日內（系統內建最多天）在現價上方、最靠近現價的前高（ZigZag 高點，用最高價）
+  const hi=ser.h||c;
+  const highs=[];
+  try{ zigzag(c,3).filter(p=>p.type==='H').forEach(p=>highs.push({price:hi[p.i]??c[p.i],idx:p.i})); }catch(e){}
+  const above=highs.filter(x=>x.price>px).sort((a,b)=>a.price-b.price);
+  plan.resist = above.length ? +above[0].price.toFixed(2) : null;      // 最近的上方前高＝壓力
+  plan.resistIdx = above.length ? above[0].idx : null;
+  plan.resistAll = above.slice(0,3).map(x=>+x.price.toFixed(2));         // 上方前幾個壓力
+  plan.hi100 = +Math.max(...hi).toFixed(2);                              // 百日最高
+
+  // 目標：W 底滿足點，否則壓力區（前高），再否則百日高
+  if(wpat&&wpat.target)plan.target=+wpat.target.toFixed(2);
+  else if(plan.resist)plan.target=plan.resist;
+  else plan.target=plan.hi100;
+  if(bestCur&&bestCur.m){
+    const d=(px-bestCur.m)/bestCur.m*100;
+    plan.note = d<=2&&d>=-1 ? '現價貼近支撐均線，接近進場位置'
+      : d>2 ? `現價高於支撐均線 ${d.toFixed(1)}%，可等回測 ${best.nm} 再進`
+      : '已跌破支撐均線，趨勢偏弱';
+  }
+  return plan;
+}
+/* 中間頂部橫幅：型態訊號 + 買點 / 停損 / 目標 */
+function planBanner(ser,wpat){
+  const c=ser.c, hhll=isHHLL(c,2,2,3);
+  const p=tradePlan(ser,wpat);
+  const tags=[];
+  if(wpat)tags.push(`<span class="ptag t2 blink">★ 型態2 符合型態（頸線 ${wpat.neck.toFixed(2)}）</span>`);
+  if(hhll)tags.push(`<span class="ptag t1">型態1 波段型態</span>`);
+  if(!tags.length)tags.push(`<span class="ptag flat">無明顯型態訊號</span>`);
+  const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)} – ${p.buyHi.toFixed(2)}` : '—';
+  const cells=`<div class="pcells">
+      <div><s>建議買區</s><b class="up">${buy}</b><em>${p.support?'貼近 '+p.support:'—'}</em></div>
+      <div><s>停損</s><b class="dn">${p.stop!=null?p.stop.toFixed(2):'—'}</b><em>${p.stopType||'—'}</em></div>
+      <div><s>上方壓力</s><b class="dn">${p.resist!=null?p.resist.toFixed(2):'—'}</b><em>${p.resist!=null?'前高，過不了是壓力':'現價已在近期高檔'}</em></div>
+      <div><s>停利目標</s><b>${p.target!=null?p.target.toFixed(2):'—'}</b><em>${wpat?'W底滿足點':p.resist?'看前高壓力':'百日高'}</em></div>
+      <div><s>參考支撐</s><b>${p.support?p.support+'（'+p.supPrice.toFixed(2)+'）':'—'}</b><em>${p.supRate!=null?'百日守住率 '+p.supRate.toFixed(0)+'%':''}</em></div>
+    </div>`;
+  const others = (p.stops&&p.stops.length>1)
+    ? `<div class="pstops"><div class="plabel">其他停損參考（可依風險偏好選）</div>
+        <div class="pslist">${p.stops.filter(x=>x!==p.mainStop)
+          .sort((a,b)=>b.price-a.price)
+          .map(x=>`<span class="pschip"><span class="nm">${x.type}</span><b>${x.price.toFixed(2)}</b></span>`).join('')}</div></div>` : '';
+  return `<div class="pbanner"><div class="ptags">${tags.join('')}</div>${cells}
+    ${p.note?`<div class="pnote">${p.note}</div>`:''}${
+      p.resist!=null && (p.resist-p.px)/p.px*100<3 ? `<div class="pnote" style="color:var(--dn,#1F9E6E)">現價逼近前高壓力 ${p.resist.toFixed(2)}（差 ${((p.resist-p.px)/p.px*100).toFixed(1)}%），須帶量才容易突破。</div>`:''
+    }${others}
+    <div class="pdisc">停損取前波段低點／百日均線支撐／近20日大量低點中最靠近現價下方者（皆用最低價）。機械式統計，非投資建議。</div></div>`;
+}
 function supportStats(ser,win){
   const{c,l}=ser;
   const N=c.length; const start=Math.max(60,N-win);
@@ -1163,7 +1418,7 @@ function paintInspect(code){
     return;
   }
   const on={ma:$('#cMA').checked,ord:$('#cMAorder').checked,f:$('#cFor').checked,
-    i:$('#cIt').checked,big:$('#cBig').checked,gap:$('#cGap').checked};
+    i:$('#cIt').checked,big:$('#cBig').checked,gap:$('#cGap').checked,hh:$('#cHHLL').checked,w:$('#cW').checked};
   const row=(ok,enabled,label,detail)=>
     `<div class="chk ${enabled?'':'dis'}"><span class="m ${ok?'y':'n'}">${ok?'✓':'✕'}</span>
       <span class="t">${label}<em>${detail}</em></span></div>`;
@@ -1172,7 +1427,7 @@ function paintInspect(code){
   const bigOK=e.bigReady&&e.big!=null&&e.big>0;
   let hits=0,total=0;
   [[on.ma,maOK],[on.ord,e.ord],[on.f,e.rf!=null&&e.rf<=e.nR],[on.i,e.ri!=null&&e.ri<=e.nR],
-   [on.big,bigOK],[on.gap,gapOK]].forEach(([en,ok])=>{if(en){total++;if(ok)hits++;}});
+   [on.big,bigOK],[on.gap,gapOK],[on.hh,e.hhll],[on.w,!!e.wpat]].forEach(([en,ok])=>{if(en){total++;if(ok)hits++;}});
   const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
   box.innerHTML=
     `<div class="ihead"><span class="c">${e.code}</span><span class="n">${e.name}<span class="mkt">${e.mkt}</span></span>
@@ -1189,6 +1444,9 @@ function paintInspect(code){
       !e.bigReady?'集保資料不足兩週':e.big==null?'該檔無集保資料':`${sgn(e.big)} 個百分點`)+
     row(gapOK,on.gap,`多缺口（近 ${e.gapN} 日）`,
       e.gap?`▲${e.gap.pct.toFixed(2)}%　第 ${e.gapN-e.gap.ago}/${e.gapN} 日${e.gap.ago?`（${e.gap.ago} 日前）`:'（今日）'}　${e.gap.unf?'未回補':'已回補'}`:`近 ${e.gapN} 日無多方缺口`)+
+    row(e.hhll,on.hh,'型態1（波段型態）',e.hhll?'成立':'未成立')+
+    row(!!e.wpat,on.w,'型態2（符合型態）',
+      e.wpat?`頸線 ${e.wpat.neck.toFixed(2)}　${e.wpat.ago?e.wpat.ago+' 日前突破':'今日突破'}${e.wpat.volOK?'（帶量）':''}　滿足 ${e.wpat.target.toFixed(2)}`:'未成立')+
     `<div class="chk"><span class="m ${e.ratio>=e.vx?'y':'n'}">${e.ratio>=e.vx?'✓':'✕'}</span>
       <span class="t">爆量（不列入條件）<em>${e.vb}日均量比 ${e.ratio.toFixed(2)}x（5日 ${e.ratio5.toFixed(2)}x／60日 ${e.ratio60.toFixed(2)}x）<br>成交 ${e.vol.toLocaleString()} 張</em></span></div>`+
     `<div class="chk"><span class="m ${e.r30>0?'y':'n'}">${e.r30>0?'✓':'✕'}</span>
@@ -1228,10 +1486,13 @@ window.drawChart=function drawChart(code){
       +`<span class="p ${chg>0?'up':chg<0?'dn':''}" style="font-size:14px">${sgn(chg)}%</span>`
       +`<span style="flex:1"></span>`
       +`<span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`;
+    let wpat=null; try{ wpat=detectW(ser.c,ser.q,Math.max(1,+$('#wDays').value||5),$('#wVol').checked); }catch(_){}
+    let plan=null; try{ plan=tradePlan(ser,wpat); }catch(_){}
+    let banner=''; try{ banner=planBanner(ser,wpat); }catch(_){}
     let kline='';
-    try{ kline=chartSVG(ser,CHARTN,880,430); }
+    try{ kline=chartSVG(ser,CHARTN,880,430,wpat,plan); }
     catch(err){ kline=`<div class="ihint" style="color:var(--up);padding:20px">K 線錯誤：${err.message}</div>`; }
-    big.innerHTML=`${head}<div id="cbig-kline">${kline}</div><div id="cbig-extra"></div>`;
+    big.innerHTML=`${head}${banner}<div id="cbig-kline">${kline}</div><div id="cbig-extra"></div>`;
 
     big.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;drawChart(code);});
 
@@ -1433,7 +1694,9 @@ $('#btnTdcc').onclick=async()=>{
   const proxies=[
     u=>u,
     u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
-    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+    u=>'https://thingproxy.freeboard.io/fetch/'+u,
+    u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)
   ];
   const src='https://opendata.tdcc.com.tw/getOD.ashx?id=1-5';
   for(let i=0;i<proxies.length;i++){
