@@ -794,6 +794,7 @@ async function doFetch(){
   trimAll(want+15);
   if(!await store.set(KEY,DB))log('快取寫入失敗，建議匯出備份。','err');
   paintStrip(); run();
+  if(INSPECTED)drawChart(INSPECTED);   // 更新完成後，若目前正開著某檔的 K 線，自動重畫最新資料
   if($('#fbAuto').checked&&fbEnd())await fbPush(true);
   log('完成。','ok');
 }
