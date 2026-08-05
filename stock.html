@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V37</title>
+<title>盤後篩選台 V51</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -24,6 +24,51 @@ a{color:var(--amber)}
 .brand .ver{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink);background:var(--amber);padding:2px 8px;border-radius:3px;letter-spacing:.06em;align-self:center}
 .brand .sub{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.06em}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
+.simbtn:hover{background:var(--amber);color:var(--ink)}
+.top{position:relative}
+.simmask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.simmask.on{display:flex}
+.simwin{background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(760px,96vw);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.simhd{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.simhd b{font-size:16px}
+.simsub{color:var(--dim);font-size:12px;flex:1}
+.simx{background:var(--panel2);border:1px solid var(--line);border-radius:5px;width:30px;height:30px;color:var(--muted);cursor:pointer;font-size:14px}
+.simbody{padding:16px 18px}
+.simname-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.simname-row label{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
+.simname-row input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--paper);font-size:14px}
+.simform{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.simform input,.simform select{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--paper);font-size:14px}
+.simform #simCode{width:90px;font-family:var(--mono)}
+.simform #simQty{width:80px;font-family:var(--mono)}
+.simform #simAdd{background:var(--up);color:#fff;border:0;border-radius:5px;padding:9px 20px;font-weight:700;cursor:pointer}
+.simsum{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.simsum .sc{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;flex:1;min-width:130px}
+.simsum .sc s{text-decoration:none;color:var(--dim);font-size:11px;display:block}
+.simsum .sc b{font-family:var(--mono);font-size:19px;font-weight:700;display:block;margin-top:3px}
+.simtable table{width:100%;border-collapse:collapse;font-size:13px}
+.simtable th{text-align:right;color:var(--dim);font-size:11px;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line)}
+.simtable th:nth-child(-n+2){text-align:left}
+.simtable td{text-align:right;padding:8px;border-bottom:1px solid var(--line);font-family:var(--mono)}
+.simtable td:nth-child(-n+2){text-align:left}
+.simtable .delx{background:none;border:0;color:var(--down);cursor:pointer;font-size:14px}
+.simperson{margin-bottom:18px;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.simphd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.simpname{font-size:15px;font-weight:700;color:var(--amber)}
+.simptot{font-size:13px;color:var(--muted);margin-left:auto}
+.simptot b{font-family:var(--mono);font-size:15px}
+.simperson table{margin:0}
+.simsell{background:var(--down,#1F9E6E);color:#fff;border:0;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:700}
+.simsell:hover{opacity:.85}
+.simhist{padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--dim)}
+.simhistbtn{background:var(--panel);border:1px solid var(--line);border-radius:4px;color:var(--muted);padding:3px 10px;cursor:pointer;font-size:11px;margin-left:6px}
+.simhistbody{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.simhrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px}
+.simhrow span:first-child{color:var(--dim);min-width:70px}
+.simhrow .delx{margin-left:auto}
+.simft{margin-top:14px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:10px}
+.simclr{margin-left:auto;background:var(--panel2);border:1px solid var(--line);border-radius:4px;color:var(--muted);padding:5px 12px;cursor:pointer;font-size:12px}
 .strip::-webkit-scrollbar{display:none}
 .cellx{flex:0 0 auto;padding:7px 18px;border-right:1px solid var(--line);font-family:var(--mono);font-size:11.5px;white-space:nowrap}
 .cellx b{color:var(--amber);font-weight:700}
@@ -44,6 +89,9 @@ a{color:var(--amber)}
 .guard.locked{display:none}
 .locknote{display:none;font-size:12px;color:var(--dim);line-height:1.6;padding:6px 0}
 .locknote.show{display:block}
+.modeseg{display:flex;gap:6px;margin:0 0 12px}
+.modeseg button{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:8px 6px;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
+.modeseg button.on{background:var(--amber);color:var(--ink);border-color:var(--amber)}
 .locknote b{color:var(--muted)}
 
 label.row{display:flex;align-items:flex-start;gap:9px;padding:7px 0;cursor:pointer}
@@ -238,10 +286,33 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V37</span>
+    <h1>盤後篩選台</h1><span class="ver">V51</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
+  <button class="simbtn" id="btnSim">模擬下單</button>
+</div>
+
+<div class="simmask" id="simMask">
+  <div class="simwin">
+    <div class="simhd"><b>模擬下單</b><span class="simsub">以目前已收集到的收盤資料為準，每天更新後自動重算損益</span><button class="simx" id="simX">✕</button></div>
+    <div class="simbody">
+      <div class="simname-row">
+        <label>帳戶</label>
+        <input id="simName" placeholder="輸入名字＝建立/選擇帳戶（本金無限）" maxlength="12" list="simAccts">
+        <datalist id="simAccts"></datalist>
+      </div>
+      <div class="simform">
+        <input id="simCode" placeholder="代號" maxlength="6" inputmode="numeric">
+        <input id="simQty" type="number" placeholder="張數" min="1" value="1">
+        <select id="simSide"><option value="buy">買進</option><option value="sell">賣出</option></select>
+        <button id="simAdd">送出</button>
+      </div>
+      <div class="simsum" id="simSum"></div>
+      <div class="simtable" id="simTable"></div>
+      <div class="simft">以最新收盤價計算未實現損益。這是紙上模擬，不會真的下單。<button id="simClear" class="simclr">清空所有紀錄</button></div>
+    </div>
+  </div>
 </div>
 
 <div class="wrap">
@@ -258,6 +329,10 @@ tbody tr{cursor:pointer}
 
   <div class="blk">
     <h2>篩選條件<button class="lk" id="lock" aria-pressed="false">🔒 解鎖</button></h2>
+    <div class="modeseg" id="modeseg">
+      <button data-m="normal" class="on">一般正常篩選</button>
+      <button data-m="gap">多缺口篩選</button>
+    </div>
     <div class="fld asof"><span>基準日</span>
       <div class="seg" id="segAsOf">
         <button data-v="0" aria-pressed="true">今日</button>
@@ -276,13 +351,9 @@ tbody tr{cursor:pointer}
           <button data-v="or" aria-pressed="false">任一</button>
         </div>
       </div>
-      <label class="row"><input type="checkbox" id="cBig" checked><span class="tx">大戶持股比例增加<small>集保週資料，要兩週才比得出來</small></span></label>
-      <div class="fld sub2 adv"><span>大戶定義</span>
-        <select id="bigLv"><option value="200" selected>200 張以上</option><option value="400">400 張以上</option><option value="1000">1000 張以上</option></select>
-      </div>
-      <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口</span></label>
+      <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口<small>市場真空帶：今日最低＞昨日最高，中間無成交</small></span></label>
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
-      <div class="fld sub2 adv"><span>最小幅度 %</span><input type="number" id="gapPct" value="0" min="0" step="0.5"></div>
+      <div class="fld sub2 adv"><span>最小幅度 %</span><input type="number" id="gapPct" value="0.3" min="0" step="0.1"></div>
       <label class="row sub2 adv"><input type="checkbox" id="gapUnf"><span class="tx">只算未回補<small>不勾則已回補的也一併標示</small></span></label>
       <label class="row"><input type="checkbox" id="cHHLL"><span class="tx">型態1<small>波段型態</small></span></label>
       <label class="row"><input type="checkbox" id="cW"><span class="tx">型態2<small>符合型態</small></span></label>
@@ -309,13 +380,6 @@ tbody tr{cursor:pointer}
     <div class="log" id="diagLog"></div>
   </div>
 
-  <div class="blk">
-    <h2>大戶資料（集保）</h2>
-    <button class="btn ghost sm" id="btnTdcc">抓最新一週</button>
-    <div class="log" id="tdccLog"></div>
-    <div class="note">集保只公布最新一週，每週五之後點一次，累積兩週才算得出增減。抓不到就到
-      <a href="https://opendata.tdcc.com.tw/getOD.ashx?id=1-5" target="_blank">集保開放資料</a>。集保網站常擋跨域，自動抓不到時就點連結手動下載，之後我可以再幫你加回上傳。</div>
-  </div>
 
   <div class="blk">
     <h2>雲端同步 · Firebase</h2>
@@ -340,7 +404,7 @@ tbody tr{cursor:pointer}
  <div class="mgrid">
   <div class="mleft">
   <div id="warnBox"></div>
-  <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線、成交量與大戶散戶比例。</div></div>
+  <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線與成交量。</div></div>
   <div class="perf" id="perf" style="display:none">
     <h3>近 30 交易日表現 · 前 50 檔</h3><div id="perfBody"></div>
   </div>
@@ -379,7 +443,7 @@ tbody tr{cursor:pointer}
 
 <script>
 /* ═══ storage ═══ */
-const KEY='twstk2_cache', KEY2='twstk2_tdcc', KEY3='twstk2_fb';
+const KEY='twstk2_cache', KEY3='twstk2_fb';
 const store={
   async get(k){try{
     if(window.storage){const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}
@@ -393,7 +457,6 @@ const store={
 
 /* ═══ state ═══ */
 let DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};
-let TD={snaps:{}};
 let RESULT=[],FUNNEL=[],SORT={k:'vol',d:-1},LOGIC='and',ABORT=false,OFFSET=0,VOLBASE=100,TAB='all';
 
 const $=s=>document.querySelector(s);
@@ -443,6 +506,16 @@ async function fetchInst(d){
   return res;
 }
 const topN=(o,n)=>Object.entries(o||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]);
+/* 連續買超天數：從最新往回數，法人對該檔連續 >0 的天數（最多看已存的 insts 天數） */
+function contBuy(code,which){
+  const days=Object.keys(DB.insts||{}).sort();  // 舊→新
+  let cnt=0;
+  for(let i=days.length-1;i>=0;i--){
+    const r=DB.insts[days[i]]; const v=r&&r[which]&&r[which][code];
+    if(v!=null&&v>0)cnt++; else break;
+  }
+  return cnt;
+}
 function makeUniverse(n,dates){
   const u=new Set();
   for(const d of dates){const r=DB.insts[d];if(!r)continue;
@@ -751,19 +824,25 @@ function volRatio(q,n){
   const avg=base.reduce((a,b)=>a+b,0)/base.length;
   return avg>0?q[q.length-1]/avg:0;
 }
-/* 多方缺口：今日最低 > 昨日最高，中間無成交 */
-function findGap(h,l,within,minPct,unfOnly){
+/* 多方缺口＝市場真空帶：今日最低 > 昨日最高，中間價位當天完全無成交，
+   代表買方短時間壓倒性勝出。封閉停損＝缺口下緣（昨日最高），實體收盤跌破即真空帶被填滿 */
+function findGap(h,l,within,minPct,unfOnly,c){
   const n=l.length;
+  const mp=Math.max(minPct,0.3);   // 至少 0.3%，過濾微幅假缺口
   for(let i=n-1;i>=Math.max(1,n-within);i--){
-    if(h[i-1]==null||l[i]==null)continue;
-    const top=h[i-1];
-    if(!(l[i]>top))continue;
-    const pct=(l[i]-top)/top*100;
-    if(pct<minPct)continue;
+    const top=h[i-1], lo=l[i];
+    if(top==null||lo==null||!(top>0)||!(lo>0))continue;   // 資料須有效
+    if(!(lo>top))continue;                                 // 今日最低 > 昨日最高
+    const pct=(lo-top)/top*100;
+    if(pct<mp)continue;
+    // 未回補：之後沒有任何一天最低價跌進缺口
     let unf=true;
     for(let k=i;k<n;k++)if(l[k]!=null&&l[k]<=top){unf=false;break;}
     if(unfOnly&&!unf)continue;
-    return{pct,ago:n-1-i,unf};
+    // 是否已被「實體收盤」封閉：之後有收盤價 ≤ 缺口下緣
+    let closed=false;
+    if(c)for(let k=i;k<n;k++)if(c[k]!=null&&c[k]<=top){closed=true;break;}
+    return{pct,ago:n-1-i,unf,gapLow:top,gapHigh:l[i],closed};
   }
   return null;
 }
@@ -780,20 +859,14 @@ function run(){
   const useMA=$('#cMA').checked,useOrd=$('#cMAorder').checked,useF=$('#cFor').checked,
     useI=$('#cIt').checked,useHH=$('#cHHLL').checked,useW=$('#cW').checked;
   const wDays=Math.max(1,+$('#wDays').value||5),wVol=$('#wVol').checked;
-  const nR=+$('#nRank').value||200,vx=+$('#volX').value||3,mv=+$('#minVol').value||0,lv=$('#bigLv').value;
+  const nR=+$('#nRank').value||200,vx=+$('#volX').value||3,mv=+$('#minVol').value||0;
   const gDays=Math.max(1,+$('#gapDays').value||1),gPct=+$('#gapPct').value||0,gUnf=$('#gapUnf').checked;
   const vb=+$('#volBase').value||60;
 
   const topF=new Set(topN(IN.f,nR)),topI=new Set(topN(IN.i,nR));
 
-  const keys=Object.keys(TD.snaps).sort();
-  const bigDelta={};
-  if(keys.length>=2){const A=TD.snaps[keys[keys.length-2]],B=TD.snaps[keys[keys.length-1]];
-    for(const c in B)if(A[c]!=null)bigDelta[c]=+(B[c]['p'+lv]-A[c]['p'+lv]).toFixed(3);}
-  const bigReady=keys.length>=2;
-  const useB=$('#cBig').checked&&bigReady;
 
-  let cand=[],st={base:0,vol:0,ma:0,ord:0,inst:0,big:0,hhll:0,w:0};let noHL=0;
+  let cand=[],st={base:0,vol:0,ma:0,ord:0,inst:0,hhll:0,w:0};let noHL=0;
   for(const code in DB.stocks){
     const s=DB.stocks[code],{c,q,h,l}=series(s,cut);
     if(c.length<61)continue;
@@ -808,7 +881,6 @@ function run(){
     if(useF&&useI){if(LOGIC==='and'?!(inF&&inI):!(inF||inI))continue;}
     else if(useF&&!inF)continue; else if(useI&&!inI)continue;
     st.inst++;
-    if(useB){const dd=bigDelta[code];if(dd==null||dd<=0)continue;} st.big++;
     const hhll=isHHLL(c,2,2,3);
     if(useHH&&!hhll)continue; st.hhll++;
     const wpat=detectW(c,q,wDays,wVol);
@@ -817,7 +889,8 @@ function run(){
     const r5=volRatio(q,5);               // 近 5 日均量比（短線爆量）
     const hasHL=h.some(x=>x!=null)&&l.some(x=>x!=null);
     if(!hasHL)noHL++;
-    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf):null;   // 多缺口只標示、不過濾
+    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf,c):null;
+    if(GAPONLY&&!gp)continue;   // 多缺口篩選模式：只留真的有缺口的
     const p30=c.length>=31?c[c.length-31]:null;
     // 型態判斷用的量價特徵
     const q5avg=q.slice(-6,-1).reduce((a,b)=>a+b,0)/5||0;      // 前 5 日均量
@@ -828,7 +901,7 @@ function run(){
     const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
     cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
       r30:p30?(px-p30)/p30*100:null,volTrend,near20High,hhll,wpat,
-      f:IN.f?.[code]??null,i:IN.i?.[code]??null,big:bigDelta[code]??null,days:c.length});
+      f:IN.f?.[code]??null,i:IN.i?.[code]??null,days:c.length});
   }
   RESULT=cand;
   FUNNEL=[
@@ -837,7 +910,6 @@ function run(){
     ['站上四均線',st.ma,useMA],
     ['多頭排列',st.ord,useOrd],
     ['法人排行',st.inst,useF||useI],
-    ['大戶增加',st.big,useB],
     ['頭頭高底底高',st.hhll,useHH],
     ['W 底突破頸線',st.w,useW]
   ];
@@ -847,16 +919,14 @@ function run(){
     warn.push(`今天（${fmtD(today)}）的收盤資料還沒出來，目前顯示的是 ${fmtD(baseDate)}。行情約 14:30 後、法人買賣超約 16:00 後才公布。`);
   if(!instReady)
     warn.push(`${fmtD(baseDate)} 的法人買賣超還沒載入，「外資／投信排行」這兩項判斷不了。按一次「更新並篩選」就會補抓。`);
-  if($('#cBig').checked&&!bigReady)warn.push(`集保資料只有 ${keys.length} 週，「大戶持股增加」這項無法判斷，本次已跳過。每週五之後點一次「抓最新一週」，累積兩週就會生效。`);
   if(noHL>0)warn.push(`有 ${noHL} 檔沒有最高／最低價（舊版快取留下的），無法判斷多缺口。按一次「清除全部快取」再重新更新就會補齊。`);
   $('#warnBox').innerHTML=warn.map(w=>`<div class="warn">${w}</div>`).join('');
   paintFunnel(); paintGroups(); paintTable(); paintPerf();
-  $('#foot').textContent=`基準日 ${fmtD(baseDate)}${OFFSET?'（前一天）':''}　`+
-    (bigReady?`大戶 ${fmtD(keys[keys.length-2])} → ${fmtD(keys[keys.length-1])}`:'大戶：資料不足');
+  $('#foot').textContent=`基準日 ${fmtD(baseDate)}${OFFSET?'（前一天）':''}`;
 }
 
 /* ═══ 畫面 ═══ */
-let GROUP_FILTER=null;
+let GROUP_FILTER=null, GAPONLY=false;
 /* 依量價型態把結果分組（近 5 日均量為基準） */
 function classify(r){
   const surge=r.r5>=2, mild=r.r5>=1.3&&r.r5<2;
@@ -940,7 +1010,7 @@ function paintPerf(){
 }
 
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['big','大戶Δ%']];
+  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)']];
 function patCell(r){
   const dots=[];
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
@@ -981,8 +1051,7 @@ function paintTable(){
     `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
-    `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
-    `<td class="${r.big>0?'up':r.big<0?'dn':''}">${r.big==null?'—':(r.big>0?'+':'')+r.big.toFixed(2)}</td></tr>`;
+    `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td></tr>`;
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
@@ -994,14 +1063,12 @@ function paintTable(){
   });
 }
 function paintStrip(){
-  const keys=Object.keys(TD.snaps).sort();
   $('#strip').innerHTML=[
     ['行情日期',fmtD(DB.dates[DB.dates.length-1])],
     ['交易日數',DB.dates.length],
     ['追蹤檔數',Object.keys(DB.stocks).length],
     ['法人日期',fmtD(DB.inst.date)],
-    ['基準日',fmtD(DB.dates[DB.dates.length-1-OFFSET])+(OFFSET?' ←前一天':'')],
-    ['大戶週數',keys.length+(keys.length?'（'+fmtD(keys[keys.length-1])+'）':'')]
+    ['基準日',fmtD(DB.dates[DB.dates.length-1-OFFSET])+(OFFSET?' ←前一天':'')]
   ].map(([a,b])=>`<div class="cellx"><s>${a}</s><b>${b}</b></div>`).join('');
   const need=Math.max(65,+$('#days').value||100),miss=Math.max(0,need-DB.dates.length);
   const gap=Math.max(600,+$('#gap').value||1600),mul=$('#mOtc').checked?2:1;
@@ -1053,7 +1120,7 @@ function evaluate(code){
   if(c.length<2)return null;
   const baseDate=DB.dates[cut-1];
   const IN=DB.insts[baseDate]||{f:{},i:{}};
-  const nR=+$('#nRank').value||200,vx=+$('#volX').value||3,lv=$('#bigLv').value;
+  const nR=+$('#nRank').value||200,vx=+$('#volX').value||3;
   const gDays=Math.max(1,+$('#gapDays').value||1),gPct=+$('#gapPct').value||0,gUnf=$('#gapUnf').checked;
   const px=c[c.length-1],prev=c[c.length-2];
   const enough=c.length>=61;
@@ -1061,20 +1128,17 @@ function evaluate(code){
   const lamps=[px>m[5],px>m[10],px>m[20],px>m[60]];
   const rankOf=o=>{const L=topN(o,9999);const i=L.indexOf(code);return i<0?null:i+1;};
   const rf=rankOf(IN.f),ri=rankOf(IN.i);
-  const keys=Object.keys(TD.snaps).sort();
-  let big=null;
-  if(keys.length>=2){const A=TD.snaps[keys[keys.length-2]],B=TD.snaps[keys[keys.length-1]];
-    if(A[code]&&B[code])big=+(B[code]['p'+lv]-A[code]['p'+lv]).toFixed(3);}
   const vb=+$('#volBase').value||60;
   const ratio=volRatio(q,vb),ratio5=volRatio(q,5),ratio60=volRatio(q,60);
-  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf):null;
+  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf,c):null;
   const p30=c.length>=31?c[c.length-31]:null;
   return{code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol:q[q.length-1],
     baseDate,enough,days:c.length,m,lamps,
     ord:enough&&m[5]>m[10]&&m[10]>m[20]&&m[20]>m[60],
-    f:IN.f?.[code]??null,i:IN.i?.[code]??null,rf,ri,nR,big,bigReady:keys.length>=2,
+    f:IN.f?.[code]??null,i:IN.i?.[code]??null,rf,ri,nR,
     ratio,ratio5,ratio60,vb,vx,gap:gp,gapN:gDays,r30:p30?(px-p30)/p30*100:null,
     hhll:isHHLL(c,2,2,3),wpat:detectW(c,q,Math.max(1,+$('#wDays').value||5),$('#wVol').checked),
+    contF:contBuy(code,'f'),contI:contBuy(code,'i'),instDays:Object.keys(DB.insts||{}).length,
     ser:{c,q,h,l,o,d}};
 }
 /* K 線 + 成交量（SVG，紅漲綠跌） */
@@ -1087,22 +1151,26 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
   const C=sl(ser.c),Q=sl(ser.q),D=sl(ser.d);
   const H=sl(ser.h).map((v,i)=>v??C[i]), L=sl(ser.l).map((v,i)=>v??C[i]), O=sl(ser.o).map((v,i)=>v??C[i]);
   const W=W0||264, TOT=H0x||203, PH=Math.round(TOT*0.70), VH=Math.round(TOT*0.22), GAP=Math.round(TOT*0.05), H0=TOT;
+  const RM=Math.round(FS0()*7);   // 右側留白，放完整標籤（框外）
+  const PW=W-RM;                    // 實際畫 K 棒/均線的寬度
   const hi=Math.max(...H),lo=Math.min(...L),span=(hi-lo)||1,pad=span*0.05;
+  function FS0(){return Math.max(8.5,Math.round(TOT*0.032));}
   const y=v=>PH-(v-(lo-pad))/(span+pad*2)*PH;
   const qmax=Math.max(...Q,1);
   const vy=v=>PH+GAP+VH-(v/qmax)*VH;
-  const bw=W/N,cw=Math.max(1.2,bw*0.62),FS=Math.max(8.5,Math.round(TOT*0.032));
+  const FS=FS0();
+  const bw=PW/N,cw=Math.max(1.2,bw*0.62);
   const _usedY=[];
-  function tagLabel(txt,W,ly,col,fs,pos){
-    const w=txt.length*fs*0.62+8, h=fs+5;
-    let ty = pos==='above' ? ly-3 : ly+h;
-    // 避免與已放置標籤重疊：往上下推移
+  // 標籤畫在繪圖區右側框外留白，不擋 K 棒；完整字 + 底色方塊
+  function tagLabel(txt,Wtot,ly,col,fs,pos){
+    const h=fs+6;
+    let ty=ly+fs*0.35;
     let guard=0;
-    while(_usedY.some(u=>Math.abs(u-ty)<h+1)&&guard<20){ ty += (pos==='above'?-(h+1):(h+1)); guard++; }
+    while(_usedY.some(u=>Math.abs(u-ty)<h)&&guard<24){ ty += (guard%2? h : -h); guard++; }
     _usedY.push(ty);
-    const rx=W-w-2, ry=ty-fs;
-    return `<rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="#0D1319" opacity=".78"/>`
-      +`<text x="${(W-4).toFixed(1)}" y="${(ty-2).toFixed(1)}" text-anchor="end" fill="${col}" font-size="${fs}" font-weight="700">${txt}</text>`;
+    const bx=PW+5, bw2=RM-6, by=ty-fs+1;
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw2.toFixed(1)}" height="${(fs+3).toFixed(1)}" rx="2.5" fill="${col}" opacity=".16"/>`
+      +`<text x="${(bx+3).toFixed(1)}" y="${(ty+1).toFixed(1)}" fill="${col}" font-size="${fs}" font-weight="700">${txt}</text>`;
   }
   // ZigZag 轉折疊圖
   let zz='';
@@ -1125,10 +1193,10 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
     if(wpat){
       const off=C.length-N, toX=gi=>((gi-off)*bw+bw/2);
       const nly=y(wpat.neck), tgy=y(wpat.target);
-      wov+=`<line x1="0" y1="${nly.toFixed(1)}" x2="${W}" y2="${nly.toFixed(1)}" stroke="#F2B544" stroke-width="1" stroke-dasharray="5 3" opacity=".85"/>`
-        +tagLabel(`頸線 ${wpat.neck.toFixed(2)}`, W, nly, '#F2B544', FS, 'below');
-      if(tgy>4&&tgy<PH)wov+=`<line x1="0" y1="${tgy.toFixed(1)}" x2="${W}" y2="${tgy.toFixed(1)}" stroke="#6FA8DC" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>`
-        +tagLabel(`滿足 ${wpat.target.toFixed(2)}`, W, tgy, '#6FA8DC', FS, 'above');
+      wov+=`<line x1="0" y1="${nly.toFixed(1)}" x2="${PW}" y2="${nly.toFixed(1)}" stroke="#F2B544" stroke-width="1" stroke-dasharray="5 3" opacity=".85"/>`
+        +tagLabel(`頸線 ${wpat.neck.toFixed(2)}`, W, nly, '#F2B544', FS);
+      if(tgy>4&&tgy<PH)wov+=`<line x1="0" y1="${tgy.toFixed(1)}" x2="${PW}" y2="${tgy.toFixed(1)}" stroke="#6FA8DC" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>`
+        +tagLabel(`滿足 ${wpat.target.toFixed(2)}`, W, tgy, '#6FA8DC', FS);
       const bi=wpat.breakIdx-off;
       if(bi>=0&&bi<N)wov+=`<circle cx="${toX(wpat.breakIdx).toFixed(1)}" cy="${y(C[bi]).toFixed(1)}" r="4.5" fill="none" stroke="#F2B544" stroke-width="2"/>`;
     }
@@ -1138,17 +1206,33 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
   try{
     if(plan&&plan.stop!=null){
       const sy=y(plan.stop);
-      if(sy>4&&sy<PH)stopL+=`<line x1="0" y1="${sy.toFixed(1)}" x2="${W}" y2="${sy.toFixed(1)}" stroke="#E5484D" stroke-width="1.2" stroke-dasharray="6 3" opacity=".85"/>`
-        +tagLabel(`停損 ${plan.stop.toFixed(2)}`, W, sy, '#E5484D', FS, 'below');
+      if(sy>4&&sy<PH)stopL+=`<line x1="0" y1="${sy.toFixed(1)}" x2="${PW}" y2="${sy.toFixed(1)}" stroke="#E5484D" stroke-width="1.2" stroke-dasharray="6 3" opacity=".85"/>`
+        +tagLabel(`停損 ${plan.stop.toFixed(2)}`, W, sy, '#E5484D', FS);
       // 停利虛線（綠）
       if(plan.target!=null){const ty=y(plan.target);
-        if(ty>4&&ty<PH)stopL+=`<line x1="0" y1="${ty.toFixed(1)}" x2="${W}" y2="${ty.toFixed(1)}" stroke="#1F9E6E" stroke-width="1.2" stroke-dasharray="6 3" opacity=".8"/>`
-          +tagLabel(`停利 ${plan.target.toFixed(2)}`, W, ty, '#1F9E6E', FS, 'above');}
+        if(ty>4&&ty<PH)stopL+=`<line x1="0" y1="${ty.toFixed(1)}" x2="${PW}" y2="${ty.toFixed(1)}" stroke="#1F9E6E" stroke-width="1.2" stroke-dasharray="6 3" opacity=".8"/>`
+          +tagLabel(`停利 ${plan.target.toFixed(2)}`, W, ty, '#1F9E6E', FS);}
       // 壓力虛線（紫紅）：上方前高
       if(plan.resist!=null && plan.resist!==plan.target){const ry=y(plan.resist);
-        if(ry>4&&ry<PH)stopL+=`<line x1="0" y1="${ry.toFixed(1)}" x2="${W}" y2="${ry.toFixed(1)}" stroke="#D6568C" stroke-width="1.2" stroke-dasharray="3 3" opacity=".85"/>`
-          +tagLabel(`壓力 ${plan.resist.toFixed(2)}`, W, ry, '#D6568C', FS, 'above');}
+        if(ry>4&&ry<PH)stopL+=`<line x1="0" y1="${ry.toFixed(1)}" x2="${PW}" y2="${ry.toFixed(1)}" stroke="#D6568C" stroke-width="1.2" stroke-dasharray="3 3" opacity=".85"/>`
+          +tagLabel(`壓力 ${plan.resist.toFixed(2)}`, W, ry, '#D6568C', FS);}
     }
+  }catch(e){}
+  // 爆量高/低點標記：量 ≥ 前 60 日均量 2.5 倍（與爆量定義一致），標其最高與最低
+  let burst='';
+  try{
+    let any=false;
+    for(let i=0;i<N;i++){
+      const base=Q.slice(Math.max(0,i-60),i);
+      const avg=base.length?base.reduce((a,b)=>a+b,0)/base.length:0;
+      if(avg>0 && Q[i]>=avg*2.5){
+        any=true;
+        const x=i*bw+bw/2;
+        burst+=`<circle cx="${x.toFixed(1)}" cy="${y(H[i]).toFixed(1)}" r="2.8" fill="none" stroke="#F2B544" stroke-width="1.4"/>`
+          +`<circle cx="${x.toFixed(1)}" cy="${y(L[i]).toFixed(1)}" r="2.8" fill="none" stroke="#F2B544" stroke-width="1.4"/>`;
+      }
+    }
+    if(any)burst+=`<text x="${(PW/2).toFixed(1)}" y="${(FS+2).toFixed(1)}" text-anchor="middle" fill="#F2B544" font-size="${FS}" opacity=".6">◌ 爆量日（量≥60日均量2.5倍）</text>`;
   }catch(e){}
   let k='',v='';
   for(let i=0;i<N;i++){
@@ -1159,18 +1243,24 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
     v+=`<rect x="${(x-cw/2).toFixed(1)}" y="${vy(Q[i]).toFixed(1)}" width="${cw.toFixed(1)}" height="${(PH+GAP+VH-vy(Q[i])).toFixed(1)}" fill="${col}" opacity=".62"/>`;
   }
   // 均線
-  const line=(p,col)=>{ if(C.length<p)return'';
+  const fullC=ser.c;                    // 完整收盤序列（算均線用）
+  const startIdx=fullC.length-N;        // 視窗起點在完整序列的位置
+  const line=(p,col)=>{ if(fullC.length<p)return'';
     let d='';
-    for(let i=p-1;i<N;i++){const t=C.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p;
-      d+=(d?'L':'M')+(i*bw+bw/2).toFixed(1)+' '+y(t).toFixed(1);}
-    return`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`;};
+    for(let vi=0;vi<N;vi++){
+      const fi=startIdx+vi;              // 對應完整序列的索引
+      if(fi<p-1)continue;               // 前面不夠算均線
+      let t=0; for(let k=fi-p+1;k<=fi;k++)t+=fullC[k]; t/=p;
+      d+=(d?'L':'M')+(vi*bw+bw/2).toFixed(1)+' '+y(t).toFixed(1);
+    }
+    return d?`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`:'';};
   return`<svg viewBox="0 0 ${W} ${H0}" width="${W}" height="${H0}" style="display:block;width:100%;height:auto;margin-top:4px">
-    <line x1="0" y1="${PH}" x2="${W}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
-    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${zz}${wov}${stopL}${v}
-    <text x="${W-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
-    <text x="${W-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
+    <line x1="0" y1="${PH}" x2="${PW}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
+    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${zz}${wov}${stopL}${burst}${v}
+    <text x="${PW-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
+    <text x="${PW-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
     <text x="0" y="${H0-2}" fill="var(--dim)" font-size="${FS}">${fmtD(D[0])}</text>
-    <text x="${W}" y="${H0-2}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${fmtD(D[N-1])}</text>
+    <text x="${PW}" y="${H0-2}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${fmtD(D[N-1])}</text>
     <text x="0" y="${FS}" fill="var(--amber)" font-size="${FS}">MA5</text>
     <text x="${FS*3.4}" y="${FS}" fill="#5FD08A" font-size="${FS}">MA10</text>
     <text x="${FS*7.2}" y="${FS}" fill="#6FA8DC" font-size="${FS}">MA20</text>
@@ -1234,6 +1324,12 @@ function tradePlan(ser,wpat){
   try{
     let mi=-1,mq=-1; for(let i=Math.max(0,N-20);i<N;i++){ if(q[i]>mq){mq=q[i];mi=i;} }
     if(mi>=0)stops.push({type:'近20日大量低點',price:l[mi]??c[mi],idx:mi});
+  }catch(e){}
+  // 4 缺口封閉：近期未回補多方缺口的下緣，跌破＝實體封閉該缺口
+  try{
+    const h=ser.h||c;
+    const g=findGap(h,l,20,0,false,c);
+    if(g&&!g.closed&&g.gapLow<px)stops.push({type:'封閉缺口',price:g.gapLow,idx:N-1,isGap:true});
   }catch(e){}
 
   // 取「在現價下方、且最靠近現價」的當主停損（最不容易被洗掉、風險最小）
@@ -1353,33 +1449,6 @@ function backtestHTML(ser){
   return`<div class="bt"><h4>勝率回測 · 訊號 ${b.signals} 次 / 可回測 ${b.span} 個交易日</h4>${rows}
     <div class="ihint" style="margin-top:9px">只計入價格類條件（均線、多頭排列、多缺口）。法人買超與大戶持股沒有歷史資料，無法納入回測。樣本很小，只能當參考，不是預測。</div></div>`;
 }
-/* 大戶（≥400張）／中實戶（200-400）／散戶 比例，取集保各週 */
-function ownershipHTML(code){
-  const keys=Object.keys(TD.snaps).sort();
-  if(!keys.length)return`<div class="bt"><h4>大戶／散戶比例</h4>
-    <div class="ihint">尚未載入集保資料。左側「大戶資料（集保）」按「抓最新一週」，或每週五後累積。</div></div>`;
-  const rows=keys.slice(-6).map(k=>{
-    const m=TD.snaps[k][code];
-    if(!m)return`<div class="btrow"><span>${fmtD(k).slice(5)}</span><span class="btbar"></span><b>—</b><em>無資料</em><em></em></div>`;
-    const big=m.p400||0;            // ≥400 張視為大戶
-    const mid=(m.p200||0)-(m.p400||0);  // 200-400 張中實戶
-    const retail=Math.max(0,100-(m.p200||0)); // <200 張散戶
-    return`<div class="btrow" style="grid-template-columns:60px 1fr 132px">
-      <span>${fmtD(k).slice(5)}</span>
-      <span class="btbar" style="display:flex">
-        <i style="width:${big}%;background:var(--up)" title="大戶 ${big.toFixed(1)}%"></i>
-        <i style="width:${mid}%;background:var(--amber)" title="中實戶 ${mid.toFixed(1)}%"></i>
-        <i style="width:${retail}%;background:var(--dim)" title="散戶 ${retail.toFixed(1)}%"></i>
-      </span>
-      <em style="text-align:left">大戶 ${big.toFixed(1)}%／散戶 ${retail.toFixed(1)}%</em></div>`;
-  }).join('');
-  return`<div class="bt"><h4>大戶／散戶比例 · 集保近 ${Math.min(6,keys.length)} 週</h4>${rows}
-    <div class="ihint" style="margin-top:9px">
-      <span style="color:var(--up)">■</span> 大戶（≥400張）　
-      <span style="color:var(--amber)">■</span> 中實戶（200-400張）　
-      <span style="color:var(--dim)">■</span> 散戶（<200張）。
-      大戶比例逐週上升＝籌碼集中，通常偏多。</div></div>`;
-}
 let CHARTN=60,INSPECTED='',CHART_SER=null,CHART_META=null;
 function paintBig(e){
   const box=$('#cbig'); if(!e){box.innerHTML='';return;}
@@ -1398,7 +1467,6 @@ function paintBig(e){
   box.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;paintBig(e);});
   // 2) 附加區塊分別算，各自 try；任何一個出錯都不影響已畫好的 K 線
   let extra='';
-  try{ extra+=ownershipHTML(e.code)||''; }catch(err){ extra+=`<div class="ihint">大戶散戶比例無法顯示（${err.message}）</div>`; }
   try{ extra+=supportHTML(e.ser)||''; }catch(err){}
   try{ extra+=backtestHTML(e.ser)||''; }catch(err){}
   const ex=document.getElementById('cbig-extra');
@@ -1418,16 +1486,15 @@ function paintInspect(code){
     return;
   }
   const on={ma:$('#cMA').checked,ord:$('#cMAorder').checked,f:$('#cFor').checked,
-    i:$('#cIt').checked,big:$('#cBig').checked,gap:$('#cGap').checked,hh:$('#cHHLL').checked,w:$('#cW').checked};
+    i:$('#cIt').checked,gap:$('#cGap').checked,hh:$('#cHHLL').checked,w:$('#cW').checked};
   const row=(ok,enabled,label,detail)=>
     `<div class="chk ${enabled?'':'dis'}"><span class="m ${ok?'y':'n'}">${ok?'✓':'✕'}</span>
       <span class="t">${label}<em>${detail}</em></span></div>`;
   const maOK=e.enough&&e.lamps.every(Boolean);
   const gapOK=!!e.gap;
-  const bigOK=e.bigReady&&e.big!=null&&e.big>0;
   let hits=0,total=0;
   [[on.ma,maOK],[on.ord,e.ord],[on.f,e.rf!=null&&e.rf<=e.nR],[on.i,e.ri!=null&&e.ri<=e.nR],
-   [on.big,bigOK],[on.gap,gapOK],[on.hh,e.hhll],[on.w,!!e.wpat]].forEach(([en,ok])=>{if(en){total++;if(ok)hits++;}});
+   [on.gap,gapOK],[on.hh,e.hhll],[on.w,!!e.wpat]].forEach(([en,ok])=>{if(en){total++;if(ok)hits++;}});
   const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
   box.innerHTML=
     `<div class="ihead"><span class="c">${e.code}</span><span class="n">${e.name}<span class="mkt">${e.mkt}</span></span>
@@ -1440,20 +1507,22 @@ function paintInspect(code){
       e.f==null?'當日無資料':`${e.f>0?'買超':'賣超'} ${Math.abs(e.f).toLocaleString()} 張${e.rf?`　排名 ${e.rf}`:'　未進買超榜'}`)+
     row(e.ri!=null&&e.ri<=e.nR,on.i,`投信買超前 ${e.nR}`,
       e.i==null?'當日無資料':`${e.i>0?'買超':'賣超'} ${Math.abs(e.i).toLocaleString()} 張${e.ri?`　排名 ${e.ri}`:'　未進買超榜'}`)+
-    row(bigOK,on.big,'大戶持股增加',
-      !e.bigReady?'集保資料不足兩週':e.big==null?'該檔無集保資料':`${sgn(e.big)} 個百分點`)+
     row(gapOK,on.gap,`多缺口（近 ${e.gapN} 日）`,
-      e.gap?`▲${e.gap.pct.toFixed(2)}%　第 ${e.gapN-e.gap.ago}/${e.gapN} 日${e.gap.ago?`（${e.gap.ago} 日前）`:'（今日）'}　${e.gap.unf?'未回補':'已回補'}`:`近 ${e.gapN} 日無多方缺口`)+
+      e.gap?`▲${e.gap.pct.toFixed(2)}%　第 ${e.gapN-e.gap.ago}/${e.gapN} 日${e.gap.ago?`（${e.gap.ago} 日前）`:'（今日）'}　${e.gap.closed?'已實體封閉':e.gap.unf?'未回補':'已觸及'}　封閉停損 ${e.gap.gapLow.toFixed(2)}`:`近 ${e.gapN} 日無多方缺口`)+
     row(e.hhll,on.hh,'型態1（波段型態）',e.hhll?'成立':'未成立')+
     row(!!e.wpat,on.w,'型態2（符合型態）',
       e.wpat?`頸線 ${e.wpat.neck.toFixed(2)}　${e.wpat.ago?e.wpat.ago+' 日前突破':'今日突破'}${e.wpat.volOK?'（帶量）':''}　滿足 ${e.wpat.target.toFixed(2)}`:'未成立')+
+    `<div class="chk"><span class="m ${e.contF>=5?'y':'n'}">${e.contF>=5?'✓':'✕'}</span>
+      <span class="t">外資連續買超 5 日<em>${e.instDays<5?`目前僅存 ${e.instDays} 天法人資料，需累積至 5 天`:`目前連續 ${e.contF} 日`}</em></span></div>`+
+    `<div class="chk"><span class="m ${e.contI>=5?'y':'n'}">${e.contI>=5?'✓':'✕'}</span>
+      <span class="t">投信連續買超 5 日<em>${e.instDays<5?`目前僅存 ${e.instDays} 天法人資料，需累積至 5 天`:`目前連續 ${e.contI} 日`}</em></span></div>`+
     `<div class="chk"><span class="m ${e.ratio>=e.vx?'y':'n'}">${e.ratio>=e.vx?'✓':'✕'}</span>
       <span class="t">爆量（不列入條件）<em>${e.vb}日均量比 ${e.ratio.toFixed(2)}x（5日 ${e.ratio5.toFixed(2)}x／60日 ${e.ratio60.toFixed(2)}x）<br>成交 ${e.vol.toLocaleString()} 張</em></span></div>`+
     `<div class="chk"><span class="m ${e.r30>0?'y':'n'}">${e.r30>0?'✓':'✕'}</span>
       <span class="t">近 30 交易日上漲<em>${sgn(e.r30)}%</em></span></div>`+
     `<div class="iscore"><s>符合已啟用條件</s><b class="${hits===total&&total?'up':''}">${hits} / ${total}</b></div>`+
     `<div class="ihint" style="margin-top:11px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}</div>`+
-    `<button class="ibtn" id="ipDraw" style="margin-top:10px;background:var(--amber);color:var(--ink);font-weight:700;border:0">📈 畫出 K 線 / 成交量 / 大戶散戶比例</button>`;
+    `<button class="ibtn" id="ipDraw" style="margin-top:10px;background:var(--amber);color:var(--ink);font-weight:700;border:0">📈 畫出 K 線 / 成交量</button>`;
   INSPECTED=code;
   const drawBtn=document.getElementById('ipDraw');
   if(drawBtn)drawBtn.onclick=()=>drawChart(code);
@@ -1498,7 +1567,6 @@ window.drawChart=function drawChart(code){
 
     // 附加區塊之後補，壞了不影響 K 線
     let extra='';
-    try{ extra+=ownershipHTML(code)||''; }catch(err){}
     try{ extra+=supportHTML(ser)||''; }catch(err){}
     try{ extra+=backtestHTML(ser)||''; }catch(err){}
     const ex=document.getElementById('cbig-extra'); if(ex)ex.innerHTML=extra;
@@ -1566,7 +1634,7 @@ async function fbSaveCfg(){
 function fbLog(m,c){$('#fbLog').innerHTML=c?`<span class="${c}">${m}</span>`:m;}
 async function fbPush(quiet){
   const e=fbEnd(); if(!e){if(!quiet)fbLog('先填 Realtime Database 網址。','err');return false;}
-  const body=JSON.stringify({at:Date.now(),DB,TD});
+  const body=JSON.stringify({at:Date.now(),DB});
   fbLog(`上傳中…（${(body.length/1048576).toFixed(2)} MB）`);
   try{
     const r=await fetch(e+'?print=silent',{method:'PUT',headers:{'Content-Type':'application/json'},body});
@@ -1593,47 +1661,32 @@ async function fbPull(quiet){
     DB=Object.assign({v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}},j.DB);
     if(!DB.insts)DB.insts={};
     sanitizeDB();
-    if(j.TD&&j.TD.snaps)TD=j.TD;
-    await store.set(KEY,DB); await store.set(KEY2,TD);
+    await store.set(KEY,DB);
     fbLog(`已下載：${DB.dates.length} 個交易日、${Object.keys(DB.stocks).length} 檔，最新 ${fmtD(cloudLast)}`,'ok');
     paintStrip(); if(DB.dates.length)run();
     return true;
   }catch(err){ fbLog(`下載失敗：${err.message}`,'err'); return false; }
 }
 
-/* ═══ 集保 ═══ */
-function parseTdcc(text){
-  const lines=text.split(/\r?\n/).filter(l=>l.trim());
-  if(lines.length<2)throw new Error('CSV 內容不對');
-  const head=lines[0].split(',').map(s=>s.replace(/^"|"$/g,'').trim());
-  const iD=head.findIndex(h=>/資料日期/.test(h)),iC=head.findIndex(h=>/證券代號/.test(h)),
-    iL=head.findIndex(h=>/持股分級/.test(h)),iP=head.findIndex(h=>/比例/.test(h));
-  if(iC<0||iL<0||iP<0)throw new Error('找不到欄位');
-  const map={};let date='';
-  for(let i=1;i<lines.length;i++){
-    const r=lines[i].split(',').map(s=>s.replace(/^"|"$/g,'').trim());
-    const code=r[iC],lvl=+r[iL],pct=num(r[iP]);
-    if(!/^[1-9]\d{3}$/.test(code)||!isFinite(lvl)||pct==null||lvl>=16)continue;
-    if(!date&&iD>=0)date=String(r[iD]).replace(/\D/g,'');
-    if(!map[code])map[code]={p200:0,p400:0,p1000:0};
-    if(lvl>=11)map[code].p200+=pct;   // 第 11 級起 = 200 張以上
-    if(lvl>=12)map[code].p400+=pct;   // 第 12 級起 = 400 張以上
-    if(lvl>=15)map[code].p1000+=pct;  // 第 15 級   = 1000 張以上
-  }
-  if(!date)date=ymd(new Date());
-  return{date,map};
-}
-async function loadTdcc(text){
-  const{date,map}=parseTdcc(text);
-  TD.snaps[date]=map;
-  const ks=Object.keys(TD.snaps).sort();
-  while(ks.length>4)delete TD.snaps[ks.shift()];
-  await store.set(KEY2,TD);
-  $('#tdccLog').innerHTML=`已存入 ${fmtD(date)}，${Object.keys(map).length} 檔。目前 ${Object.keys(TD.snaps).length} 週。`;
-  paintStrip();
-}
-
 /* ═══ events ═══ */
+$('#modeseg').onclick=e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+  const m=b.dataset.m;
+  const set=(id,v)=>{const el=$('#'+id);if(el)el.checked=v;};
+  if(m==='normal'){
+    GAPONLY=false;
+    set('cMA',true);set('cMAorder',true);set('cFor',true);set('cIt',true);
+    set('cGap',true);set('cHHLL',false);set('cW',false);
+  }else{
+    // 多缺口篩選：只留「真的有缺口」的股票
+    GAPONLY=true;
+    set('cMA',false);set('cMAorder',false);set('cFor',false);set('cIt',false);
+    set('cGap',true);set('cHHLL',false);set('cW',false);
+    set('gapUnf',false);
+  }
+  run();
+};
 $('#lock').onclick=e=>{
   // aria-pressed=true 代表「已解鎖」
   const unlocked=e.target.getAttribute('aria-pressed')==='true';
@@ -1689,28 +1742,6 @@ $('#gapUnf').onchange=()=>{if(DB.dates.length)run();};
 ['#nRank','#days','#gap'].forEach(s=>$(s).oninput=()=>{
   document.querySelectorAll('.nrk').forEach(e=>e.textContent=$('#nRank').value);paintStrip();});
 $('#mOtc').onchange=paintStrip;
-$('#btnTdcc').onclick=async()=>{
-  $('#tdccLog').textContent='下載中…（集保檔約數 MB，較慢）';
-  const proxies=[
-    u=>u,
-    u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
-    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
-    u=>'https://thingproxy.freeboard.io/fetch/'+u,
-    u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)
-  ];
-  const src='https://opendata.tdcc.com.tw/getOD.ashx?id=1-5';
-  for(let i=0;i<proxies.length;i++){
-    try{
-      const r=await fetch(proxies[i](src),{cache:'no-store'});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const t=await r.text();
-      if(t&&t.length>1000){await loadTdcc(t);return;}
-      throw new Error('內容為空');
-    }catch(e){
-      $('#tdccLog').innerHTML=`<span class="err">第 ${i+1} 種方式失敗（${e.message}）${i<proxies.length-1?'，換下一種…':'。集保網站擋跨域，改用下方手動下載。'}</span>`;
-    }
-  }
-};
 let DRAG_CODE='';
 function noChartMsg(code){
   const s=DB.stocks[code];
@@ -1752,6 +1783,142 @@ $('#tblwrap').addEventListener('click',ev=>{
   $('#ipCode').value=c; paintInspect(c);
   const big=document.getElementById('cbig'); if(big)big.scrollIntoView({behavior:'smooth',block:'nearest'});
 });
+// ── 模擬下單 ──────────────────────────
+const SIM_KEY='sim_trades_v2';
+let SIM=[];   // 交易流水：{name,code,qty,side:'buy'|'sell',px,date}
+async function simLoad(){ try{const r=await store.get(SIM_KEY); if(Array.isArray(r))SIM=r; else if(r&&Array.isArray(r.trades))SIM=r.trades; else SIM=[];}catch(e){SIM=[];} }
+async function simSave(){ try{await store.set(SIM_KEY,SIM);}catch(e){} }
+function simPx(code){ const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
+  for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null)return s.c[i]; return null; }
+function simNm(code){ const s=DB.stocks&&DB.stocks[code]; return s&&s.n||code; }
+function simLastDate(){ return DB.dates&&DB.dates.length?fmtD(DB.dates[DB.dates.length-1]):'—'; }
+const LOT=1000;   // 1 張=1000 股
+
+/* 依帳戶結算：跑過該帳戶所有交易，用平均成本法算已實現損益 + 目前持倉 */
+function simAccount(name){
+  const trades=SIM.map((t,idx)=>({t,idx})).filter(x=>x.t.name===name);
+  const pos={};   // code -> {qty, avgCost}  qty=張
+  let realized=0;      // 已實現損益（元）
+  let boughtCost=0;    // 累計買進投入本金（元）
+  let realizedWin=0, realizedLoss=0;
+  for(const {t} of trades){
+    const q=t.qty, amt=t.px*q*LOT;
+    if(!pos[t.code])pos[t.code]={qty:0,avg:0};
+    const P=pos[t.code];
+    if(t.side==='buy'){
+      P.avg=(P.avg*P.qty + t.px*q)/(P.qty+q);
+      P.qty+=q; boughtCost+=amt;
+    }else{ // sell：實現損益 =（賣價-均成本）×股數
+      const sellQ=Math.min(q,P.qty);
+      const pl=(t.px-P.avg)*sellQ*LOT;
+      realized+=pl; if(pl>0)realizedWin+=pl; else realizedLoss+=pl;
+      P.qty-=sellQ;
+      if(P.qty<=0){P.qty=0;P.avg=0;}
+    }
+  }
+  // 未實現：目前持倉用最新收盤估
+  let unreal=0, holdCost=0, holdVal=0;
+  const holdings=[];
+  for(const code in pos){ const P=pos[code]; if(P.qty<=0)continue;
+    const cur=simPx(code); const cost=P.avg*P.qty*LOT;
+    holdCost+=cost;
+    let u=null,uPct=null,val=null;
+    if(cur!=null){ val=cur*P.qty*LOT; u=(cur-P.avg)*P.qty*LOT; uPct=(cur-P.avg)/P.avg*100; unreal+=u; holdVal+=val; }
+    holdings.push({code,qty:P.qty,avg:P.avg,cur,u,uPct,val});
+  }
+  return {name,trades,realized,realizedWin,realizedLoss,boughtCost,holdings,holdCost,holdVal,unreal,
+    totalPL:realized+unreal};
+}
+function simAccounts(){ return [...new Set(SIM.map(t=>t.name||'（未命名）'))]; }
+
+function simRender(){
+  const box=$('#simTable'), sum=$('#simSum');
+  // 更新帳戶 datalist
+  const dl=$('#simAccts'); if(dl)dl.innerHTML=simAccounts().map(n=>`<option value="${n}">`).join('');
+  if(!SIM.length){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有交易。輸入帳戶名字、代號、張數，選買進送出。本金無限，想買什麼都行。</div>'; sum.innerHTML=''; return; }
+
+  let allReal=0,allUnreal=0,allBought=0,allWin=0,allLoss=0;
+  let html='';
+  for(const name of simAccounts()){
+    const a=simAccount(name);
+    allReal+=a.realized; allUnreal+=a.unreal; allBought+=a.boughtCost;
+    allWin+=a.realizedWin; allLoss+=a.realizedLoss;
+    // 持倉表
+    const holdRows=a.holdings.length?a.holdings.map(h=>{
+      const cls=h.u==null?'':h.u>0?'up':h.u<0?'dn':'';
+      return `<tr>
+        <td>${h.code} ${simNm(h.code)}</td>
+        <td>${h.avg.toFixed(2)}</td><td>${h.qty}</td>
+        <td>${h.cur!=null?h.cur.toFixed(2):'—'}</td>
+        <td class="${cls}">${h.u==null?'—':(h.u>0?'+':'')+Math.round(h.u).toLocaleString()}</td>
+        <td class="${cls}">${h.uPct==null?'—':(h.uPct>0?'+':'')+h.uPct.toFixed(2)+'%'}</td>
+        <td><button class="simsell" data-code="${h.code}" data-name="${name}" data-qty="${h.qty}">賣出</button></td>
+      </tr>`;
+    }).join(''):`<tr><td colspan="7" style="color:var(--dim);text-align:center">目前無持倉（都已賣出）</td></tr>`;
+    const plCls=a.totalPL>0?'up':a.totalPL<0?'dn':'';
+    const rCls=a.realized>0?'up':a.realized<0?'dn':'';
+    html+=`<div class="simperson">
+      <div class="simphd">
+        <span class="simpname">${name}</span>
+        <span class="simptot">
+          總損益 <b class="${plCls}">${(a.totalPL>0?'+':'')+Math.round(a.totalPL).toLocaleString()}</b>
+          ｜已實現 <b class="${rCls}">${(a.realized>0?'+':'')+Math.round(a.realized).toLocaleString()}</b>
+          ｜未實現 <b class="${a.unreal>0?'up':a.unreal<0?'dn':''}">${(a.unreal>0?'+':'')+Math.round(a.unreal).toLocaleString()}</b>
+        </span></div>
+      <table><thead><tr><th>持倉</th><th>均成本</th><th>張</th><th>現價</th><th>未實現</th><th>報酬%</th><th></th></tr></thead>
+      <tbody>${holdRows}</tbody></table>
+      <div class="simhist" data-name="${name}">交易紀錄 ${a.trades.length} 筆　<button class="simhistbtn" data-name="${name}">展開/收合</button>
+        <div class="simhistbody" style="display:none">${a.trades.map(({t,idx})=>`
+          <div class="simhrow"><span>${fmtD(t.date)}</span><span class="${t.side==='buy'?'up':'dn'}">${t.side==='buy'?'買':'賣'}</span>
+            <span>${t.code} ${simNm(t.code)}</span><span>${t.px.toFixed(2)} × ${t.qty}張</span>
+            <button class="delx" data-i="${idx}">✕</button></div>`).join('')}</div>
+      </div>
+    </div>`;
+  }
+  box.innerHTML=html;
+
+  const allPL=allReal+allUnreal;
+  sum.innerHTML=`
+    <div class="sc"><s>總投入本金</s><b>${Math.round(allBought).toLocaleString()}</b></div>
+    <div class="sc"><s>總營利（已實現獲利）</s><b class="up">+${Math.round(allWin).toLocaleString()}</b></div>
+    <div class="sc"><s>總虧損（已實現虧損）</s><b class="dn">${Math.round(allLoss).toLocaleString()}</b></div>
+    <div class="sc"><s>已實現淨損益</s><b class="${allReal>0?'up':allReal<0?'dn':''}">${(allReal>0?'+':'')+Math.round(allReal).toLocaleString()}</b></div>
+    <div class="sc"><s>含未實現總損益</s><b class="${allPL>0?'up':allPL<0?'dn':''}">${(allPL>0?'+':'')+Math.round(allPL).toLocaleString()}</b></div>
+    <div class="sc"><s>資料日期</s><b style="font-size:15px">${simLastDate()}</b></div>`;
+
+  // 綁定
+  box.querySelectorAll('.delx').forEach(b=>b.onclick=async()=>{ SIM.splice(+b.dataset.i,1); await simSave(); simRender(); });
+  box.querySelectorAll('.simsell').forEach(b=>b.onclick=async()=>{
+    const code=b.dataset.code, nm=b.dataset.name, maxQ=+b.dataset.qty;
+    const q=prompt(`賣出 ${code} ${simNm(code)}，目前持有 ${maxQ} 張，要賣幾張？`, maxQ);
+    if(q==null)return; const qty=Math.min(maxQ,Math.max(1,+q||0)); if(qty<1)return;
+    const px=simPx(code); if(px==null){alert('無現價');return;}
+    SIM.push({name:nm,code,qty,side:'sell',px,date:DB.dates[DB.dates.length-1]});
+    await simSave(); simRender();
+  });
+  box.querySelectorAll('.simhistbtn').forEach(b=>b.onclick=()=>{
+    const body=b.closest('.simhist').querySelector('.simhistbody');
+    body.style.display=body.style.display==='none'?'block':'none';
+  });
+}
+$('#btnSim').onclick=async()=>{ await simLoad(); simRender(); $('#simMask').classList.add('on'); };
+$('#simX').onclick=()=>$('#simMask').classList.remove('on');
+$('#simMask').onclick=e=>{ if(e.target===$('#simMask'))$('#simMask').classList.remove('on'); };
+$('#simAdd').onclick=async()=>{
+  const code=$('#simCode').value.trim(), qty=Math.max(1,+$('#simQty').value||1);
+  const name=$('#simName').value.trim()||'（未命名）', side=$('#simSide').value;
+  if(!/^[1-9]\d{3}$/.test(code)){ alert('代號要 4 位數字'); return; }
+  const px=simPx(code);
+  if(px==null){ alert(code+' 不在已收集的資料裡（名單只含外資／投信買超前 200 名）。'); return; }
+  if(side==='sell'){
+    const a=simAccount(name); const h=a.holdings.find(x=>x.code===code);
+    const have=h?h.qty:0;
+    if(have<qty){ if(!confirm(`${name} 帳戶 ${code} 只持有 ${have} 張，要賣 ${qty} 張？超賣部分會變成放空。仍要送出？`))return; }
+  }
+  SIM.push({name,code,qty,side,px,date:DB.dates[DB.dates.length-1]});
+  await simSave(); $('#simCode').value=''; $('#simQty').value='1'; simRender();
+};
+$('#simClear').onclick=async()=>{ if(confirm('確定清空所有帳戶與交易紀錄？')){ SIM=[]; await simSave(); simRender(); } };
 $('#ipGo').onclick=()=>paintInspect($('#ipCode').value.trim());
 $('#ipChart').onclick=()=>{const c=$('#ipCode').value.trim();if(/^[1-9]\d{3}$/.test(c)){paintInspect(c);drawChart(c);}};
 $('#ipCode').onkeydown=e=>{if(e.key==='Enter')paintInspect(e.target.value.trim());};
@@ -1762,8 +1929,8 @@ $('#fbDown').onclick=()=>{fbSaveCfg();fbPull();};
 $('#fbAuto').onchange=fbSaveCfg;
 $('#btnClr').onclick=async()=>{
   if(!confirm('確定清除所有快取？下次要重新補歷史。'))return;
-  DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};TD={snaps:{}};
-  await store.del(KEY);await store.del(KEY2);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';$('#grp').style.display='none';
+  DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};
+  await store.del(KEY);RESULT=[];paintStrip();paintTable();$('#fun').style.display='none';$('#perf').style.display='none';$('#grp').style.display='none';
   $('#cbig').innerHTML='';};
 
 /* ═══ boot ═══ */
@@ -1774,7 +1941,6 @@ $('#btnClr').onclick=async()=>{
   if(!DB.insts)DB.insts={};
   if(DB.dates&&DB.dates.length)sanitizeDB();
   if(DB.inst&&DB.inst.date&&!DB.insts[DB.inst.date])DB.insts[DB.inst.date]={f:DB.inst.f,i:DB.inst.i};
-  const b=await store.get(KEY2); if(b&&b.snaps)TD=b;
   $('#guard').querySelectorAll('input,select,button').forEach(x=>x.disabled=true);
   const cfg=await store.get(KEY3);
   if(cfg){$('#fbUrl').value=cfg.url||'';if(cfg.path)$('#fbPath').value=cfg.path;$('#fbAuto').checked=cfg.auto!==false;}
