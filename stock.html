@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V25</title>
+<title>盤後篩選台 V26</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -214,7 +214,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V25</span>
+    <h1>盤後篩選台</h1><span class="ver">V26</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
   </div>
   <div class="strip" id="strip"></div>
@@ -1125,7 +1125,7 @@ function ownershipHTML(code){
       <span style="color:var(--dim)">■</span> 散戶（<200張）。
       大戶比例逐週上升＝籌碼集中，通常偏多。</div></div>`;
 }
-let CHARTN=60,INSPECTED='';
+let CHARTN=60,INSPECTED='',CHART_SER=null,CHART_META=null;
 function paintBig(e){
   const box=$('#cbig'); if(!e){box.innerHTML='';return;}
   const sgn=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2);
@@ -1208,7 +1208,6 @@ window.drawChart=function drawChart(code){
   try{
     const s=DB&&DB.stocks&&DB.stocks[code];
     if(!s){big.innerHTML=noChartMsg(code);return;}
-    // 內建獨立 series（不依賴外部函式，跟 kline_test 一致）
     const c=[],q=[],h=[],l=[],o=[],d=[];
     const len=s.c?s.c.length:0;
     for(let i=0;i<len;i++){ if(s.c[i]==null)continue;
@@ -1217,17 +1216,38 @@ window.drawChart=function drawChart(code){
       o.push(s.o?s.o[i]:null); d.push(DB.dates[i]);
     }
     if(c.length<3){big.innerHTML=noChartMsg(code);return;}
+    const ser={c,q,h,l,o,d};
     const px=c[c.length-1],prev=c.length>=2?c[c.length-2]:px;
-    INSPECTED=code;
-    paintBig({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,
-      baseDate:DB.dates[DB.dates.length-1],ser:{c,q,h,l,o,d}});
+    const chg=prev?(px-prev)/prev*100:0;
+    const sgn=v=>(v>0?'+':'')+v.toFixed(2);
+    INSPECTED=code; CHART_SER=ser; CHART_META={code,name:s.n,mkt:s.m};
+
+    // 直接寫入（跟手動指令同一條路，不經過 paintBig）
+    const head=`<div class="ctitle"><span class="c">${code}</span><span class="n">${s.n||''}</span>`
+      +`<span class="mkt">${s.m||''}</span><span class="p">${px.toFixed(2)}</span>`
+      +`<span class="p ${chg>0?'up':chg<0?'dn':''}" style="font-size:14px">${sgn(chg)}%</span>`
+      +`<span style="flex:1"></span>`
+      +`<span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`;
+    let kline='';
+    try{ kline=chartSVG(ser,CHARTN,880,430); }
+    catch(err){ kline=`<div class="ihint" style="color:var(--up);padding:20px">K 線錯誤：${err.message}</div>`; }
+    big.innerHTML=`${head}<div id="cbig-kline">${kline}</div><div id="cbig-extra"></div>`;
+
+    big.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;drawChart(code);});
+
+    // 附加區塊之後補，壞了不影響 K 線
+    let extra='';
+    try{ extra+=ownershipHTML(code)||''; }catch(err){}
+    try{ extra+=supportHTML(ser)||''; }catch(err){}
+    try{ extra+=backtestHTML(ser)||''; }catch(err){}
+    const ex=document.getElementById('cbig-extra'); if(ex)ex.innerHTML=extra;
+
     big.scrollIntoView({behavior:'smooth',block:'center'});
     big.style.transition='box-shadow .2s';
     big.style.boxShadow='0 0 0 3px var(--amber)';
     setTimeout(()=>{big.style.boxShadow='none';},900);
   }catch(err){
-    big.innerHTML=`<div class="ihint" style="padding:24px;color:var(--up);text-align:center">
-      畫圖錯誤：${err.message}<br>請把這行貼給我。</div>`;
+    big.innerHTML=`<div class="ihint" style="padding:24px;color:var(--up);text-align:center">畫圖錯誤：${err.message}</div>`;
     console.error('drawChart error',err);
   }
 }
