@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V65</title>
+<title>盤後篩選台 V70</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -331,6 +331,26 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .iscore{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:baseline;justify-content:space-between}
 .iscore s{text-decoration:none;color:var(--dim);font-size:10.5px;letter-spacing:.1em}
 .iscore b{font-family:var(--mono);font-size:22px;font-weight:700}
+.riskcard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:13px}
+.riskcard .rhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.riskcard .rgauge{flex:1}
+.riskcard .rbar{height:9px;background:var(--panel);border-radius:5px;overflow:hidden;margin-bottom:4px}
+.riskcard .rbar i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.riskcard .rscore{font-size:11px;color:var(--dim)}.riskcard .rscore b{font-family:var(--mono);color:var(--paper);font-size:13px}
+.riskcard .rlevel{font-size:13px;white-space:nowrap}.riskcard .rlevel b{font-size:17px;font-weight:900}
+.riskcard .rsum{font-size:12.5px;line-height:1.7;color:var(--paper);margin-bottom:10px}
+.riskcard .rkeys{display:flex;flex-wrap:wrap;gap:6px 14px;padding:9px 0;border-top:1px solid rgba(38,55,74,.5);border-bottom:1px solid rgba(38,55,74,.5);margin-bottom:10px;font-size:12px;color:var(--dim)}
+.riskcard .rkeys b{font-family:var(--mono);font-size:14px;color:var(--paper);margin-left:3px}
+.riskcard .rkeys b.up{color:var(--up)}.riskcard .rkeys b.dn{color:var(--down)}
+.riskcard .rcols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+.riskcard .rcol h5{margin:0 0 6px;font-size:12px;font-weight:800}
+.riskcard .rcol h5.ok{color:var(--down)}.riskcard .rcol h5.bad{color:var(--up)}
+.riskcard .rcol ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.riskcard .rcol li{font-size:11.5px;line-height:1.5;padding-left:14px;position:relative}
+.riskcard .rcol li.ok::before{content:'✓';position:absolute;left:0;color:var(--down)}
+.riskcard .rcol li.bad::before{content:'!';position:absolute;left:0;color:var(--up);font-weight:900}
+.riskcard .rcol li.muted{color:var(--dim)}.riskcard .rcol li.muted::before{content:'–';position:absolute;left:0;color:var(--dim)}
+@media(max-width:900px){.riskcard .rcols{grid-template-columns:1fr}}
 .ibtn{width:100%;margin-top:11px;padding:9px;border:1px solid var(--line);background:transparent;color:var(--paper);border-radius:4px;cursor:pointer;font-size:12.5px}
 .ipmatch{margin:0 0 11px;font-size:12px;color:var(--dim);line-height:2}
 .ipmatch .ipm{display:inline-block;margin:2px 5px 2px 0;padding:4px 10px;border:1px solid var(--line);background:var(--panel2);color:var(--paper);border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--mono)}
@@ -352,7 +372,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V65</span>
+    <h1>盤後篩選台</h1><span class="ver">V70</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -574,6 +594,59 @@ async function get(url,type){
     if(e.name==='AbortError')throw new Error('逾時（15秒無回應）');
     throw e;
   }finally{ clearTimeout(timer); }
+}
+// 透過 CORS 代理拿 JSON（單檔 STOCK_DAY 被瀏覽器擋時用；直連失敗才走代理）
+async function getJSONviaProxy(url){
+  // 先直連（有些環境可以）
+  try{ return await get(url); }catch(e){}
+  const proxies=[
+    u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,   // 包裝格式，內容在 .contents
+    u=>`https://thingproxy.freeboard.io/fetch/${u}`
+  ];
+  for(const mk of proxies){
+    try{
+      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),12000);
+      const r=await fetch(mk(url),{cache:'no-store',signal:ctrl.signal});
+      clearTimeout(timer);
+      if(!r.ok)continue;
+      let t=await r.text();
+      // allorigins /get 會把內容包在 {contents:"..."}
+      try{ const w=JSON.parse(t); if(w&&typeof w.contents==='string')t=w.contents; else return w; }catch(_){}
+      try{ return JSON.parse(t); }catch(_){ continue; }
+    }catch(e){}
+  }
+  throw new Error('代理都失敗');
+}
+// 快速單檔：STOCK_DAY 一個月一次請求（小封包），走代理，約 6 次即可
+async function backfillOneFast(code,months){
+  const recs=[]; const d=new Date();
+  for(let m=0;m<months;m++){
+    const dd=new Date(d.getFullYear(),d.getMonth()-m,1);
+    const p=ymd(dd);
+    const ib=$('#ipBody'); if(ib)ib.innerHTML=`<div class="ihint">快速抓取中…第 ${m+1} / ${months} 個月<br><span style="color:var(--dim)">（透過代理直接抓單檔，通常幾秒內完成）</span></div>`;
+    try{
+      const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=${p}&stockNo=${code}&response=json`);
+      const looksReal = j && (j.stat!=null || j.fields || j.data || j.title);   // 確定是 TWSE 的回應
+      if(looksReal){
+        recs.apiOK=true;
+        if(j.stat)recs.stat=j.stat;   // 記錄訊息（例：很抱歉，沒有符合條件的資料）
+      }
+      if(j&&j.title){const mm=String(j.title).match(/\d{4}\s+(\S+)\s/);if(mm){recs.nm=mm[1];recs.exists=true;}}
+      if(j&&Array.isArray(j.data))for(const r of j.data){
+        const g=String(r[0]).split('/'); if(g.length<3)continue;
+        const date=(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0');
+        const c=num(r[6]),v=num(r[1]);
+        if(c!=null)recs.push({date,c,q:v==null?0:Math.round(v/1000),h:num(r[4]),l:num(r[5]),o:num(r[3])});
+      }
+    }catch(e){ recs.lastErr=e.message; }
+    await sleep(250);
+    if(ABORT)break;
+  }
+  recs.sort((a,b)=>a.date<b.date?-1:1);
+  return recs;
 }
 
 /* ═══ 法人買賣超（決定名單） ═══ */
@@ -1700,6 +1773,119 @@ function paintBig(e){
   const ex=document.getElementById('cbig-extra');
   if(ex)ex.innerHTML=extra;
 }
+// ── 買進風險評估：綜合均線、位階、動能、法人、量、型態、風報比 → 給風險等級與理由 ──
+function riskAssess(e){
+  let plan={}; try{ plan=tradePlan(e.ser,e.wpat)||{}; }catch(err){}
+  const px=e.px, pros=[], cons=[];
+  let score=50;   // 0-100，越高越偏「風險低、條件好」
+
+  // 1 趨勢：四均線與多頭排列
+  const maUp=e.enough&&e.lamps&&e.lamps.every(Boolean);
+  if(maUp){score+=12;pros.push('站上全部四條均線，趨勢偏多');}
+  else{score-=10;cons.push('尚未完全站上四均線，趨勢還不夠強');}
+  if(e.ord){score+=10;pros.push('均線多頭排列（短中長期方向一致向上）');}
+  else cons.push('均線未多頭排列，方向還沒理順');
+
+  // 2 位階：距 MA20 支撐、距前高壓力
+  if(plan.ma20!=null){
+    if(plan.ma20Role==='support'){
+      const d=plan.ma20Dist;
+      if(d<=5){score+=8;pros.push(`貼近 MA20 支撐（高 ${d}%），接近可進場位置、追高風險低`);}
+      else{score-=6;cons.push(`已高於 MA20 ${d}%，追高風險較大，較理想是等回測`);}
+    }else{score-=12;cons.push('跌破 MA20，MA20 轉為上方壓力');}
+  }
+  if(plan.resist!=null){
+    const up=(plan.resist-px)/px*100;
+    if(up<2){score-=8;cons.push(`緊貼前高壓力 ${plan.resist.toFixed(2)}（僅 ${up.toFixed(1)}%），須帶量才過得去`);}
+    else pros.push(`距前高壓力 ${plan.resist.toFixed(2)} 還有 ${up.toFixed(1)}% 空間`);
+  }
+
+  // 3 風報比在停損確定後才算（見下方，因為停損可能改為封閉缺口）
+
+  // 4 法人：是否在買超榜、連續買超
+  if(e.rf!=null&&e.rf<=e.nR){score+=6;pros.push(`外資買超排行第 ${e.rf}`);}
+  if(e.ri!=null&&e.ri<=e.nR){score+=6;pros.push(`投信買超排行第 ${e.ri}`);}
+  if(e.contF>=3){score+=4;pros.push(`外資連續買超 ${e.contF} 日`);}
+  if((e.f!=null&&e.f<0)&&(e.i!=null&&e.i<0)){score-=8;cons.push('外資、投信同步賣超，籌碼偏空');}
+
+  // 5 動能與量
+  if(e.chg>0&&e.ratio5>=1.5){score+=6;pros.push('今日上漲且短線放量，動能明確');}
+  if(e.chg>5){score-=4;cons.push(`今日已大漲 ${e.chg.toFixed(1)}%，短線過熱、追高易套`);}
+  if(e.chg<0&&e.ratio5>=1.5){score-=6;cons.push('今日下跌卻放量，可能有人出貨');}
+
+  // 6 型態加分（計入評分，但不列出文字說明）
+  if(e.wpat){score+=6;}
+  if(e.hhll){score+=4;}
+
+  // 7 沿均線前進
+  if(plan.rideName){score+=5;pros.push(`沿著 ${plan.rideName} 前進，守住率 ${plan.rideRate!=null?plan.rideRate.toFixed(0):'—'}%，靠近不破即支撐`);}
+
+  // 8 缺口：近 10 個交易日內的向上跳空缺口 → 列入有利；停損一律改用「封閉缺口」下緣
+  let gapStop=null;
+  try{
+    const s=e.ser;
+    if(s.h&&s.l){
+      const g=findGap(s.h,s.l,10,0,false,s.c);   // 近 10 交易日內的向上缺口
+      if(g&&g.gapLow!=null){
+        gapStop=g.gapLow;
+        const when = g.ago===0?'今日':`${g.ago} 交易日前`;
+        if(!g.closed){
+          score+=8;
+          pros.push(`${when}出現向上跳空缺口（+${g.pct.toFixed(2)}%）${g.unf?'、尚未回補':''}，買方氣勢強`);
+        }else{
+          score-=6;
+          cons.push(`${when}的向上缺口已被實體封閉，氣勢轉弱`);
+        }
+      }
+    }
+  }catch(err){}
+  // 停損一律以封閉缺口為準（你的規則）：有缺口就用缺口下緣（＝跳空前一天最高）當第一停損
+  if(gapStop!=null){ plan.stop=+gapStop.toFixed(2); plan.stopType='封閉缺口（跌破跳空前一天最高）'; }
+
+  // 風報比用「最終停損」重算（因為停損可能已改為封閉缺口）
+  let rr=null;
+  if(plan.stop!=null&&plan.target!=null&&plan.target>px&&px>plan.stop){
+    const risk=px-plan.stop, reward=plan.target-px;
+    rr=reward/risk;
+    if(rr>=2){score+=12;pros.push(`風報比佳（約 1:${rr.toFixed(1)}）——賺賠空間划算`);}
+    else if(rr>=1){score+=3;pros.push(`風報比約 1:${rr.toFixed(1)}，尚可`);}
+    else{score-=10;cons.push(`風報比偏低（約 1:${rr.toFixed(1)}）——離停利近、離停損遠，不划算`);}
+  }
+
+  score=Math.max(0,Math.min(100,score));
+  let level,lvColor,lvText;
+  if(score>=70){level='偏低';lvColor='#1F9E6E';lvText='條件多數成立，屬相對安全的進場位置';}
+  else if(score>=50){level='中等';lvColor='#F2B544';lvText='有機會但也有隱憂，建議等回測或帶量確認再進';}
+  else{level='偏高';lvColor='#E5484D';lvText='不利因素較多，這位置進場風險大，宜觀望或嚴設停損';}
+
+  return{score,level,lvColor,lvText,pros,cons,plan,rr};
+}
+function riskHTML(e){
+  const r=riskAssess(e);
+  const p=r.plan;
+  const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)}–${p.buyHi.toFixed(2)}` : '—';
+  const prosL=r.pros.length?r.pros.map(x=>`<li class="ok">${x}</li>`).join(''):'<li class="muted">無明顯加分項</li>';
+  const consL=r.cons.length?r.cons.map(x=>`<li class="bad">${x}</li>`).join(''):'<li class="muted">無明顯扣分項</li>';
+  return `<div class="riskcard">
+    <div class="rhead">
+      <div class="rgauge"><div class="rbar"><i style="width:${r.score}%;background:${r.lvColor}"></i></div>
+        <div class="rscore">評分 <b>${r.score}</b>/100</div></div>
+      <div class="rlevel" style="color:${r.lvColor}">進場風險 <b>${r.level}</b></div>
+    </div>
+    <div class="rsum">${r.lvText}</div>
+    <div class="rkeys">
+      <span>建議買區 <b class="up">${buy}</b></span>
+      <span>停損 <b class="dn">${p.stop!=null?p.stop.toFixed(2):'—'}</b></span>
+      <span>停利 <b>${p.target!=null?p.target.toFixed(2):'—'}</b></span>
+      <span>風報比 <b>${r.rr!=null?'1:'+r.rr.toFixed(1):'—'}</b></span>
+    </div>
+    <div class="rcols">
+      <div class="rcol"><h5 class="ok">有利 👍</h5><ul>${prosL}</ul></div>
+      <div class="rcol"><h5 class="bad">留意 ⚠️</h5><ul>${consL}</ul></div>
+    </div>
+    <div class="pdisc">綜合均線、位階、風報比、法人、量能、型態的機械式評分，只是把數據攤開幫你判斷，<b>不是投資建議</b>，最終請自行決定。</div>
+  </div>`;
+}
 function paintInspect(code){
   const box=$('#ipBody');
   if(!/^[1-9]\d{3}$/.test(code)){box.innerHTML='<div class="ihint">代號要是 4 位數字。</div>';return;}
@@ -1727,6 +1913,7 @@ function paintInspect(code){
   box.innerHTML=
     `<div class="ihead"><span class="c">${e.code}</span><span class="n">${e.name}<span class="mkt">${e.mkt}</span></span>
       <span class="p">${e.px.toFixed(2)}</span><span class="d ${e.chg>0?'up':e.chg<0?'dn':''}">${sgn(e.chg)}%</span></div>`+
+    (e.enough?riskHTML(e):'')+
     (e.enough?'':`<div class="ihint" style="margin-bottom:9px;color:var(--up)">歷史只有 ${e.days} 根，不足 61 根，均線判斷不準。</div>`)+
     row(maOK,on.ma,'站上 5/10/20/60 均線',
       `MA5 ${e.m[5]?e.m[5].toFixed(2):'—'}　MA10 ${e.m[10]?e.m[10].toFixed(2):'—'}　MA20 ${e.m[20]?e.m[20].toFixed(2):'—'}　MA60 ${e.m[60]?e.m[60].toFixed(2):'—'}`)+
@@ -1841,24 +2028,26 @@ async function backfillOneViaDaily(code,days){
   return recs;
 }
 async function fetchOne(code){
-  $('#ipBody').innerHTML='<div class="ihint">抓取中…從每日行情逐日取回這一檔（每天一次、避免被限流），約 20-40 秒，請稍等。可先看下方進度。</div>';
+  $('#ipBody').innerHTML='<div class="ihint">快速抓取中…（透過代理直接抓單檔，通常幾秒）</div>';
   ABORT=false;
-  // 先用穩定的每日行情端點抓約 75 個交易日（足夠畫 K 線與 MA60）
-  let rs=await backfillOneViaDaily(code,65);
-  let mkt = rs.length ? (rs[rs.length-1].mkt||'上市') : '上市';
-  // 若完全沒抓到，再退回舊的 STOCK_DAY 當備援（有些情況它才有）
+  // 1) 快速：STOCK_DAY 走代理，約 5 個月的日 K（足夠畫圖與 MA60），幾秒完成
+  let rs=await backfillOneFast(code,5);
+  let mkt='上市';
+  // 2) 快速失敗才退回「逐日全市場」慢速掃描（可靠但慢）
   if(!rs.length){
-    $('#ipBody').innerHTML='<div class="ihint">每日行情查無，改用個股歷史端點再試…</div>';
-    const rs2=await backfillOne(code,6);
-    if(rs2.length){rs=rs2;mkt=rs2.exists?'上市':'上市';}
-    else{ if(rs2.exists)rs.exists=true; if(rs2.apiOK)rs.apiOK=true; if(rs2.lastErr)rs.lastErr=rs2.lastErr; }
+    const fastStat=rs.stat, fastErr=rs.lastErr;
+    $('#ipBody').innerHTML='<div class="ihint">代理沒拿到，改用較慢但穩的每日行情逐日抓…</div>';
+    const rs2=await backfillOneViaDaily(code,65);
+    if(rs2.length){rs=rs2;mkt=rs2[rs2.length-1].mkt||'上市';}
+    else{ if(rs2.exists)rs.exists=true; if(rs2.apiOK)rs.apiOK=true; rs.lastErr=rs2.lastErr||fastErr; rs.stat=fastStat; }
   }
   if(!rs.length){
-    const err=rs.lastErr, apiOK=rs.apiOK, exists=rs.exists;
+    const err=rs.lastErr, apiOK=rs.apiOK, exists=rs.exists, stat=rs.stat;
     let why;
     if(exists) why='這檔存在但近期抓不到日 K（可能長期停牌）。';
-    else if(apiOK) why='每日行情裡近期都沒有這個代號，可能是興櫃、ETF 或已下市。';
-    else if(err) why=`來源連線失敗（${err}）。可能是網路或瀏覽器擋住，稍等 20-30 秒再按「再試一次」。`;
+    else if(err) why=`來源連線失敗（${err}）。免費代理有時會不通，稍等 10-20 秒再按「再試一次」。`;
+    else if(stat&&!/OK/i.test(stat)) why=`資料來源回應：「${stat}」。若是熱門股請再試一次（代理偶爾回錯）。`;
+    else if(apiOK) why='資料來源近期查無此代號，可能是興櫃、ETF 或已下市；若確定是上市櫃股，多半是代理暫時回空，請按「再試一次」。';
     else why='暫時連不上資料來源，稍後再試一次。';
     $('#ipBody').innerHTML=`<div class="ihint" style="color:var(--up)">查 ${code}：${why}</div>
       <button class="ibtn" id="ipRetry">再試一次</button>`;
@@ -2238,7 +2427,6 @@ function buildEasyView(){
     if(g&&g.gapLow!=null){ stop=g.gapLow; stopWhy='封閉缺口（跌破前一天高點）'; }
     const tp = p.target!=null?p.target.toFixed(2):(p.resist!=null?p.resist.toFixed(2):'—');
     const tags=[`站上4均線`,`多頭排列`,`向上缺口`];
-    if(e.wpat)tags.push('W底型態');
     if(p.rideName)tags.push(`沿${p.rideName}走`);
     return `<div class="ecard">
       <div class="eh"><span class="ecode">${e.code}</span><span class="ename">${e.name||''}</span>
