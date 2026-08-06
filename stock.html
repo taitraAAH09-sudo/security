@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V72</title>
+<title>盤後篩選台 V73</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -339,7 +339,8 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .riskcard .rbar{height:9px;background:var(--panel);border-radius:5px;overflow:hidden;margin-bottom:4px}
 .riskcard .rbar i{display:block;height:100%;border-radius:5px;transition:width .3s}
 .riskcard .rscore{font-size:11px;color:var(--dim)}.riskcard .rscore b{font-family:var(--mono);color:var(--paper);font-size:13px}
-.riskcard .rlevel{font-size:13px;white-space:nowrap}.riskcard .rlevel b{font-size:17px;font-weight:900}
+.riskcard .rlevel{font-size:13px;white-space:nowrap;text-align:right}.riskcard .rlevel b{font-size:17px;font-weight:900}
+.riskcard .radvice{display:inline-block;color:#fff;font-size:13px;font-weight:900;padding:3px 12px;border-radius:20px;margin-bottom:4px}
 .riskcard .rsum{font-size:12.5px;line-height:1.7;color:var(--paper);margin-bottom:10px}
 .riskcard .rkeys{display:flex;flex-wrap:wrap;gap:6px 14px;padding:9px 0;border-top:1px solid rgba(38,55,74,.5);border-bottom:1px solid rgba(38,55,74,.5);margin-bottom:10px;font-size:12px;color:var(--dim)}
 .riskcard .rkeys b{font-family:var(--mono);font-size:14px;color:var(--paper);margin-left:3px}
@@ -374,7 +375,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V72</span>
+    <h1>盤後篩選台</h1><span class="ver">V73</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -624,9 +625,11 @@ async function getJSONviaProxy(url){
 }
 // 快速單檔：STOCK_DAY 一個月一次請求（小封包），走代理，約 6 次即可
 async function backfillOneFast(code,months){
-  const recs=[]; const d=new Date();
+  const recs=[]; const now=new Date();
+  // 當月用「昨天」當查詢日（確保 TWSE 有資料，避免查到未來/今天未收盤而回無資料）；更早的月份用該月 1 號
+  const yesterday=new Date(now.getTime()-86400000);
   for(let m=0;m<months;m++){
-    const dd=new Date(d.getFullYear(),d.getMonth()-m,1);
+    const dd = m===0 ? yesterday : new Date(now.getFullYear(),now.getMonth()-m,1);
     const p=ymd(dd);
     const ib=$('#ipBody'); if(ib)ib.innerHTML=`<div class="ihint">快速抓取中…第 ${m+1} / ${months} 個月<br><span style="color:var(--dim)">（透過代理直接抓單檔，通常幾秒內完成）</span></div>`;
     try{
@@ -1870,12 +1873,12 @@ function riskAssess(e){
   }
 
   score=Math.max(0,Math.min(100,score));
-  let level,lvColor,lvText;
-  if(score>=70){level='偏低';lvColor='#1F9E6E';lvText='條件多數成立，屬相對安全的進場位置';}
-  else if(score>=50){level='中等';lvColor='#F2B544';lvText='有機會但也有隱憂，建議等回測或帶量確認再進';}
-  else{level='偏高';lvColor='#E5484D';lvText='不利因素較多，這位置進場風險大，宜觀望或嚴設停損';}
+  let level,lvColor,lvText,advice;
+  if(score>=70){level='偏低';lvColor='#1F9E6E';lvText='條件多數成立，屬相對安全的進場位置';advice='推薦買進';}
+  else if(score>=50){level='中等';lvColor='#F2B544';lvText='有機會但也有隱憂，建議等回測或帶量確認再進';advice='可考慮／等回測';}
+  else{level='偏高';lvColor='#E5484D';lvText='不利因素較多，這位置進場風險大，宜觀望或嚴設停損';advice='暫時觀望';}
 
-  return{score,level,lvColor,lvText,pros,cons,plan,rr};
+  return{score,level,lvColor,lvText,advice,pros,cons,plan,rr};
 }
 function riskHTML(e){
   const r=riskAssess(e);
@@ -1887,7 +1890,7 @@ function riskHTML(e){
     <div class="rhead">
       <div class="rgauge"><div class="rbar"><i style="width:${r.score}%;background:${r.lvColor}"></i></div>
         <div class="rscore">評分 <b>${r.score}</b>/100</div></div>
-      <div class="rlevel" style="color:${r.lvColor}">進場風險 <b>${r.level}</b></div>
+      <div class="rlevel" style="color:${r.lvColor}"><span class="radvice" style="background:${r.lvColor}">${r.advice}</span><br>進場風險 <b>${r.level}</b></div>
     </div>
     <div class="rsum">${r.lvText}</div>
     <div class="rkeys">
@@ -2417,24 +2420,29 @@ function buildEasyView(){
     body.innerHTML=`<div class="easyempty">目前還沒有任何行情資料。<br>請先關掉這個視窗，按左上角<b>「更新並篩選」</b>，跑完再回來看。</div>`;
     return;
   }
-  // 獨立掃描整個名單（不受左邊篩選開關影響），挑出同時符合三條件者
+  // 獨立掃描整個名單（不受左邊篩選開關影響）：站上4均線＋多頭排列的強勢股
+  // 缺口或爆量任一有就標記（有缺口看缺口、有爆量看爆量，都用高低點當壓力/支撐/停損）
   const picks=[];
   for(const code of codes){
     let e; try{ e=evaluate(code); }catch(err){ continue; }
     if(!e||!e.enough)continue;
     const allMA=e.lamps&&e.lamps.every(Boolean);
     const ord=e.ord;
-    // 缺口用較寬窗口自己算：近 10 日內、未封閉的向上跳空缺口（不受左邊「多缺口」天數設定影響）
+    if(!(allMA&&ord))continue;               // 核心：站上4均線＋多頭排列
+    // 近 10 日內未封閉的向上跳空缺口（有就記）
     let gp=null;
     try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
-    if(allMA&&ord&&gp&&!gp.closed){ e._easyGap=gp; picks.push(e); }
+    if(gp&&!gp.closed)e._easyGap=gp;
+    // 今日是否放量（爆量）
+    e._easyVol = (e.ratio5>=1.3 || e.ratio>=e.vx);
+    picks.push(e);
   }
   // 依漲幅排序（強者在前）
   // 依「進場風險評分」由高到低排序（風險低的排前面），同分再看漲幅
   picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
   picks.sort((a,b)=>(b._risk.score||0)-(a._risk.score||0)||(b.chg||0)-(a.chg||0));
   if(!picks.length){
-    body.innerHTML=`<div class="easyempty">今天沒有同時滿足「4均線上＋多頭排列＋向上缺口」的股票。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
+    body.innerHTML=`<div class="easyempty">今天沒有「站上4均線＋多頭排列」的強勢股。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
     return;
   }
   const cards=picks.map(e=>{
@@ -2445,12 +2453,14 @@ function buildEasyView(){
     // 停損／原因直接用風險評估算好的（已含缺口封閉／今日最低等層級）
     const stop = p.stop, stopWhy = p.stopType||'';
     const tp = p.target!=null?p.target.toFixed(2):(p.resist!=null?p.resist.toFixed(2):'—');
-    const tags=[`站上4均線`,`多頭排列`,`向上缺口`];
+    const tags=[`站上4均線`,`多頭排列`];
+    if(e._easyGap)tags.push('向上缺口');
+    if(e._easyVol)tags.push('今日爆量');
     if(p.rideName)tags.push(`沿${p.rideName}走`);
-    const rlv=ra.level||'—', rcol=ra.lvColor||'var(--dim)', rsc=ra.score!=null?ra.score:'—';
+    const rlv=ra.level||'—', rcol=ra.lvColor||'var(--dim)', rsc=ra.score!=null?ra.score:'—', radv=ra.advice||'';
     return `<div class="ecard">
       <div class="eh"><span class="ecode">${e.code}</span><span class="ename">${e.name||''}</span>
-        <span class="erisk" style="color:${rcol};border-color:${rcol}">進場風險 ${rlv}<i>${rsc}</i></span>
+        <span class="erisk" style="color:#fff;background:${rcol};border-color:${rcol}">${radv}<i>風險${rlv}·${rsc}</i></span>
         <span class="epx ${e.chg>=0?'up':'dn'}">${e.px.toFixed(2)}　${e.chg>=0?'+':''}${(e.chg||0).toFixed(2)}%</span></div>
       <div class="etags">${tags.map(t=>`<span class="etag">${t}</span>`).join('')}</div>
       <div class="egrid">
