@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V53</title>
+<title>盤後篩選台 V60</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -300,6 +300,9 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .iscore s{text-decoration:none;color:var(--dim);font-size:10.5px;letter-spacing:.1em}
 .iscore b{font-family:var(--mono);font-size:22px;font-weight:700}
 .ibtn{width:100%;margin-top:11px;padding:9px;border:1px solid var(--line);background:transparent;color:var(--paper);border-radius:4px;cursor:pointer;font-size:12.5px}
+.ipmatch{margin:0 0 11px;font-size:12px;color:var(--dim);line-height:2}
+.ipmatch .ipm{display:inline-block;margin:2px 5px 2px 0;padding:4px 10px;border:1px solid var(--line);background:var(--panel2);color:var(--paper);border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--mono)}
+.ipmatch .ipm:hover{border-color:var(--amber);color:var(--amber)}
 .ibtn:hover{border-color:var(--amber);color:var(--amber)}
 tbody tr{cursor:pointer}
 .empty{padding:48px 20px;text-align:center;color:var(--muted)}
@@ -317,7 +320,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V53</span>
+    <h1>盤後篩選台</h1><span class="ver">V60</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -482,11 +485,13 @@ tbody tr{cursor:pointer}
   <aside class="insp" id="insp">
     <h3>個股檢查</h3>
     <div class="ibox">
-      <input type="text" id="ipCode" placeholder="輸入代號，如 2330" maxlength="6" inputmode="numeric">
+      <input type="text" id="ipCode" placeholder="代號或名稱，如 2330 或 台積" maxlength="10" list="ipSuggest" autocomplete="off">
+      <datalist id="ipSuggest"></datalist>
       <button id="ipGo">查</button>
       <button id="ipChart" title="畫 K 線">📈</button>
     </div>
-    <div id="ipBody"><div class="ihint">輸入代號，或直接點左邊表格的任一列。</div></div>
+    <div id="ipMatch"></div>
+    <div id="ipBody"><div class="ihint">輸入代號或名稱（例：台積、2330），或直接點左邊表格的任一列。名單外的代號會自動抓歷史。</div></div>
   </aside>
  </div>
 </main>
@@ -643,16 +648,21 @@ async function backfillOne(code,months){
   for(let m=0;m<months;m++){
     const dd=new Date(d.getFullYear(),d.getMonth()-m,1);
     const p=ymd(dd);
-    try{
-      const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=${p}&stockNo=${code}&response=json`);
-      if(j.title){const mm=String(j.title).match(/\d{4}\s+(\S+)\s/);if(mm)recs.nm=mm[1];}
-      if(j.data)for(const r of j.data){
-        const g=String(r[0]).split('/'); if(g.length<3)continue;
-        const date=(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0');
-        const c=num(r[6]),v=num(r[1]);
-        if(c!=null)recs.push({date,c,q:v==null?0:Math.round(v/1000),h:num(r[4]),l:num(r[5]),o:num(r[3])});
-      }
-    }catch(e){}
+    let ok=false;
+    for(let attempt=0;attempt<3&&!ok;attempt++){          // 每個月最多重試 3 次，退避等待
+      try{
+        const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=${p}&stockNo=${code}&response=json`);
+        ok=true;
+        if(j&&(j.stat==null||/OK/i.test(j.stat)))recs.apiOK=true;   // API 有正常回應
+        if(j.title){const mm=String(j.title).match(/\d{4}\s+(\S+)\s/);if(mm){recs.nm=mm[1];recs.exists=true;}}
+        if(j.data)for(const r of j.data){
+          const g=String(r[0]).split('/'); if(g.length<3)continue;
+          const date=(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0');
+          const c=num(r[6]),v=num(r[1]);
+          if(c!=null)recs.push({date,c,q:v==null?0:Math.round(v/1000),h:num(r[4]),l:num(r[5]),o:num(r[3])});
+        }
+      }catch(e){ recs.lastErr=e.message; await sleep(700*(attempt+1)); }   // 退避：越試等越久
+    }
     await sleep(Math.max(600,+$('#gap').value||1600));
     if(ABORT)break;
   }
@@ -714,6 +724,11 @@ function sanitizeDB(){
 }
 async function doFetch(){
   sanitizeDB();
+  // 清掉最近 5 個日曆日的「休市」標記，避免之前因資料未公布而被誤記、之後就永遠不再重抓
+  if(Array.isArray(DB.nodata)&&DB.nodata.length){
+    const lim=ymd(new Date(Date.now()-5*86400000));
+    DB.nodata=DB.nodata.filter(x=>x<lim);
+  }
   if($('#fbAuto').checked&&fbEnd()&&!DB.dates.length){log('先從雲端取回既有資料…');await fbPull(true);}
   const want=Math.max(65,+$('#days').value||100),gap=Math.max(600,+$('#gap').value||1600);
   const nR=+$('#nRank').value||100, otc=$('#mOtc').checked;
@@ -748,12 +763,22 @@ async function doFetch(){
   log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）`,'ok');
 
   // 2. 缺的交易日 → 全市場（只留名單）
+  // 判斷某天是否「已完整」：該天有收盤價的檔數需達名單的一定比例，否則視為不完整要重抓
+  const dayCoverage=(dateStr)=>{
+    const di=DB.dates.indexOf(dateStr); if(di<0)return 0;
+    let has=0,tot=0;
+    for(const c of uni){ const s=DB.stocks[c]; if(!s)continue; tot++; if(s.c[di]!=null)has++; }
+    return tot?has/tot:0;
+  };
   const need=[];const d=new Date();let have=0,g=0;
   while(have<want&&g<320){
     g++;const w=d.getDay();
     if(w!==0&&w!==6){const s=ymd(d);
-      if(DB.dates.includes(s))have++;
-      else if(!DB.nodata.includes(s)){need.push(s);have++;}}
+      const inDates=DB.dates.includes(s);
+      const complete=inDates && dayCoverage(s)>=0.6;   // 已在資料裡且收盤覆蓋率≥60%才算完整
+      if(complete)have++;
+      else if(!DB.nodata.includes(s)){ need.push(s); have++; if(inDates)log(`${fmtD(s)} 收盤不完整，將重抓`,'ok'); }
+    }
     d.setDate(d.getDate()-1);
   }
   need.sort();
@@ -771,7 +796,7 @@ async function doFetch(){
       await sleep(gap);
     }
     if(hit){commitDay(dy,recs);log(`${fmtD(dy)}  ${recs.length} 檔`);}
-    else{DB.nodata.push(dy);log(`${fmtD(dy)}  休市`);}
+    else{ if(!DB.dates.includes(dy))DB.nodata.push(dy); log(`${fmtD(dy)}  ${DB.dates.includes(dy)?'來源暫無資料（保留舊的）':'休市'}`);}
   }
 
   // 3. 新進榜、歷史不足者單獨補
@@ -961,9 +986,7 @@ function run(){
     ['量 ≥ '+mv+' 張',st.vol,mv>0],
     ['站上四均線',st.ma,useMA],
     ['多頭排列',st.ord,useOrd],
-    ['法人排行',st.inst,useF||useI],
-    ['頭頭高底底高',st.hhll,useHH],
-    ['W 底突破頸線',st.w,useW]
+    ['法人排行',st.inst,useF||useI]
   ];
   const warn=[];
   const today=ymd(new Date()),wd=new Date().getDay();
@@ -1219,7 +1242,7 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
   const C=sl(ser.c),Q=sl(ser.q),D=sl(ser.d);
   const H=sl(ser.h).map((v,i)=>v??C[i]), L=sl(ser.l).map((v,i)=>v??C[i]), O=sl(ser.o).map((v,i)=>v??C[i]);
   const W=W0||264, TOT=H0x||203, PH=Math.round(TOT*0.70), VH=Math.round(TOT*0.22), GAP=Math.round(TOT*0.05), H0=TOT;
-  const RM=Math.round(FS0()*7)+30;   // 右側留白，放完整標籤（框外，多留一點空間避免擁擠）
+  const RM=Math.round(FS0()*7)+52;   // 右側留白，放完整標籤（框外，往右多留 ~0.7cm 避免擁擠）
   const PW=W-RM;                    // 實際畫 K 棒/均線的寬度
   const hi=Math.max(...H),lo=Math.min(...L),span=(hi-lo)||1,pad=span*0.05;
   function FS0(){return Math.max(8.5,Math.round(TOT*0.032));}
@@ -1231,12 +1254,20 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
   const _usedY=[];
   // 標籤畫在繪圖區右側框外留白，不擋 K 棒；完整字 + 底色方塊
   function tagLabel(txt,Wtot,ly,col,fs,pos){
-    const h=fs+9;
-    let ty=ly+fs*0.35;
+    const gap=fs+14;                 // 兩標籤間至少要有的垂直距離（比字高多留空隙）
+    let ty=ly+fs*0.35;               // 理想位置＝對齊虛線
+    // 若和已放的標籤太近，往「離最近那顆較遠」的方向推開，直到達到最小間距
     let guard=0;
-    while(_usedY.some(u=>Math.abs(u-ty)<h)&&guard<24){ ty += (guard%2? h : -h); guard++; }
+    while(guard<40){
+      let nearest=null, minDist=Infinity;
+      for(const u of _usedY){ const d=Math.abs(u-ty); if(d<minDist){minDist=d; nearest=u;} }
+      if(nearest==null||minDist>=gap)break;        // 沒有衝突，位置OK
+      ty += (ty>=nearest? 1 : -1)*(gap-minDist+0.5); // 往遠離最近標籤的方向推開剛好足夠的距離
+      guard++;
+    }
+    ty=Math.max(fs+2, Math.min(PH-2, ty));   // 夾在繪圖區內，不被推出上下邊界
     _usedY.push(ty);
-    const bx=PW+16, bw2=RM-20, by=ty-fs+1;
+    const bx=PW+34, bw2=RM-38, by=ty-fs+1;
     return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw2.toFixed(1)}" height="${(fs+3).toFixed(1)}" rx="2.5" fill="${col}" opacity=".16"/>`
       +`<text x="${(bx+3).toFixed(1)}" y="${(ty+1).toFixed(1)}" fill="${col}" font-size="${fs}" font-weight="700">${txt}</text>`;
   }
@@ -1286,7 +1317,17 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
           +tagLabel(`壓力 ${plan.resist.toFixed(2)}`, W, ry, '#D6568C', FS);}
     }
   }catch(e){}
-  // 爆量高/低點標記：量 ≥ 前 60 日均量 2.5 倍（與爆量定義一致），標其最高與最低
+  // MA20 支撐/壓力水平參考線：站上＝綠(支撐)、跌破＝紫紅(壓力)
+  let ma20L='';
+  try{
+    if(plan&&plan.ma20!=null){
+      const my=y(plan.ma20);
+      const isSup=plan.ma20Role==='support';
+      const col=isSup?'#1F9E6E':'#D6568C';
+      if(my>4&&my<PH)ma20L+=`<line x1="0" y1="${my.toFixed(1)}" x2="${PW}" y2="${my.toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="1 4" opacity=".65"/>`
+        +tagLabel(`MA20${isSup?'撐':'壓'} ${plan.ma20.toFixed(2)}`, W, my, col, FS);
+    }
+  }catch(e){}
   let burst='';
   try{
     let any=false;
@@ -1313,7 +1354,7 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
   // 均線
   const fullC=ser.c;                    // 完整收盤序列（算均線用）
   const startIdx=fullC.length-N;        // 視窗起點在完整序列的位置
-  const line=(p,col)=>{ if(fullC.length<p)return'';
+  const line=(p,col,hl)=>{ if(fullC.length<p)return'';
     let d='';
     for(let vi=0;vi<N;vi++){
       const fi=startIdx+vi;              // 對應完整序列的索引
@@ -1321,10 +1362,13 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
       let t=0; for(let k=fi-p+1;k<=fi;k++)t+=fullC[k]; t/=p;
       d+=(d?'L':'M')+(vi*bw+bw/2).toFixed(1)+' '+y(t).toFixed(1);
     }
-    return d?`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`:'';};
+    if(!d)return'';
+    if(hl)return`<path d="${d}" fill="none" stroke="${col}" stroke-width="4" opacity=".22" stroke-linecap="round"/>`
+      +`<path d="${d}" fill="none" stroke="${col}" stroke-width="2" opacity="1" stroke-linecap="round"/>`;  // 沿走均線：加粗＋外圈光暈
+    return`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.1" opacity=".9"/>`;};
   return`<svg viewBox="0 0 ${W} ${H0}" width="${W}" height="${H0}" style="display:block;width:100%;height:auto;margin-top:4px">
     <line x1="0" y1="${PH}" x2="${PW}" y2="${PH}" stroke="var(--line)" stroke-width="1"/>
-    ${k}${line(5,'var(--amber)')}${line(10,'#5FD08A')}${line(20,'#6FA8DC')}${line(60,'#C77DD6')}${zz}${wov}${stopL}${burst}${v}
+    ${k}${line(5,'var(--amber)',plan&&plan.rideMA===5)}${line(10,'#5FD08A',plan&&plan.rideMA===10)}${line(20,'#6FA8DC',plan&&plan.rideMA===20)}${line(60,'#C77DD6',plan&&plan.rideMA===60)}${zz}${wov}${ma20L}${stopL}${burst}${v}
     <text x="${PW-2}" y="${FS}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${hi.toFixed(2)}</text>
     <text x="${PW-2}" y="${PH-3}" text-anchor="end" fill="var(--dim)" font-size="${FS}">${lo.toFixed(2)}</text>
     <text x="0" y="${H0-2}" fill="var(--dim)" font-size="${FS}">${fmtD(D[0])}</text>
@@ -1410,6 +1454,16 @@ function tradePlan(ser,wpat){
     plan.support=best.nm; plan.supRate=best.rate; plan.supPrice=bestCur.m;
     plan.buyLo=+bestCur.m.toFixed(2); plan.buyHi=+(bestCur.m*1.02).toFixed(2);
   }
+  // 目前「沿著哪條均線前進」：現價最貼近、且守住率夠高的均線（給 K 圖 highlight 用）
+  try{
+    const rideCand=st.cur.map(mc=>{
+      const stat=st.out.find(o=>o.nm===mc.nm);
+      const dist=mc.m?Math.abs(px-mc.m)/mc.m*100:999;
+      return {nm:mc.nm,pp:mc.pp,m:mc.m,dist,rate:stat?stat.rate:null,touch:stat?stat.touch:0};
+    }).filter(x=>x.m&&x.dist<=3&&x.touch>=3&&x.rate!=null&&x.rate>=50)   // 貼近3%內、測試≥3次、守住率≥50%
+      .sort((a,b)=>a.dist-b.dist);
+    if(rideCand.length){ plan.rideMA=rideCand[0].pp; plan.rideName=rideCand[0].nm; plan.rideRate=rideCand[0].rate; }
+  }catch(e){}
   if(mainStop){ plan.stop=+mainStop.price.toFixed(2); plan.stopType=mainStop.type; plan.stopIdx=mainStop.idx; }
 
   // 壓力區：百日內（系統內建最多天）在現價上方、最靠近現價的前高（ZigZag 高點，用最高價）
@@ -1421,6 +1475,14 @@ function tradePlan(ser,wpat){
   plan.resistIdx = above.length ? above[0].idx : null;
   plan.resistAll = above.slice(0,3).map(x=>+x.price.toFixed(2));         // 上方前幾個壓力
   plan.hi100 = +Math.max(...hi).toFixed(2);                              // 百日最高
+
+  // MA20 支撐/壓力：站上＝支撐，跌破＝壓力（你的規則）
+  const m20=ma(c,20);
+  if(m20!=null){
+    plan.ma20=+m20.toFixed(2);
+    plan.ma20Role = px>=m20 ? 'support' : 'resist';   // 現價在 MA20 之上→支撐；之下→壓力
+    plan.ma20Dist = +((px-m20)/m20*100).toFixed(2);
+  }
 
   // 目標：W 底滿足點，否則壓力區（前高），再否則百日高
   if(wpat&&wpat.target)plan.target=+wpat.target.toFixed(2);
@@ -1443,8 +1505,14 @@ function planBanner(ser,wpat){
   if(hhll)tags.push(`<span class="ptag t1">型態1 波段型態</span>`);
   if(!tags.length)tags.push(`<span class="ptag flat">無明顯型態訊號</span>`);
   const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)} – ${p.buyHi.toFixed(2)}` : '—';
+  const ma20Cell = p.ma20!=null
+    ? `<div><s>MA20 ${p.ma20Role==='support'?'支撐':'壓力'}</s>
+        <b class="${p.ma20Role==='support'?'up':'dn'}">${p.ma20.toFixed(2)}</b>
+        <em>${p.ma20Role==='support'?`現價站上 ${p.ma20Dist>0?'+':''}${p.ma20Dist}%，守住是支撐`:`已跌破 ${p.ma20Dist}%，MA20 轉為壓力`}</em></div>`
+    : '';
   const cells=`<div class="pcells">
       <div><s>建議買區</s><b class="up">${buy}</b><em>${p.support?'貼近 '+p.support:'—'}</em></div>
+      ${ma20Cell}
       <div><s>停損</s><b class="dn">${p.stop!=null?p.stop.toFixed(2):'—'}</b><em>${p.stopType||'—'}</em></div>
       <div><s>上方壓力</s><b class="dn">${p.resist!=null?p.resist.toFixed(2):'—'}</b><em>${p.resist!=null?'前高，過不了是壓力':'現價已在近期高檔'}</em></div>
       <div><s>停利目標</s><b>${p.target!=null?p.target.toFixed(2):'—'}</b><em>${wpat?'W底滿足點':p.resist?'看前高壓力':'百日高'}</em></div>
@@ -1456,6 +1524,7 @@ function planBanner(ser,wpat){
           .sort((a,b)=>b.price-a.price)
           .map(x=>`<span class="pschip"><span class="nm">${x.type}</span><b>${x.price.toFixed(2)}</b></span>`).join('')}</div></div>` : '';
   return `<div class="pbanner"><div class="ptags">${tags.join('')}</div>${cells}
+    ${p.rideName?`<div class="pnote" style="color:var(--amber)">目前沿著 <b>${p.rideName}</b> 前進（近期回測守住率 ${p.rideRate!=null?p.rideRate.toFixed(0):'—'}%）——股價貼著它走、靠近就反彈，跌破它才是趨勢轉弱的訊號。圖上該線已加粗標示。</div>`:''}
     ${p.note?`<div class="pnote">${p.note}</div>`:''}${
       p.resist!=null && (p.resist-p.px)/p.px*100<3 ? `<div class="pnote" style="color:var(--dn,#1F9E6E)">現價逼近前高壓力 ${p.resist.toFixed(2)}（差 ${((p.resist-p.px)/p.px*100).toFixed(1)}%），須帶量才容易突破。</div>`:''
     }${others}
@@ -1646,17 +1715,61 @@ window.drawChart=function drawChart(code){
     console.error('drawChart error',err);
   }
 }
+// 用「每日全市場行情」端點（已證實可運作）逐日抓單一檔，避開會被 CORS/限流擋掉的 STOCK_DAY
+async function backfillOneViaDaily(code,days){
+  const keep=new Set([code]);
+  const recs=[]; const d=new Date(); let got=0,tries=0;
+  const gap=Math.max(500,+$('#gap').value||1600);
+  let market=null;   // 一旦確定是上市或上櫃，之後只打那一邊，省一半請求
+  while(got<days && tries<days*2+15){
+    tries++;
+    const w=d.getDay();
+    if(w!==0&&w!==6){
+      const s=ymd(d);
+      let hit=false;
+      if(market!=='上櫃'){   // 試上市（除非已確定是上櫃）
+        try{ const a=await fetchTse(s,keep);
+          if(a&&a.length){const r=a[0];recs.push({date:s,c:r.c,q:r.q,h:r.h,l:r.l,o:r.o,name:r.name,mkt:'上市'});recs.nm=r.name;recs.exists=true;recs.apiOK=true;hit=true;got++;market='上市';}
+          else recs.apiOK=true;
+        }catch(e){recs.lastErr=e.message;}
+      }
+      if(!hit && market!=='上市'){   // 上市沒有且未確定是上市 → 試上櫃
+        if(market!=='上櫃')await sleep(gap);
+        try{ const b=await fetchOtc(s,keep);
+          if(b&&b.length){const r=b[0];recs.push({date:s,c:r.c,q:r.q,h:r.h,l:r.l,o:r.o,name:r.name,mkt:'上櫃'});recs.nm=r.name;recs.exists=true;recs.apiOK=true;hit=true;got++;market='上櫃';}
+        }catch(e){}
+      }
+      await sleep(gap);
+      if(ABORT)break;
+    }
+    d.setDate(d.getDate()-1);
+  }
+  recs.sort((a,b)=>a.date<b.date?-1:1);
+  return recs;
+}
 async function fetchOne(code){
-  $('#ipBody').innerHTML='<div class="ihint">抓取中…先找上市，找不到再找上櫃，約 10-20 秒。</div>';
+  $('#ipBody').innerHTML='<div class="ihint">抓取中…從每日行情逐日取回這一檔（每天一次、避免被限流），約 20-40 秒，請稍等。可先看下方進度。</div>';
   ABORT=false;
-  let mkt='上市';
-  let rs=await backfillOne(code,6);
+  // 先用穩定的每日行情端點抓約 75 個交易日（足夠畫 K 線與 MA60）
+  let rs=await backfillOneViaDaily(code,75);
+  let mkt = rs.length ? (rs[rs.length-1].mkt||'上市') : '上市';
+  // 若完全沒抓到，再退回舊的 STOCK_DAY 當備援（有些情況它才有）
   if(!rs.length){
-    $('#ipBody').innerHTML='<div class="ihint">上市查無此代號，改查上櫃…</div>';
-    rs=await backfillOneOtc(code,6); mkt='上櫃';
+    $('#ipBody').innerHTML='<div class="ihint">每日行情查無，改用個股歷史端點再試…</div>';
+    const rs2=await backfillOne(code,6);
+    if(rs2.length){rs=rs2;mkt=rs2.exists?'上市':'上市';}
+    else{ if(rs2.exists)rs.exists=true; if(rs2.apiOK)rs.apiOK=true; if(rs2.lastErr)rs.lastErr=rs2.lastErr; }
   }
   if(!rs.length){
-    $('#ipBody').innerHTML=`<div class="ihint" style="color:var(--up)">上市、上櫃都查不到 ${code}。可能是興櫃、ETF 或已下市。</div>`;
+    const err=rs.lastErr, apiOK=rs.apiOK, exists=rs.exists;
+    let why;
+    if(exists) why='這檔存在但近期抓不到日 K（可能長期停牌）。';
+    else if(apiOK) why='每日行情裡近期都沒有這個代號，可能是興櫃、ETF 或已下市。';
+    else if(err) why=`來源連線失敗（${err}）。可能是網路或瀏覽器擋住，稍等 20-30 秒再按「再試一次」。`;
+    else why='暫時連不上資料來源，稍後再試一次。';
+    $('#ipBody').innerHTML=`<div class="ihint" style="color:var(--up)">查 ${code}：${why}</div>
+      <button class="ibtn" id="ipRetry">再試一次</button>`;
+    const rb=document.getElementById('ipRetry'); if(rb)rb.onclick=()=>fetchOne(code);
     return;
   }
   for(const r of rs)put(code,rs.nm||DB.stocks[code]?.n||code,mkt,r.date,r.c,r.q,r.h,r.l,r.o);
@@ -1787,6 +1900,16 @@ $('#btnDiag').onclick=()=>{
   const last=DB.dates[nD-1];
   let msg=`交易日 ${nD} 天，最新 ${fmtD(last)}，共 ${codes.length} 檔。
 `;
+  // 最新 3 個交易日，各有幾檔「有收盤」——用來看某天是不是整批沒抓到
+  const chkN=Math.min(3,nD);
+  for(let k=0;k<chkN;k++){
+    const di=nD-1-k;
+    let has=0; for(const c of codes){ if(DB.stocks[c].c[di]!=null)has++; }
+    const pct=Math.round(has/codes.length*100);
+    const flag = pct<50 ? '<span class="err">（可能整批沒抓到，建議重按更新）</span>' : (pct<90?'（部分缺，通常是上櫃來源不穩）':'');
+    msg+=`${fmtD(DB.dates[di])}：${has}/${codes.length} 檔有收盤（${pct}%）${flag}
+`;
+  }
   msg+=`可畫 K 線（≥61根且有開盤價）：${full} 檔
 `;
   if(noOpen)msg+=`<span class="err">缺開盤價：${noOpen} 檔 → K 線畫不出，需清快取重抓</span>
@@ -1794,7 +1917,7 @@ $('#btnDiag').onclick=()=>{
   if(shortH)msg+=`歷史不足 61 根：${shortH} 檔（新進榜，會逐次補）
 `;
   if(nD<61)msg+=`<span class="err">交易日只有 ${nD} 天，不足 61 天，均線／K線都不準 → 按更新補滿 100 天</span>`;
-  else if(!noOpen&&full)msg+=`<span class="ok">資料正常，點任一檔應可看到 K 線。</span>`;
+  else if(!noOpen&&full)msg+=`<span class="ok">資料正常。若某檔 K 線停在前一天，是那檔當天沒進價格來源（多半是上櫃），非全面問題。</span>`;
   $('#diagLog').innerHTML=msg;
 };
 $('#segLogic').onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -2003,9 +2126,71 @@ $('#simAdd').onclick=async()=>{
   await simSave(); $('#simCode').value=''; $('#simQty').value='1'; simRender();
 };
 $('#simClear').onclick=async()=>{ if(confirm('確定清空所有帳戶與交易紀錄？')){ SIM=[]; await simSave(); simRender(); } };
-$('#ipGo').onclick=()=>paintInspect($('#ipCode').value.trim());
-$('#ipChart').onclick=()=>{const c=$('#ipCode').value.trim();if(/^[1-9]\d{3}$/.test(c)){paintInspect(c);drawChart(c);}};
-$('#ipCode').onkeydown=e=>{if(e.key==='Enter')paintInspect(e.target.value.trim());};
+// ── 個股檢查：模糊比對（代號或名稱）＋名單外自動抓 ──
+function ipCandidates(q){
+  q=(q||'').trim(); if(!q)return [];
+  const isNum=/^\d+$/.test(q);
+  const out=[];
+  for(const code in DB.stocks){
+    const nm=DB.stocks[code].n||'';
+    if(isNum){ if(code.startsWith(q))out.push({code,nm,score:code===q?0:1}); }
+    else { const i=nm.indexOf(q); if(i>=0)out.push({code,nm,score:i}); }
+  }
+  out.sort((a,b)=>a.score-b.score||a.code.localeCompare(b.code));
+  return out.slice(0,30);
+}
+function ipRefreshSuggest(){
+  const dl=$('#ipSuggest'); if(!dl)return;
+  const q=$('#ipCode').value.trim();
+  const list=ipCandidates(q);
+  dl.innerHTML=list.map(x=>`<option value="${x.code}">${x.code} ${x.nm}</option>`).join('');
+}
+// 解析輸入 → 回傳一個明確的 4 位代號；找不到就回 null（呼叫端決定是否自動抓）
+function ipResolve(raw){
+  const q=(raw||'').trim();
+  if(!q)return {code:null,list:[]};
+  if(/^[1-9]\d{3}$/.test(q))return {code:q,list:[]};           // 直接是代號
+  const list=ipCandidates(q);
+  if(list.length===1)return {code:list[0].code,list};
+  if(list.length>1){                                            // 多個相符 → 讓使用者選
+    const exact=list.find(x=>x.code===q||x.nm===q);
+    if(exact)return {code:exact.code,list};
+    return {code:null,list};
+  }
+  return {code:null,list:[]};
+}
+function ipShowMatches(list){
+  const box=$('#ipMatch'); if(!box)return;
+  if(!list||!list.length){box.innerHTML='';return;}
+  box.innerHTML=`<div class="ipmatch">符合 ${list.length} 檔，點選：`+
+    list.map(x=>`<button class="ipm" data-code="${x.code}">${x.code} ${x.nm}</button>`).join('')+`</div>`;
+  box.querySelectorAll('.ipm').forEach(b=>b.onclick=()=>{
+    $('#ipCode').value=b.dataset.code; $('#ipMatch').innerHTML='';
+    ipInspectResolved(b.dataset.code);
+  });
+}
+// 真正執行：有資料就檢查，名單外但是合法代號就自動抓
+async function ipInspectResolved(code){
+  if(!/^[1-9]\d{3}$/.test(code)){ $('#ipBody').innerHTML='<div class="ihint">請輸入 4 位代號，或輸入名稱關鍵字。</div>'; return; }
+  if(DB.stocks[code]){ paintInspect(code); return; }
+  // 名單外 → 自動抓，不用再按按鈕
+  await fetchOne(code);
+}
+function ipGo(){
+  const raw=$('#ipCode').value;
+  const {code,list}=ipResolve(raw);
+  if(code){ $('#ipMatch').innerHTML=''; ipInspectResolved(code); }
+  else if(list.length){ ipShowMatches(list); $('#ipBody').innerHTML='<div class="ihint">有多檔符合，請於上方點選。</div>'; }
+  else { // 沒有相符：若像代號就自動抓，否則提示
+    const q=raw.trim();
+    if(/^[1-9]\d{3}$/.test(q)){ $('#ipMatch').innerHTML=''; ipInspectResolved(q); }
+    else $('#ipBody').innerHTML=`<div class="ihint" style="color:var(--up)">找不到「${q}」。可輸入完整代號自動抓，或換個名稱關鍵字。</div>`;
+  }
+}
+$('#ipGo').onclick=ipGo;
+$('#ipChart').onclick=()=>{const {code}=ipResolve($('#ipCode').value);if(code){paintInspect(code);drawChart(code);}else ipGo();};
+$('#ipCode').oninput=ipRefreshSuggest;
+$('#ipCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ipGo();}};
 $('#fbFind').onclick=()=>fbDetect();
 $('#fbUp').onclick=()=>{fbSaveCfg();fbPush();};
 $('#fbDown').onclick=()=>{fbSaveCfg();fbPull();};
