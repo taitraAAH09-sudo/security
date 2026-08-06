@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V60</title>
+<title>盤後篩選台 V65</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -50,6 +50,38 @@ a{color:var(--amber)}
 .tour-panel .tnav button:disabled{opacity:.35;cursor:default}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
+.helpbtn{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite;z-index:5}
+.helpbtn:hover{filter:brightness(1.1)}
+@keyframes helppulse{0%,100%{box-shadow:0 3px 12px rgba(31,158,110,.45)}50%{box-shadow:0 3px 20px rgba(31,158,110,.85)}}
+.easymask{position:fixed;inset:0;background:rgba(6,10,20,.82);z-index:80;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 14px}
+.easymask.on{display:flex}
+.easywin{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:1080px;width:100%;padding:0 0 22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.easyhd{position:sticky;top:0;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;padding:16px 22px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between}
+.easyhd h2{margin:0;font-size:19px;font-weight:900;letter-spacing:1px}
+.easyhd .x{background:rgba(255,255,255,.2);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer}
+.easybody{padding:20px 22px}
+.easyintro{background:var(--panel2);border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13.5px;line-height:1.9;color:var(--paper)}
+.easyintro b{color:var(--amber)}
+.easydef{border-left:3px solid var(--amber);padding:6px 0 6px 12px;margin:10px 0;font-size:13px;line-height:1.8;color:var(--dim)}
+.easydef b{color:var(--paper)}
+.easylist{display:flex;flex-direction:column;gap:12px}
+.ecard{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+.ecard .eh{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.ecard .ecode{font-family:var(--mono);font-size:17px;font-weight:900;color:var(--paper)}
+.ecard .ename{font-size:14px;color:var(--dim)}
+.ecard .epx{font-family:var(--mono);font-size:16px;font-weight:800;margin-left:auto}
+.ecard .etags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ecard .etag{font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(31,158,110,.16);color:#4ADe9E;font-weight:700}
+.egrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.egrid .eg{background:var(--panel);border-radius:8px;padding:8px 10px;text-align:center}
+.egrid .eg s{display:block;font-size:11px;color:var(--dim);text-decoration:none;margin-bottom:3px}
+.egrid .eg b{font-family:var(--mono);font-size:15px;font-weight:800}
+.egrid .buy b{color:var(--up)} .egrid .stop b{color:var(--down)} .egrid .tp b{color:#6FA8DC} .egrid .rz b{color:#D6568C}
+.ecard .ebtns{margin-top:10px;display:flex;gap:8px}
+.ecard .ebtns button{flex:1;padding:8px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:600}
+.ecard .ebtns button:hover{border-color:var(--amber);color:var(--amber)}
+.easyempty{text-align:center;padding:40px 20px;color:var(--dim);font-size:14px;line-height:1.9}
+@media(max-width:760px){.egrid{grid-template-columns:repeat(2,1fr)}.helpbtn{font-size:12px;padding:6px 12px;letter-spacing:0}}
 .simbtn:hover{background:var(--amber);color:var(--ink)}
 .top{position:relative}
 .simmask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
@@ -320,7 +352,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V60</span>
+    <h1>盤後篩選台</h1><span class="ver">V65</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -328,6 +360,7 @@ tbody tr{cursor:pointer}
     <button class="tourbtn" id="btnTour" title="重新看一次教學">?</button>
   </div>
   <div class="strip" id="strip"></div>
+  <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
   <button class="simbtn" id="btnSim">模擬下單</button>
 </div>
 
@@ -344,6 +377,13 @@ tbody tr{cursor:pointer}
   <div class="tnav">
     <button id="tourPrev">上一步</button>
     <button id="tourNext" class="pri">下一步</button>
+  </div>
+</div>
+
+<div class="easymask" id="easyMask">
+  <div class="easywin">
+    <div class="easyhd"><h2>🔰 新手看盤：直接告訴你買哪些、停損停利在哪</h2><button class="x" id="easyX">✕</button></div>
+    <div class="easybody" id="easyBody"></div>
   </div>
 </div>
 
@@ -524,9 +564,16 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function log(m,c){const l=$('#log');l.innerHTML+=(l.innerHTML?'\n':'')+(c?`<span class="${c}">${m}</span>`:m);l.scrollTop=l.scrollHeight;}
 
 async function get(url,type){
-  const r=await fetch(url,{cache:'no-store'});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  return type==='text'?r.text():r.json();
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),15000);   // 15 秒逾時，避免卡死
+  try{
+    const r=await fetch(url,{cache:'no-store',signal:ctrl.signal});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return type==='text'?await r.text():await r.json();
+  }catch(e){
+    if(e.name==='AbortError')throw new Error('逾時（15秒無回應）');
+    throw e;
+  }finally{ clearTimeout(timer); }
 }
 
 /* ═══ 法人買賣超（決定名單） ═══ */
@@ -874,10 +921,13 @@ function detectW(c,q,within,needVol){
     const p3=piv[e],p2=piv[e-1],p1=piv[e-2];
     if(!(p1.type==='L'&&p2.type==='H'&&p3.type==='L'))continue;
     const bottom1=p1.price, neck=p2.price, bottom2=p3.price;
-    // 兩底相近（第二底不低於第一底的 96%），頸線明顯高於底（≥5%）
-    if(bottom2<bottom1*0.96)continue;
-    if(neck<Math.max(bottom1,bottom2)*1.05)continue;
-    // 在 p3 之後找「收盤突破頸線」的那天
+    // 兩底相近＝放寬，允許「歪斜的 W」：第二底最多比第一底低 8%（原本 4%），也允許第二底較高
+    if(bottom2<bottom1*0.92)continue;
+    if(bottom2>bottom1*1.12)continue;              // 第二底也不能比第一底高太多（>12% 就不算雙底）
+    // 頸線要明顯高於兩底（≥4%，原本 5%，略放寬讓淺一點的 W 也算）
+    const lowBot=Math.min(bottom1,bottom2);
+    if(neck<lowBot*1.04)continue;
+    // 在 p3 之後找「收盤突破頸線」的那天（歪斜 W 用兩底連線外推的頸線也接受，取較低者當突破門檻）
     for(let i=p3.i+1;i<N;i++){
       if(c[i]>neck){
         const ago=N-1-i;
@@ -885,9 +935,10 @@ function detectW(c,q,within,needVol){
         const avg20=q.slice(Math.max(0,i-20),i).reduce((a,b)=>a+b,0)/Math.min(20,i||1);
         const volOK=avg20>0 && q[i]>=avg20*1.5;
         if(needVol&&!volOK)return null;
-        const height=neck-Math.min(bottom1,bottom2);
-        return{neck,bottom:Math.min(bottom1,bottom2),neckIdx:p2.i,b1Idx:p1.i,b2Idx:p3.i,
-          breakIdx:i,ago,volOK,target:neck+height,pct:height/neck*100};
+        const height=neck-lowBot;
+        const tilt=Math.abs(bottom2-bottom1)/bottom1*100;   // 傾斜程度%
+        return{neck,bottom:lowBot,neckIdx:p2.i,b1Idx:p1.i,b2Idx:p3.i,b1Price:bottom1,b2Price:bottom2,
+          breakIdx:i,ago,volOK,target:neck+height,pct:height/neck*100,tilt};
       }
     }
     return null;   // 有結構但還沒突破
@@ -1298,6 +1349,23 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
         +tagLabel(`滿足 ${wpat.target.toFixed(2)}`, W, tgy, '#6FA8DC', FS);
       const bi=wpat.breakIdx-off;
       if(bi>=0&&bi<N)wov+=`<circle cx="${toX(wpat.breakIdx).toFixed(1)}" cy="${y(C[bi]).toFixed(1)}" r="4.5" fill="none" stroke="#F2B544" stroke-width="2"/>`;
+      // 畫出實際的 W 形狀：底1 → 頸線高 → 底2 → 突破點（可能是歪斜的 W）
+      try{
+        const b1i=wpat.b1Idx-off, nki=wpat.neckIdx-off, b2i=wpat.b2Idx-off;
+        const pts=[];
+        if(b1i>=0&&b1i<N)pts.push([b1i, wpat.b1Price??wpat.bottom]);
+        if(nki>=0&&nki<N)pts.push([nki, wpat.neck]);
+        if(b2i>=0&&b2i<N)pts.push([b2i, wpat.b2Price??wpat.bottom]);
+        if(bi>=0&&bi<N)pts.push([bi, C[bi]]);
+        if(pts.length>=3){
+          let wp='';
+          pts.forEach((pt,idx)=>{ wp+=(idx?'L':'M')+(pt[0]*bw+bw/2).toFixed(1)+' '+y(pt[1]).toFixed(1); });
+          wov+=`<path d="${wp}" fill="none" stroke="#F2B544" stroke-width="2.2" opacity=".9" stroke-linejoin="round" stroke-linecap="round"/>`;
+          // 在兩個底標「W」字樣
+          const midx=(pts[0][0]+pts[pts.length-1][0])/2*bw+bw/2;
+          wov+=`<text x="${midx.toFixed(1)}" y="${(PH-4).toFixed(1)}" text-anchor="middle" fill="#F2B544" font-size="${FS}" font-weight="900" opacity=".85">W${wpat.tilt>4?'（歪斜）':''}</text>`;
+        }
+      }catch(e){}
     }
   }catch(e){}
   // 停損虛線（紅）：買賣建議的主停損價
@@ -1342,6 +1410,28 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
       }
     }
     if(any)burst+=`<text x="${(PW/2).toFixed(1)}" y="${(FS+2).toFixed(1)}" text-anchor="middle" fill="#F2B544" font-size="${FS}" opacity=".6">◌ 爆量日（量≥60日均量2.5倍）</text>`;
+    // 爆量日的最高點＝關鍵價（用最高價，不是收盤）。現價在其下＝壓力、站上＝翻成支撐
+    // 收集近 60 根內所有爆量日的「最高價」
+    const burstHighs=[];
+    for(let i=Math.max(0,N-60);i<N;i++){
+      const base=Q.slice(Math.max(0,i-60),i);
+      const avg=base.length?base.reduce((a,b)=>a+b,0)/base.length:0;
+      if(avg>0 && Q[i]>=avg*2.5) burstHighs.push({price:H[i],idx:i});
+    }
+    if(burstHighs.length){
+      const px2=C[N-1];
+      // 壓力＝現價上方、最靠近現價的爆量高點（頭上最近的天花板）
+      const aboveB=burstHighs.filter(b=>b.price>px2).sort((a,b)=>a.price-b.price);
+      // 支撐＝現價下方、最靠近現價的爆量高點（已突破、變地板）
+      const belowB=burstHighs.filter(b=>b.price<=px2).sort((a,b)=>b.price-a.price);
+      const drawB=(b,isSup)=>{
+        const by=y(b.price);
+        if(by>4&&by<PH)burst+=`<line x1="0" y1="${by.toFixed(1)}" x2="${PW}" y2="${by.toFixed(1)}" stroke="#F2B544" stroke-width="1.1" stroke-dasharray="5 2 1 2" opacity=".8"/>`
+          +tagLabel(`爆量${isSup?'撐':'壓'} ${b.price.toFixed(2)}`, W, by, '#F2B544', FS);
+      };
+      if(aboveB.length)drawB(aboveB[0],false);   // 上方最近的爆量高點＝壓力
+      if(belowB.length)drawB(belowB[0],true);    // 下方最近的爆量高點＝支撐
+    }
   }catch(e){}
   let k='',v='';
   for(let i=0;i<N;i++){
@@ -1466,11 +1556,12 @@ function tradePlan(ser,wpat){
   }catch(e){}
   if(mainStop){ plan.stop=+mainStop.price.toFixed(2); plan.stopType=mainStop.type; plan.stopIdx=mainStop.idx; }
 
-  // 壓力區：百日內（系統內建最多天）在現價上方、最靠近現價的前高（ZigZag 高點，用最高價）
+  // 壓力區：百日內在現價上方、最靠近現價的前高（ZigZag 高點，用最高價）
+  // 用 4% 閾值濾掉小雜訊轉折；壓力要離現價至少 1% 才有意義（太近的不算真壓力）
   const hi=ser.h||c;
   const highs=[];
-  try{ zigzag(c,3).filter(p=>p.type==='H').forEach(p=>highs.push({price:hi[p.i]??c[p.i],idx:p.i})); }catch(e){}
-  const above=highs.filter(x=>x.price>px).sort((a,b)=>a.price-b.price);
+  try{ zigzag(c,4).filter(p=>p.type==='H').forEach(p=>highs.push({price:hi[p.i]??c[p.i],idx:p.i})); }catch(e){}
+  const above=highs.filter(x=>x.price>px*1.01).sort((a,b)=>a.price-b.price);   // 至少高於現價 1%
   plan.resist = above.length ? +above[0].price.toFixed(2) : null;      // 最近的上方前高＝壓力
   plan.resistIdx = above.length ? above[0].idx : null;
   plan.resistAll = above.slice(0,3).map(x=>+x.price.toFixed(2));         // 上方前幾個壓力
@@ -1719,13 +1810,15 @@ window.drawChart=function drawChart(code){
 async function backfillOneViaDaily(code,days){
   const keep=new Set([code]);
   const recs=[]; const d=new Date(); let got=0,tries=0;
-  const gap=Math.max(500,+$('#gap').value||1600);
+  const gap=Math.max(350,Math.min(900,+$('#gap').value||800));   // 單檔只打一個端點，間隔可短一點
   let market=null;   // 一旦確定是上市或上櫃，之後只打那一邊，省一半請求
   while(got<days && tries<days*2+15){
     tries++;
     const w=d.getDay();
     if(w!==0&&w!==6){
       const s=ymd(d);
+      // 即時進度（避免看起來像卡住）
+      const ib=$('#ipBody'); if(ib)ib.innerHTML=`<div class="ihint">抓取中… ${fmtD(s)}　已取得 ${got} / ${days} 天<br><span style="color:var(--dim)">（逐日向前抓，遇假日自動跳過。上市股較快、上櫃較慢。）</span></div>`;
       let hit=false;
       if(market!=='上櫃'){   // 試上市（除非已確定是上櫃）
         try{ const a=await fetchTse(s,keep);
@@ -1751,7 +1844,7 @@ async function fetchOne(code){
   $('#ipBody').innerHTML='<div class="ihint">抓取中…從每日行情逐日取回這一檔（每天一次、避免被限流），約 20-40 秒，請稍等。可先看下方進度。</div>';
   ABORT=false;
   // 先用穩定的每日行情端點抓約 75 個交易日（足夠畫 K 線與 MA60）
-  let rs=await backfillOneViaDaily(code,75);
+  let rs=await backfillOneViaDaily(code,65);
   let mkt = rs.length ? (rs[rs.length-1].mkt||'上市') : '上市';
   // 若完全沒抓到，再退回舊的 STOCK_DAY 當備援（有些情況它才有）
   if(!rs.length){
@@ -2109,6 +2202,67 @@ function simRender(){
   });
 }
 $('#btnSim').onclick=async()=>{ await simLoad(); simRender(); $('#simMask').classList.add('on'); };
+
+// ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
+function buildEasyView(){
+  const body=$('#easyBody');
+  const codes=Object.keys(DB.stocks||{});
+  if(!codes.length){
+    body.innerHTML=`<div class="easyempty">目前還沒有任何行情資料。<br>請先關掉這個視窗，按左上角<b>「更新並篩選」</b>，跑完再回來看。</div>`;
+    return;
+  }
+  // 獨立掃描整個名單（不受左邊篩選開關影響），挑出同時符合三條件者
+  const picks=[];
+  for(const code of codes){
+    let e; try{ e=evaluate(code); }catch(err){ continue; }
+    if(!e||!e.enough)continue;
+    const allMA=e.lamps&&e.lamps.every(Boolean);
+    const ord=e.ord;
+    // 缺口用較寬窗口自己算：近 10 日內、未封閉的向上跳空缺口（不受左邊「多缺口」天數設定影響）
+    let gp=null;
+    try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
+    if(allMA&&ord&&gp&&!gp.closed){ e._easyGap=gp; picks.push(e); }
+  }
+  // 依漲幅排序（強者在前）
+  picks.sort((a,b)=>(b.chg||0)-(a.chg||0));
+  if(!picks.length){
+    body.innerHTML=`<div class="easyempty">今天沒有同時滿足「4均線上＋多頭排列＋向上缺口」的股票。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
+    return;
+  }
+  const cards=picks.map(e=>{
+    let p={}; try{ p=tradePlan(e.ser,e.wpat)||{}; }catch(err){ p={}; }
+    const g=e._easyGap||e.gap;
+    const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)}–${p.buyHi.toFixed(2)}` : e.px.toFixed(2);
+    // 停損：優先用缺口封閉點（你的定義），否則用系統主停損
+    let stop = p.stop, stopWhy = p.stopType||'';
+    if(g&&g.gapLow!=null){ stop=g.gapLow; stopWhy='封閉缺口（跌破前一天高點）'; }
+    const tp = p.target!=null?p.target.toFixed(2):(p.resist!=null?p.resist.toFixed(2):'—');
+    const tags=[`站上4均線`,`多頭排列`,`向上缺口`];
+    if(e.wpat)tags.push('W底型態');
+    if(p.rideName)tags.push(`沿${p.rideName}走`);
+    return `<div class="ecard">
+      <div class="eh"><span class="ecode">${e.code}</span><span class="ename">${e.name||''}</span>
+        <span class="epx ${e.chg>=0?'up':'dn'}">${e.px.toFixed(2)}　${e.chg>=0?'+':''}${(e.chg||0).toFixed(2)}%</span></div>
+      <div class="etags">${tags.map(t=>`<span class="etag">${t}</span>`).join('')}</div>
+      <div class="egrid">
+        <div class="eg buy"><s>建議買區</s><b>${buy}</b></div>
+        <div class="eg stop"><s>停損（跌破就走）</s><b>${stop!=null?(+stop).toFixed(2):'—'}</b></div>
+        <div class="eg tp"><s>停利目標</s><b>${tp}</b></div>
+        <div class="eg rz"><s>上方壓力(前高)</s><b>${p.resist!=null?p.resist.toFixed(2):'—'}</b></div>
+      </div>
+      <div class="ihint" style="margin-top:8px">停損原因：${stopWhy||'—'}${p.rideName?`　·　目前沿著 ${p.rideName} 前進，靠近不破就是支撐`:''}</div>
+      <div class="ebtns"><button data-code="${e.code}" class="ekchart">看 K 線圖</button></div>
+    </div>`;
+  }).join('');
+  body.innerHTML=`<div class="ihint" style="margin:2px 0 12px">符合的股票共 <b style="color:var(--amber)">${picks.length}</b> 檔，強勢的排前面：</div><div class="easylist">${cards}</div>`;
+  body.querySelectorAll('.ekchart').forEach(b=>b.onclick=()=>{
+    const c=b.dataset.code; $('#easyMask').classList.remove('on');
+    $('#ipCode').value=c; paintInspect(c); drawChart(c);
+  });
+}
+$('#btnEasy').onclick=()=>{ buildEasyView(); $('#easyMask').classList.add('on'); };
+$('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
+$('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
 $('#simMask').onclick=e=>{ if(e.target===$('#simMask'))$('#simMask').classList.remove('on'); };
 $('#simAdd').onclick=async()=>{
