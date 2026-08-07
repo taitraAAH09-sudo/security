@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V95</title>
+<title>盤後篩選台 V96</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -394,7 +394,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V95</span>
+    <h1>盤後篩選台</h1><span class="ver">V96</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1017,7 +1017,7 @@ function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
   return{c,q,h,l,o,d};}
 const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.length;i++)t+=a[i];return t/n;};
 
-// ── 大盤／櫃買強度：抓「加權指數 ^TWII」「櫃買指數 ^TWOII」，看指數站上幾條均線（獨立、不影響其他） ──
+// ── 大盤／櫃買強度：從 wantgoo.com 靜態頁面直接抓現成算好的均線，看指數站上幾條均線（獨立、不影響其他） ──
 let MKTSTR={twse:null,tpex:null};
 // 從 Yahoo Finance chart API 拿近 3 個月日收盤（回傳陣列，最乾淨）
 let STR_DIAG={twse:'',tpex:''};
@@ -1106,17 +1106,62 @@ async function yahooCloses(sym,which){
   const mp = res.meta && res.meta.regularMarketPrice;
   return {closes:arr, px:(mp!=null&&!isNaN(mp))?mp:arr[arr.length-1]};
 }
-async function fetchIndexCloses(which){
-  return await yahooCloses(which==='twse'?'^TWII':'^TWOII', which);
+// 從玩股網（wantgoo.com）靜態頁面直接抓「現成算好」的均線數字，不必自己抓歷史收盤價重算，
+// 也不依賴 Yahoo Finance 那套 JS 動態渲染的 API（該頁面均線是伺服器端就寫死在 HTML 裡的）。
+async function wantgooMA(which){
+  const url = which==='twse' ? 'https://www.wantgoo.com/index/0000' : 'https://www.wantgoo.com/index/two';
+  const wrap=[
+    u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+    u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+    u=>u   // 最後才直連（多數會被 CORS 擋）
+  ];
+  const errs=[];
+  const attempts=wrap.map(mk=>(async()=>{
+    const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
+    try{
+      const r=await fetch(mk(url),{cache:'no-store',signal:ctrl.signal});
+      if(!r.ok){errs.push('HTTP'+r.status);throw 0;}
+      let html=await r.text();
+      // allorigins /get 會把內容包在 {contents:"..."} 裡
+      try{ const w=JSON.parse(html); if(w&&typeof w.contents==='string')html=w.contents; }catch(_){}
+      if(!html||html.length<500){errs.push('內容過短');throw 0;}
+      return html;
+    }catch(e){ if(e&&e.name==='AbortError')errs.push('逾時'); throw 0; }
+    finally{ clearTimeout(timer); }
+  })());
+  let html=null;
+  try{ html=await Promise.any(attempts); }catch(e){ html=null; }
+  if(which)STR_DIAG[which]= html ? '' : (errs.length?[...new Set(errs)].slice(0,3).join('、'):'全部來源無回應');
+  if(!html)return null;
+  // 去除所有 HTML 標籤只留純文字，讓抓取邏輯不受頁面標籤/樣式改版影響
+  const text=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ');
+  // 現價：格式類似「2026-08-06 44396.7 -214.9 (-0.48%) 開44487.94」，抓「開」前面那個數字
+  const pxMatch=text.match(/\d{4}-\d{2}-\d{2}[^0-9]{0,30}?([\d,]+\.\d+)[^0-9]{1,30}?開/);
+  const px=pxMatch?parseFloat(pxMatch[1].replace(/,/g,'')):null;
+  // 依序抓 MA5/10/20/60/120/240 六條均線數字
+  const maRe=/MA\D{0,10}5\D{0,15}([\d,]+\.\d+)\D{0,15}MA\D{0,10}10\D{0,15}([\d,]+\.\d+)\D{0,15}MA\D{0,10}20\D{0,15}([\d,]+\.\d+)\D{0,15}MA\D{0,10}60\D{0,15}([\d,]+\.\d+)\D{0,15}MA\D{0,10}120\D{0,15}([\d,]+\.\d+)\D{0,15}MA\D{0,10}240\D{0,15}([\d,]+\.\d+)/;
+  const m=text.match(maRe);
+  if(px==null||!m){ if(which)STR_DIAG[which]='頁面格式解析失敗（wantgoo 可能改版，或代理回傳內容不完整）'; return null; }
+  return {
+    px,
+    ma5:parseFloat(m[1].replace(/,/g,'')),
+    ma10:parseFloat(m[2].replace(/,/g,'')),
+    ma20:parseFloat(m[3].replace(/,/g,'')),
+    ma60:parseFloat(m[4].replace(/,/g,'')),
+    ma120:parseFloat(m[5].replace(/,/g,'')),
+    ma240:parseFloat(m[6].replace(/,/g,''))
+  };
 }
 async function fetchIndexCloses(which){
-  // 大盤=加權指數 ^TWII；櫃買=櫃買指數 ^TWOII（Yahoo 代碼）
-  return await yahooCloses(which==='twse'?'^TWII':'^TWOII');
+  return await wantgooMA(which);
 }
 function strengthOf(data){
-  if(!data||!data.closes||data.closes.length<20)return null;
-  const closes=data.closes, px=data.px!=null?data.px:closes[closes.length-1];
-  const lvls=[5,10,20,60].map(n=>{const m=ma(closes,n);return m!=null?px>=m:null;});
+  if(!data||data.px==null)return null;
+  const px=data.px;
+  const lvls=[data.ma5,data.ma10,data.ma20,data.ma60].map(m=>m!=null?px>=m:null);
   const valid=lvls.filter(x=>x!=null);
   const up=valid.filter(Boolean).length;
   return {px,up,total:valid.length};
