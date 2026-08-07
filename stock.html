@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V85</title>
+<title>盤後篩選台 V86</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -56,6 +56,7 @@ a{color:var(--amber)}
 .mktstr{font-size:20px;font-weight:800;color:var(--dim);border:2px solid var(--line);border-radius:26px;padding:11px 24px;white-space:nowrap;background:var(--panel2)}
 .mktstr b{font-family:var(--mono);font-size:22px;margin-left:4px}
 .mktstr .ststub{font-style:normal;font-size:11px;opacity:.55;font-weight:600;margin-left:4px;letter-spacing:0}
+.mktstr:hover{filter:brightness(1.15);box-shadow:0 0 0 2px rgba(255,255,255,.06) inset}
 @keyframes helppulse{0%,100%{box-shadow:0 3px 12px rgba(31,158,110,.45)}50%{box-shadow:0 3px 20px rgba(31,158,110,.85)}}
 .easymask{position:fixed;inset:0;background:rgba(6,10,20,.82);z-index:80;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 14px}
 .easymask.on{display:flex}
@@ -389,7 +390,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V85</span>
+    <h1>盤後篩選台</h1><span class="ver">V86</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -399,8 +400,8 @@ tbody tr{cursor:pointer}
   </div>
   <div class="hbtnbar">
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
-    <span class="mktstr" id="strTwse" title="大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
-    <span class="mktstr" id="strTpex" title="櫃買指數站上幾條均線">櫃買<i class="ststub">中小企業</i> <b>—</b></span>
+    <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
+    <span class="mktstr" id="strTpex" title="點一下更新：櫃買指數站上幾條均線">櫃買<i class="ststub">中小企業</i> <b>—</b></span>
   </div>
   <div class="strip" id="strip"></div>
 </div>
@@ -1034,16 +1035,17 @@ function renderStrength(el,label,sub,st){
   el.title=`${label}指數站上 ${st.up}/${st.total} 條均線（5/10/20/60）` + (st.up===0?'——全數跌破，空方，不建議追多':'');
 }
 async function updateStrength(){
-  const t=$('#strTwse'), p=$('#strTpex');
-  if(t){t.innerHTML='大盤<i class="ststub">大型權值股</i> <b>查詢中…</b>';t.style.color='var(--dim)';}
-  if(p){p.innerHTML='櫃買<i class="ststub">中小企業</i> <b>查詢中…</b>';p.style.color='var(--dim)';}
-  const [a,b]=await Promise.all([
-    fetchIndexCloses('twse').catch(()=>null),
-    fetchIndexCloses('tpex').catch(()=>null)
-  ]);
-  MKTSTR.twse=strengthOf(a); MKTSTR.tpex=strengthOf(b);
-  renderStrength($('#strTwse'),'大盤','大型權值股',MKTSTR.twse);
-  renderStrength($('#strTpex'),'櫃買','中小企業',MKTSTR.tpex);
+  // 兩顆各自獨立更新（互不影響、也不影響主資料）
+  await Promise.all([updateOneStrength('twse'), updateOneStrength('tpex')]);
+}
+async function updateOneStrength(which){
+  const el = which==='twse' ? $('#strTwse') : $('#strTpex');
+  const label = which==='twse' ? '大盤' : '櫃買';
+  const sub = which==='twse' ? '大型權值股' : '中小企業';
+  if(el){el.innerHTML=`${label}<i class="ststub">${sub}</i> <b>查詢中…</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';}
+  const a=await fetchIndexCloses(which).catch(()=>null);
+  MKTSTR[which]=strengthOf(a);
+  renderStrength(el,label,sub,MKTSTR[which]);
 }
 /* ZigZag 轉折點：以百分比幅度過濾雜訊 */
 function zigzag(c,pct){
@@ -2670,6 +2672,9 @@ function buildEasyView(){
   });
 }
 $('#btnEasy').onclick=()=>{ buildEasyView(); $('#easyMask').classList.add('on'); };
+// 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
+$('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
+$('#strTpex').style.cursor='pointer'; $('#strTpex').onclick=()=>updateOneStrength('tpex');
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
