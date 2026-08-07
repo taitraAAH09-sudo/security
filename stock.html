@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V86</title>
+<title>盤後篩選台 V87</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -390,7 +390,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V86</span>
+    <h1>盤後篩選台</h1><span class="ver">V87</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -982,25 +982,33 @@ const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.leng
 let MKTSTR={twse:null,tpex:null};
 // 從 Yahoo Finance chart API 拿近 3 個月日收盤（回傳陣列，最乾淨）
 async function yahooCloses(sym){
-  const api=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d`;
-  let j=null;
-  // 直連 → 幾個代理，任一成功即可；每次都有逾時，不會卡住
-  const tries=[
-    api,
-    `https://corsproxy.io/?url=${encodeURIComponent(api)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(api)}`,
-    `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(api)}`
+  const apis=[
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d`
   ];
-  for(const u of tries){
-    try{
-      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
-      const r=await fetch(u,{cache:'no-store',signal:ctrl.signal}); clearTimeout(timer);
-      if(!r.ok)continue;
-      let t=await r.text();
-      try{ const w=JSON.parse(t); j = (w&&w.contents&&typeof w.contents==='string')?JSON.parse(w.contents):w; }
-      catch(_){ continue; }
-      if(j&&j.chart&&j.chart.result)break; else j=null;
-    }catch(e){}
+  const wrap=[
+    u=>u,                                                              // 直連
+    u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,  // 包裝 .contents
+    u=>`https://thingproxy.freeboard.io/fetch/${u}`
+  ];
+  let j=null;
+  for(const api of apis){
+    for(const mk of wrap){
+      try{
+        const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
+        const r=await fetch(mk(api),{cache:'no-store',signal:ctrl.signal}); clearTimeout(timer);
+        if(!r.ok)continue;
+        let t=await r.text();
+        try{ const w=JSON.parse(t); j = (w&&typeof w.contents==='string')?JSON.parse(w.contents):w; }
+        catch(_){ continue; }
+        if(j&&j.chart&&j.chart.result&&j.chart.result[0])break;
+        j=null;
+      }catch(e){}
+    }
+    if(j)break;
   }
   if(!j||!j.chart||!j.chart.result||!j.chart.result[0])return null;
   const res=j.chart.result[0];
@@ -1561,6 +1569,8 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
         +tagLabel(`移動停損 ${mv.price.toFixed(2)}（${mv.why}）`, W, my, '#F2843C', FS);
     }
   }catch(e){}
+  // MA20 支撐/壓力水平參考線：站上＝綠(支撐)、跌破＝紫紅(壓力)
+  let ma20L='';
   try{
     if(plan&&plan.ma20!=null){
       const my=y(plan.ma20);
