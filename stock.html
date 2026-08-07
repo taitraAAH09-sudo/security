@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V99</title>
+<title>盤後篩選台 V100</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -399,7 +399,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V99</span>
+    <h1>盤後篩選台</h1><span class="ver">V100</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -966,13 +966,16 @@ async function doFetch(){
     return tot?has/tot:0;
   };
   const need=[];const d=new Date();let have=0,g=0;
+  const todayStr=ymd(new Date());
   while(have<want&&g<320){
     g++;const w=d.getDay();
     if(w!==0&&w!==6){const s=ymd(d);
       const inDates=DB.dates.includes(s);
-      const complete=inDates && dayCoverage(s)>=0.6;   // 已在資料裡且收盤覆蓋率≥60%才算完整
+      const isToday=(s===todayStr);
+      // 今天一律重抓，不管之前是否已判定「完整」：避免收盤前抓到的暫定價、之後就一直卡住不更新
+      const complete=inDates && dayCoverage(s)>=0.6 && !isToday;
       if(complete)have++;
-      else if(!DB.nodata.includes(s)){ need.push(s); have++; if(inDates)log(`${fmtD(s)} 收盤不完整，將重抓`,'ok'); }
+      else if(!DB.nodata.includes(s)){ need.push(s); have++; if(inDates)log(`${fmtD(s)} ${isToday?'今天重新抓一次收盤價（確保是最終定案）':'收盤不完整，將重抓'}`,'ok'); }
     }
     d.setDate(d.getDate()-1);
   }
