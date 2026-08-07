@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V78</title>
+<title>盤後篩選台 V80</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -50,7 +50,7 @@ a{color:var(--amber)}
 .tour-panel .tnav button:disabled{opacity:.35;cursor:default}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
-.hbtnwrap{position:absolute;top:9px;left:44%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;z-index:5}
+.hbtnbar{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
 .helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
 .helpbtn:hover{filter:brightness(1.1)}
 .mktstr{font-size:20px;font-weight:800;color:var(--dim);border:2px solid var(--line);border-radius:26px;padding:11px 24px;white-space:nowrap;background:var(--panel2)}
@@ -86,7 +86,7 @@ a{color:var(--amber)}
 .ecard .ebtns button{flex:1;padding:8px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:600}
 .ecard .ebtns button:hover{border-color:var(--amber);color:var(--amber)}
 .easyempty{text-align:center;padding:40px 20px;color:var(--dim);font-size:14px;line-height:1.9}
-@media(max-width:760px){.egrid{grid-template-columns:repeat(2,1fr)}.helpbtn{font-size:12px;padding:6px 12px;letter-spacing:0}}
+@media(max-width:760px){.egrid{grid-template-columns:repeat(2,1fr)}.helpbtn{font-size:13px;padding:7px 14px;letter-spacing:0}.mktstr{font-size:15px;padding:8px 14px}.mktstr b{font-size:16px}.hbtnbar{gap:8px;padding:7px 10px}.brand{padding-right:90px}}
 .simbtn:hover{background:var(--amber);color:var(--ink)}
 .top{position:relative}
 .simmask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
@@ -380,20 +380,20 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V78</span>
+    <h1>盤後篩選台</h1><span class="ver">V80</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
     <button class="tourbtn" id="btnTour" title="重新看一次教學">?</button>
+    <button class="simbtn" id="btnSim">模擬下單</button>
   </div>
-  <div class="strip" id="strip"></div>
-  <div class="hbtnwrap">
+  <div class="hbtnbar">
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
     <span class="mktstr" id="strTwse" title="大盤（加權指數）站上幾條均線">大盤 <b>—</b></span>
     <span class="mktstr" id="strTpex" title="櫃買指數站上幾條均線">櫃買 <b>—</b></span>
   </div>
-  <button class="simbtn" id="btnSim">模擬下單</button>
+  <div class="strip" id="strip"></div>
 </div>
 
 <div id="tourTop" class="tour-mask" style="display:none"></div>
@@ -968,63 +968,46 @@ function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
   return{c,q,h,l,o,d};}
 const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.length;i++)t+=a[i];return t/n;};
 
-// ── 大盤／櫃買強度：抓指數近日收盤，看站上 5/10/20/60 幾條均線 ──
+// ── 大盤／櫃買強度：用本機已抓的股票資料算「市場廣度」，不靠網路 ──
+// 廣度＝該市場有多少比例的股票站上全部四條均線
 let MKTSTR={twse:null,tpex:null};
-async function fetchIndexCloses(which){
-  // which: 'twse' 加權指數(FMTQIK) / 'tpex' 櫃買指數
-  const closes=[]; const now=new Date();
-  const ymm=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0');
-  for(let m=0;m<4;m++){   // 抓近 4 個月夠算 MA60
-    // 當月用「今天」查：FMTQIK/櫃買指數端點會回整月資料，今天有收盤就含今天、沒有就到昨天為止
-    const dd = m===0 ? now : new Date(now.getFullYear(),now.getMonth()-m,1);
-    const dstr=ymd(dd);
-    try{
-      if(which==='twse'){
-        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${dstr}&response=json`);
-        const rows=(j&&j.data)||[];
-        for(const r of rows){ const c=num(String(r[4]).replace(/,/g,'')); if(c!=null)closes.push({d:String(r[0]),c}); }
-      }else{
-        // 櫃買指數：TPEx 每日收盤指數
-        const roc=`${dd.getFullYear()-1911}/${String(dd.getMonth()+1).padStart(2,'0')}`;
-        const j=await getJSONviaProxy(`https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${roc}&o=json`);
-        const rows=(j&&(j.aaData||j.data))||[];
-        for(const r of rows){ const c=num(String(r[4]).replace(/,/g,'')); if(c!=null)closes.push({d:String(r[0]),c}); }
-      }
-    }catch(e){}
-    await sleep(200);
+function marketBreadth(mkt){
+  const cut=DB.dates.length-OFFSET;
+  let total=0, allUp=0, sumLv=0;
+  for(const code in DB.stocks){
+    const s=DB.stocks[code];
+    if(s.m!==mkt)continue;
+    const c=[]; const src=s.c;
+    const end=Math.min(cut,src.length);
+    for(let i=0;i<end;i++)if(src[i]!=null)c.push(src[i]);
+    if(c.length<61)continue;          // 資料不足無法算四均線
+    const px=c[c.length-1];
+    const lv=[5,10,20,60].map(n=>px>=ma(c,n)).filter(Boolean).length;
+    total++; sumLv+=lv;
+    if(lv===4)allUp++;
   }
-  // 去重、依日期排序
-  const seen=new Set(), out=[];
-  closes.sort((a,b)=>a.d<b.d?-1:1);
-  for(const x of closes){ if(!seen.has(x.d)){seen.add(x.d);out.push(x.c);} }
-  return out;
-}
-function strengthOf(closes){
-  if(!closes||closes.length<20)return null;
-  const px=closes[closes.length-1];
-  const lvls=[5,10,20,60].map(n=>{const m=ma(closes,n);return m!=null?px>=m:null;});
-  const valid=lvls.filter(x=>x!=null);
-  const up=valid.filter(Boolean).length;
-  return {px,up,total:valid.length,lvls};
+  if(!total)return null;
+  return { pctAllUp: allUp/total*100, avgLv: sumLv/total, sample: total };
 }
 function renderStrength(el,label,st){
-  if(!st){el.innerHTML=`${label} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：資料不足`;return;}
+  if(!el)return;
+  if(!st){el.innerHTML=`${label} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：資料不足，先按「更新並篩選」`;return;}
+  const p=st.pctAllUp;
   let col,txt;
-  if(st.up===0){col='#E5484D';txt='空方';}          // 全數跌破＝空方
-  else if(st.up>=st.total){col='#1F9E6E';txt='強勢';} // 站上全部
-  else if(st.up>=2){col='#F2B544';txt='偏多';}
-  else {col='#F2B544';txt='偏弱';}
-  el.innerHTML=`${label} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${st.up}/${st.total}</span>`;
+  if(p>=60){col='#1F9E6E';txt='強多';}
+  else if(p>=45){col='#3DBB8A';txt='偏多';}
+  else if(p>=30){col='#F2B544';txt='中性';}
+  else if(p>=15){col='#E08A3C';txt='偏空';}
+  else {col='#E5484D';txt='空方';}
+  el.innerHTML=`${label} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${p.toFixed(0)}%</span>`;
   el.style.color=col; el.style.borderColor=col;
-  el.title=`${label}指數站上 ${st.up}/${st.total} 條均線（5/10/20/60）` + (st.up===0?'——全數跌破，空方，不建議持有':'');
+  el.title=`${label}：${st.sample} 檔中有 ${p.toFixed(0)}% 站上全部四條均線（平均站上 ${st.avgLv.toFixed(1)} 條）` + (p<15?'——多數跌破均線，空方，不建議追多':'');
 }
-async function updateStrength(){
-  try{
-    const [a,b]=await Promise.all([fetchIndexCloses('twse'),fetchIndexCloses('tpex')]);
-    MKTSTR.twse=strengthOf(a); MKTSTR.tpex=strengthOf(b);
-    renderStrength($('#strTwse'),'大盤',MKTSTR.twse);
-    renderStrength($('#strTpex'),'櫃買',MKTSTR.tpex);
-  }catch(e){}
+function updateStrength(){
+  MKTSTR.twse=marketBreadth('上市');
+  MKTSTR.tpex=marketBreadth('上櫃');
+  renderStrength($('#strTwse'),'大盤',MKTSTR.twse);
+  renderStrength($('#strTpex'),'櫃買',MKTSTR.tpex);
 }
 /* ZigZag 轉折點：以百分比幅度過濾雜訊 */
 function zigzag(c,pct){
