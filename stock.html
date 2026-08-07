@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V97</title>
+<title>盤後篩選台 V98</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -399,7 +399,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V97</span>
+    <h1>盤後篩選台</h1><span class="ver">V98</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1121,11 +1121,14 @@ async function wantgooMA(which){
     u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
     u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
     u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+    u=>`https://cors.eu.org/${u}`,
+    u=>`https://yacdn.org/proxy/${u}`,
+    u=>`https://api.cors.lol/?url=${encodeURIComponent(u)}`,
     u=>u   // 最後才直連（多數會被 CORS 擋）
   ];
   const errs=[];
   const attempts=wrap.map(mk=>(async()=>{
-    const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
+    const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),12000);
     try{
       const r=await fetch(mk(url),{cache:'no-store',signal:ctrl.signal});
       if(!r.ok){errs.push('HTTP'+r.status);throw 0;}
@@ -2740,7 +2743,38 @@ $('#btnSim').onclick=async()=>{ await simLoad(); simRender(); $('#simMask').clas
 // 推薦歷史：以「推薦日期」為單位存整份卡片快照，只保留近 7 個交易日，第 8 天洗掉最舊（第1天）
 const RECO_KEY='easy_reco_hist_v1';
 let RECO_HIST=null, EASY_SEL_DATE=null;
-async function loadRecoHistory(){ if(RECO_HIST)return RECO_HIST; try{const r=await store.get(RECO_KEY);RECO_HIST=(r&&typeof r==='object')?r:{};}catch(e){RECO_HIST={};} return RECO_HIST; }
+// 用某個歷史日期（而不是今天）當基準日去 evaluate 一檔股票：暫時借用 OFFSET 把 cut 切到那天，算完再還原
+function evaluateAsOf(code,date){
+  const idx=DB.dates.indexOf(date);
+  if(idx<0)return null;
+  const saved=OFFSET;
+  OFFSET=DB.dates.length-1-idx;
+  let e=null;
+  try{ e=evaluate(code); }catch(err){}
+  OFFSET=saved;
+  return e;
+}
+// 舊版只存「代號字串陣列」，新版存整份卡片快照。偵測到舊格式就用那天的歷史資料重新算出完整快照，
+// 這樣舊的推薦日期分頁還是點得開，數字也還原成當天收盤算出來的（不是用今天的資料頂替）。
+function migrateRecoHistory(){
+  let changed=false;
+  for(const date of Object.keys(RECO_HIST)){
+    const arr=RECO_HIST[date];
+    if(Array.isArray(arr)&&arr.length&&typeof arr[0]==='string'){
+      const rebuilt=[];
+      for(const code of arr){
+        const e=evaluateAsOf(code,date);
+        if(!e)continue;
+        try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; }
+        rebuilt.push(buildEntrySnapshot(e));
+      }
+      RECO_HIST[date]=rebuilt;
+      changed=true;
+    }
+  }
+  if(changed){ try{ store.set(RECO_KEY,RECO_HIST); }catch(err){} }
+}
+async function loadRecoHistory(){ if(RECO_HIST)return RECO_HIST; try{const r=await store.get(RECO_KEY);RECO_HIST=(r&&typeof r==='object')?r:{};}catch(e){RECO_HIST={};} migrateRecoHistory(); return RECO_HIST; }
 // 取某檔目前最新收盤價／漲跌幅（用整份 DB.stocks 的最新資料，不受 OFFSET 影響，用來判斷是否已經「事後」跌破停損）
 function latestPx(code){
   const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
