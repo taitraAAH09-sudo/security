@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V93</title>
+<title>盤後篩選台 V95</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -394,7 +394,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V93</span>
+    <h1>盤後篩選台</h1><span class="ver">V95</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -647,8 +647,21 @@ async function getJSONviaProxy(url){
 }
 // 快速單檔：STOCK_DAY 一個月一次請求（小封包），走代理，約 6 次即可
 async function backfillOneFast(code,months){
-  const recs=[]; const now=new Date();
-  // 當月用「今天」查：STOCK_DAY 回整月資料，今天收盤有就含今天、沒有就到昨天為止
+  const recs=[];
+  // 先用 Yahoo（最穩）：.TW=上市、.TWO=上櫃，一次就回半年日K
+  const ib=$('#ipBody'); if(ib)ib.innerHTML=`<div class="ihint">快速抓取中…（Yahoo 單檔，通常 1-3 秒）</div>`;
+  try{
+    let rows=await yahooChart(code+'.TW','6mo'); let mkt='上市';
+    if(!rows||!rows.length){ rows=await yahooChart(code+'.TWO','6mo'); mkt='上櫃'; }
+    if(rows&&rows.length){
+      recs.exists=true; recs.apiOK=true; recs.mkt=mkt;
+      for(const r of rows)recs.push({date:r.date,c:r.c,q:r.q,h:r.h,l:r.l,o:r.o,mkt});
+      recs.sort((a,b)=>a.date<b.date?-1:1);
+      return recs;
+    }
+  }catch(e){ recs.lastErr=e.message; }
+  // Yahoo 沒抓到才退回 TWSE STOCK_DAY（上市）
+  const now=new Date();
   for(let m=0;m<months;m++){
     const dd = m===0 ? now : new Date(now.getFullYear(),now.getMonth()-m,1);
     const p=ymd(dd);
@@ -1007,22 +1020,25 @@ const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.leng
 // ── 大盤／櫃買強度：抓「加權指數 ^TWII」「櫃買指數 ^TWOII」，看指數站上幾條均線（獨立、不影響其他） ──
 let MKTSTR={twse:null,tpex:null};
 // 從 Yahoo Finance chart API 拿近 3 個月日收盤（回傳陣列，最乾淨）
-async function yahooCloses(sym){
+let STR_DIAG={twse:'',tpex:''};
+// 通用：從 Yahoo 抓某代碼的日 K（含開高低收量與日期），走代理 race
+async function yahooChart(sym,range){
   const apis=[
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=6mo&interval=1d`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=6mo&interval=1d`
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range||'6mo'}&interval=1d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range||'6mo'}&interval=1d`
   ];
   const wrap=[
-    u=>u,                                                              // 直連（在真網站上可能可直連）
     u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
     u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`
+    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+    u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+    u=>u
   ];
-  // 全部並行發出，誰先成功回傳有效資料就用誰（大幅加速）
   const attempts=[];
   for(const api of apis)for(const mk of wrap){
     attempts.push((async()=>{
-      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),7000);
+      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
       try{
         const r=await fetch(mk(api),{cache:'no-store',signal:ctrl.signal});
         if(!r.ok)throw 0;
@@ -1033,17 +1049,65 @@ async function yahooCloses(sym){
       }finally{ clearTimeout(timer); }
     })());
   }
+  let j=null; try{ j=await Promise.any(attempts); }catch(e){ j=null; }
+  if(!j||!j.chart||!j.chart.result||!j.chart.result[0])return null;
+  const res=j.chart.result[0];
+  const ts=res.timestamp||[];
+  const q=res.indicators&&res.indicators.quote&&res.indicators.quote[0];
+  if(!ts.length||!q)return null;
+  const out=[];
+  for(let i=0;i<ts.length;i++){
+    const c=q.close?q.close[i]:null; if(c==null||isNaN(c))continue;
+    const d=new Date(ts[i]*1000);
+    const date=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+    out.push({date,c,o:q.open?q.open[i]:c,h:q.high?q.high[i]:c,l:q.low?q.low[i]:c,q:q.volume?Math.round((q.volume[i]||0)/1000):0});
+  }
+  return out.length?out:null;
+}
+async function yahooCloses(sym,which){
+  const apis=[
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=6mo&interval=1d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=6mo&interval=1d`
+  ];
+  const wrap=[
+    u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+    u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+    u=>u   // 最後才直連（多數會被 CORS 擋）
+  ];
+  const errs=[];
+  const attempts=[];
+  for(const api of apis)for(const mk of wrap){
+    attempts.push((async()=>{
+      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),8000);
+      try{
+        const r=await fetch(mk(api),{cache:'no-store',signal:ctrl.signal});
+        if(!r.ok){errs.push('HTTP'+r.status);throw 0;}
+        let t=await r.text();
+        let j; try{ const w=JSON.parse(t); j=(w&&typeof w.contents==='string')?JSON.parse(w.contents):w; }catch(_){ errs.push('非JSON');throw 0; }
+        if(j&&j.chart&&j.chart.result&&j.chart.result[0])return j;
+        if(j&&j.chart&&j.chart.error){errs.push('Yahoo:'+(j.chart.error.description||j.chart.error.code));}
+        throw 0;
+      }catch(e){ if(e&&e.name==='AbortError')errs.push('逾時'); throw 0; }
+      finally{ clearTimeout(timer); }
+    })());
+  }
   let j=null;
   try{ j=await Promise.any(attempts); }catch(e){ j=null; }
+  if(which)STR_DIAG[which]= j ? '' : (errs.length?[...new Set(errs)].slice(0,3).join('、'):'全部來源無回應');
   if(!j||!j.chart||!j.chart.result||!j.chart.result[0])return null;
   const res=j.chart.result[0];
   const q=res.indicators&&res.indicators.quote&&res.indicators.quote[0];
   let arr=(q&&q.close)||[];
   arr=arr.filter(x=>x!=null&&!isNaN(x));
   if(!arr.length)return null;
-  // 用 meta 的最新價當「現價」（比陣列尾端更可靠）
   const mp = res.meta && res.meta.regularMarketPrice;
   return {closes:arr, px:(mp!=null&&!isNaN(mp))?mp:arr[arr.length-1]};
+}
+async function fetchIndexCloses(which){
+  return await yahooCloses(which==='twse'?'^TWII':'^TWOII', which);
 }
 async function fetchIndexCloses(which){
   // 大盤=加權指數 ^TWII；櫃買=櫃買指數 ^TWOII（Yahoo 代碼）
@@ -1060,7 +1124,14 @@ function strengthOf(data){
 function renderStrength(el,label,sub,st){
   if(!el)return;
   const subhtml=`<i class="ststub">${sub}</i>`;
-  if(!st){el.innerHTML=`${label}${subhtml} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：指數資料暫時抓不到（免費代理不穩），稍後再按「更新並篩選」，或把檔案放到網站上跑會穩定`;return;}
+  if(!st){
+    const which = label==='大盤'?'twse':'tpex';
+    const why = STR_DIAG[which] || '暫時無回應';
+    el.innerHTML=`${label}${subhtml} <b style="font-size:13px">讀取失敗·再點</b>`;
+    el.style.color='#E08A3C';el.style.borderColor='#E08A3C';
+    el.title=`${label}：抓不到指數資料。原因：${why}。再點一下重試（免費代理偶爾不通）。`;
+    return;
+  }
   let col,txt;
   if(st.up>=st.total){col='#1F9E6E';txt='多方';}          // 站上全部＝多方
   else if(st.up===0){col='#E5484D';txt='空方';}           // 全數跌破＝空方
