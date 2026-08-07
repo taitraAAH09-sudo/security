@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V98</title>
+<title>盤後篩選台 V99</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -399,7 +399,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V98</span>
+    <h1>盤後篩選台</h1><span class="ver">V99</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -911,6 +911,7 @@ function sanitizeDB(){
 }
 async function doFetch(){
   sanitizeDB();
+  await simLoad();   // 先載入模擬下單清單，才能把持有的代號一起併入更新名單
   // 清掉最近 5 個日曆日的「休市」標記，避免之前因資料未公布而被誤記、之後就永遠不再重抓
   if(Array.isArray(DB.nodata)&&DB.nodata.length){
     const lim=ymd(new Date(Date.now()-5*86400000));
@@ -947,7 +948,14 @@ async function doFetch(){
   const ik=Object.keys(DB.insts).sort(); while(ik.length>6)delete DB.insts[ik.shift()];
   DB.inst={date:iDays[0],f:DB.insts[iDays[0]].f,i:DB.insts[iDays[0]].i};
   const uni=makeUniverse(nR,iDays);
-  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）`,'ok');
+  // 把模擬下單「目前有部位」的代號也併入更新名單，確保模擬損益永遠用最新收盤價計算
+  const simCodes=new Set(
+    SIM.filter(t=>/^[1-9]\d{3}$/.test(t.code))
+       .map(t=>t.code)
+  );
+  let simAdded=0;
+  for(const c of simCodes){ if(!uni.has(c)){ uni.add(c); simAdded++; } }
+  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）${simAdded?`，含模擬下單 ${simAdded} 檔`:''}`,'ok');
 
   // 2. 缺的交易日 → 全市場（只留名單）
   // 判斷某天是否「已完整」：該天有收盤價的檔數需達名單的一定比例，否則視為不完整要重抓
@@ -1011,7 +1019,9 @@ async function doFetch(){
   if($('#fbAuto').checked&&fbEnd())await fbPush(true);
   log('完成。','ok');
 }
-function finish(){$('#btnFetch').disabled=false;$('#btnStop').style.display='none';$('#pbar').style.width='0';}
+function finish(){$('#btnFetch').disabled=false;$('#btnStop').style.display='none';$('#pbar').style.width='0';
+  if($('#simMask')&&$('#simMask').classList.contains('on'))simRender();   // 若模擬下單視窗開著，更新完順便刷新損益
+}
 
 /* ═══ 指標 ═══ */
 function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
