@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V80</title>
+<title>盤後篩選台 V82</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -380,7 +380,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V80</span>
+    <h1>盤後篩選台</h1><span class="ver">V82</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -968,44 +968,64 @@ function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
   return{c,q,h,l,o,d};}
 const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.length;i++)t+=a[i];return t/n;};
 
-// ── 大盤／櫃買強度：用本機已抓的股票資料算「市場廣度」，不靠網路 ──
-// 廣度＝該市場有多少比例的股票站上全部四條均線
+// ── 大盤／櫃買強度：單獨抓「加權指數」與「櫃買指數」，看指數站上幾條均線（獨立、不影響其他） ──
 let MKTSTR={twse:null,tpex:null};
-function marketBreadth(mkt){
-  const cut=DB.dates.length-OFFSET;
-  let total=0, allUp=0, sumLv=0;
-  for(const code in DB.stocks){
-    const s=DB.stocks[code];
-    if(s.m!==mkt)continue;
-    const c=[]; const src=s.c;
-    const end=Math.min(cut,src.length);
-    for(let i=0;i<end;i++)if(src[i]!=null)c.push(src[i]);
-    if(c.length<61)continue;          // 資料不足無法算四均線
-    const px=c[c.length-1];
-    const lv=[5,10,20,60].map(n=>px>=ma(c,n)).filter(Boolean).length;
-    total++; sumLv+=lv;
-    if(lv===4)allUp++;
+async function fetchIndexCloses(which){
+  // which:'twse'=加權指數(FMTQIK) / 'tpex'=櫃買指數(TPEx st41)
+  const now=new Date(), rows=[];
+  for(let m=0;m<5;m++){   // 抓近 5 個月，夠算 MA60
+    const dd = m===0 ? now : new Date(now.getFullYear(),now.getMonth()-m,1);
+    try{
+      if(which==='twse'){
+        const dstr=ymd(dd);
+        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${dstr}&response=json`);
+        const data=(j&&(j.data||j.aaData))||[];
+        const fields=(j&&(j.fields||[]))||[];
+        let ci=fields.findIndex(f=>/加權|指數/.test(String(f))); if(ci<0)ci=4;
+        for(const r of data){ const c=num(String(r[ci]).replace(/,/g,'')); if(c!=null&&c>1000)rows.push({d:String(r[0]),c}); }
+      }else{
+        const roc=`${dd.getFullYear()-1911}/${String(dd.getMonth()+1).padStart(2,'0')}`;
+        const j=await getJSONviaProxy(`https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${roc}&o=json`);
+        const data=(j&&(j.aaData||j.data))||[];
+        for(const r of data){ const c=num(String(r[4]).replace(/,/g,'')); if(c!=null&&c>50)rows.push({d:String(r[0]),c}); }
+      }
+    }catch(e){}
+    await sleep(200);
   }
-  if(!total)return null;
-  return { pctAllUp: allUp/total*100, avgLv: sumLv/total, sample: total };
+  const seen=new Set(), out=[];
+  rows.sort((a,b)=>a.d<b.d?-1:1);
+  for(const x of rows){ if(!seen.has(x.d)){seen.add(x.d);out.push(x.c);} }
+  return out;
+}
+function strengthOf(closes){
+  if(!closes||closes.length<20)return null;
+  const px=closes[closes.length-1];
+  const lvls=[5,10,20,60].map(n=>{const m=ma(closes,n);return m!=null?px>=m:null;});
+  const valid=lvls.filter(x=>x!=null);
+  const up=valid.filter(Boolean).length;
+  return {px,up,total:valid.length};
 }
 function renderStrength(el,label,st){
   if(!el)return;
-  if(!st){el.innerHTML=`${label} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：資料不足，先按「更新並篩選」`;return;}
-  const p=st.pctAllUp;
+  if(!st){el.innerHTML=`${label} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：指數資料抓取失敗（免費代理不穩），可稍後再按「更新並篩選」`;return;}
   let col,txt;
-  if(p>=60){col='#1F9E6E';txt='強多';}
-  else if(p>=45){col='#3DBB8A';txt='偏多';}
-  else if(p>=30){col='#F2B544';txt='中性';}
-  else if(p>=15){col='#E08A3C';txt='偏空';}
-  else {col='#E5484D';txt='空方';}
-  el.innerHTML=`${label} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${p.toFixed(0)}%</span>`;
+  if(st.up>=st.total){col='#1F9E6E';txt='多方';}          // 站上全部＝多方
+  else if(st.up===0){col='#E5484D';txt='空方';}           // 全數跌破＝空方
+  else if(st.up>=2){col='#F2B544';txt='偏多';}
+  else {col='#E08A3C';txt='偏空';}
+  el.innerHTML=`${label} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${st.up}/${st.total}</span>`;
   el.style.color=col; el.style.borderColor=col;
-  el.title=`${label}：${st.sample} 檔中有 ${p.toFixed(0)}% 站上全部四條均線（平均站上 ${st.avgLv.toFixed(1)} 條）` + (p<15?'——多數跌破均線，空方，不建議追多':'');
+  el.title=`${label}指數站上 ${st.up}/${st.total} 條均線（5/10/20/60）` + (st.up===0?'——全數跌破，空方，不建議追多':'');
 }
-function updateStrength(){
-  MKTSTR.twse=marketBreadth('上市');
-  MKTSTR.tpex=marketBreadth('上櫃');
+async function updateStrength(){
+  const t=$('#strTwse'), p=$('#strTpex');
+  if(t){t.innerHTML='大盤 <b>查詢中…</b>';t.style.color='var(--dim)';}
+  if(p){p.innerHTML='櫃買 <b>查詢中…</b>';p.style.color='var(--dim)';}
+  const [a,b]=await Promise.all([
+    fetchIndexCloses('twse').catch(()=>null),
+    fetchIndexCloses('tpex').catch(()=>null)
+  ]);
+  MKTSTR.twse=strengthOf(a); MKTSTR.tpex=strengthOf(b);
   renderStrength($('#strTwse'),'大盤',MKTSTR.twse);
   renderStrength($('#strTpex'),'櫃買',MKTSTR.tpex);
 }
