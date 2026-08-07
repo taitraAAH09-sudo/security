@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V74</title>
+<title>盤後篩選台 V78</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -50,8 +50,11 @@ a{color:var(--amber)}
 .tour-panel .tnav button:disabled{opacity:.35;cursor:default}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
-.helpbtn{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite;z-index:5}
+.hbtnwrap{position:absolute;top:9px;left:44%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;z-index:5}
+.helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
 .helpbtn:hover{filter:brightness(1.1)}
+.mktstr{font-size:20px;font-weight:800;color:var(--dim);border:2px solid var(--line);border-radius:26px;padding:11px 24px;white-space:nowrap;background:var(--panel2)}
+.mktstr b{font-family:var(--mono);font-size:22px;margin-left:4px}
 @keyframes helppulse{0%,100%{box-shadow:0 3px 12px rgba(31,158,110,.45)}50%{box-shadow:0 3px 20px rgba(31,158,110,.85)}}
 .easymask{position:fixed;inset:0;background:rgba(6,10,20,.82);z-index:80;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 14px}
 .easymask.on{display:flex}
@@ -377,7 +380,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V74</span>
+    <h1>盤後篩選台</h1><span class="ver">V78</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -385,7 +388,11 @@ tbody tr{cursor:pointer}
     <button class="tourbtn" id="btnTour" title="重新看一次教學">?</button>
   </div>
   <div class="strip" id="strip"></div>
-  <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
+  <div class="hbtnwrap">
+    <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
+    <span class="mktstr" id="strTwse" title="大盤（加權指數）站上幾條均線">大盤 <b>—</b></span>
+    <span class="mktstr" id="strTpex" title="櫃買指數站上幾條均線">櫃買 <b>—</b></span>
+  </div>
   <button class="simbtn" id="btnSim">模擬下單</button>
 </div>
 
@@ -628,10 +635,9 @@ async function getJSONviaProxy(url){
 // 快速單檔：STOCK_DAY 一個月一次請求（小封包），走代理，約 6 次即可
 async function backfillOneFast(code,months){
   const recs=[]; const now=new Date();
-  // 當月用「昨天」當查詢日（確保 TWSE 有資料，避免查到未來/今天未收盤而回無資料）；更早的月份用該月 1 號
-  const yesterday=new Date(now.getTime()-86400000);
+  // 當月用「今天」查：STOCK_DAY 回整月資料，今天收盤有就含今天、沒有就到昨天為止
   for(let m=0;m<months;m++){
-    const dd = m===0 ? yesterday : new Date(now.getFullYear(),now.getMonth()-m,1);
+    const dd = m===0 ? now : new Date(now.getFullYear(),now.getMonth()-m,1);
     const p=ymd(dd);
     const ib=$('#ipBody'); if(ib)ib.innerHTML=`<div class="ihint">快速抓取中…第 ${m+1} / ${months} 個月<br><span style="color:var(--dim)">（透過代理直接抓單檔，通常幾秒內完成）</span></div>`;
     try{
@@ -946,6 +952,7 @@ async function doFetch(){
   trimAll(want+15);
   if(!await store.set(KEY,DB))log('快取寫入失敗，建議匯出備份。','err');
   paintStrip(); run();
+  updateStrength();   // 更新完成後刷新大盤/櫃買強度
   if(INSPECTED)drawChart(INSPECTED);   // 更新完成後，若目前正開著某檔的 K 線，自動重畫最新資料
   if($('#fbAuto').checked&&fbEnd())await fbPush(true);
   log('完成。','ok');
@@ -960,6 +967,65 @@ function series(s,cut){const c=[],q=[],h=[],l=[],o=[],d=[];
     o.push(s.o?s.o[i]:null);d.push(DB.dates[i]);}
   return{c,q,h,l,o,d};}
 const ma=(a,n)=>{if(a.length<n)return null;let t=0;for(let i=a.length-n;i<a.length;i++)t+=a[i];return t/n;};
+
+// ── 大盤／櫃買強度：抓指數近日收盤，看站上 5/10/20/60 幾條均線 ──
+let MKTSTR={twse:null,tpex:null};
+async function fetchIndexCloses(which){
+  // which: 'twse' 加權指數(FMTQIK) / 'tpex' 櫃買指數
+  const closes=[]; const now=new Date();
+  const ymm=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0');
+  for(let m=0;m<4;m++){   // 抓近 4 個月夠算 MA60
+    // 當月用「今天」查：FMTQIK/櫃買指數端點會回整月資料，今天有收盤就含今天、沒有就到昨天為止
+    const dd = m===0 ? now : new Date(now.getFullYear(),now.getMonth()-m,1);
+    const dstr=ymd(dd);
+    try{
+      if(which==='twse'){
+        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${dstr}&response=json`);
+        const rows=(j&&j.data)||[];
+        for(const r of rows){ const c=num(String(r[4]).replace(/,/g,'')); if(c!=null)closes.push({d:String(r[0]),c}); }
+      }else{
+        // 櫃買指數：TPEx 每日收盤指數
+        const roc=`${dd.getFullYear()-1911}/${String(dd.getMonth()+1).padStart(2,'0')}`;
+        const j=await getJSONviaProxy(`https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${roc}&o=json`);
+        const rows=(j&&(j.aaData||j.data))||[];
+        for(const r of rows){ const c=num(String(r[4]).replace(/,/g,'')); if(c!=null)closes.push({d:String(r[0]),c}); }
+      }
+    }catch(e){}
+    await sleep(200);
+  }
+  // 去重、依日期排序
+  const seen=new Set(), out=[];
+  closes.sort((a,b)=>a.d<b.d?-1:1);
+  for(const x of closes){ if(!seen.has(x.d)){seen.add(x.d);out.push(x.c);} }
+  return out;
+}
+function strengthOf(closes){
+  if(!closes||closes.length<20)return null;
+  const px=closes[closes.length-1];
+  const lvls=[5,10,20,60].map(n=>{const m=ma(closes,n);return m!=null?px>=m:null;});
+  const valid=lvls.filter(x=>x!=null);
+  const up=valid.filter(Boolean).length;
+  return {px,up,total:valid.length,lvls};
+}
+function renderStrength(el,label,st){
+  if(!st){el.innerHTML=`${label} <b>—</b>`;el.style.color='var(--dim)';el.style.borderColor='var(--line)';el.title=`${label}：資料不足`;return;}
+  let col,txt;
+  if(st.up===0){col='#E5484D';txt='空方';}          // 全數跌破＝空方
+  else if(st.up>=st.total){col='#1F9E6E';txt='強勢';} // 站上全部
+  else if(st.up>=2){col='#F2B544';txt='偏多';}
+  else {col='#F2B544';txt='偏弱';}
+  el.innerHTML=`${label} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${st.up}/${st.total}</span>`;
+  el.style.color=col; el.style.borderColor=col;
+  el.title=`${label}指數站上 ${st.up}/${st.total} 條均線（5/10/20/60）` + (st.up===0?'——全數跌破，空方，不建議持有':'');
+}
+async function updateStrength(){
+  try{
+    const [a,b]=await Promise.all([fetchIndexCloses('twse'),fetchIndexCloses('tpex')]);
+    MKTSTR.twse=strengthOf(a); MKTSTR.tpex=strengthOf(b);
+    renderStrength($('#strTwse'),'大盤',MKTSTR.twse);
+    renderStrength($('#strTpex'),'櫃買',MKTSTR.tpex);
+  }catch(e){}
+}
 /* ZigZag 轉折點：以百分比幅度過濾雜訊 */
 function zigzag(c,pct){
   const th=pct/100; const piv=[];
@@ -1500,17 +1566,17 @@ function chartSVG(ser,n,W0,H0x,wpat,plan){
     }
     if(burstHighs.length){
       const px2=C[N-1];
-      // 壓力＝現價上方、最靠近現價的爆量高點（頭上最近的天花板）
-      const aboveB=burstHighs.filter(b=>b.price>px2).sort((a,b)=>a.price-b.price);
-      // 支撐＝現價下方、最靠近現價的爆量高點（已突破、變地板）
+      // 壓力＝現價上方「最高」的爆量高點（爆大量都過不去的天花板，才是真壓力）
+      const aboveB=burstHighs.filter(b=>b.price>px2).sort((a,b)=>b.price-a.price);
+      // 支撐＝現價下方「最高」的爆量高點（已站上、由壓力翻成的地板）
       const belowB=burstHighs.filter(b=>b.price<=px2).sort((a,b)=>b.price-a.price);
       const drawB=(b,isSup)=>{
         const by=y(b.price);
         if(by>4&&by<PH)burst+=`<line x1="0" y1="${by.toFixed(1)}" x2="${PW}" y2="${by.toFixed(1)}" stroke="#F2B544" stroke-width="1.1" stroke-dasharray="5 2 1 2" opacity=".8"/>`
           +tagLabel(`爆量${isSup?'撐':'壓'} ${b.price.toFixed(2)}`, W, by, '#F2B544', FS);
       };
-      if(aboveB.length)drawB(aboveB[0],false);   // 上方最近的爆量高點＝壓力
-      if(belowB.length)drawB(belowB[0],true);    // 下方最近的爆量高點＝支撐
+      if(aboveB.length)drawB(aboveB[0],false);   // 上方最高的爆量高點＝壓力（天花板）
+      if(belowB.length)drawB(belowB[0],true);    // 下方最高的爆量高點＝支撐（地板）
     }
   }catch(e){}
   let k='',v='';
@@ -2690,5 +2756,6 @@ $('#btnTour').onclick=tourStart;
     :'尚未抓過資料。按上面「更新並篩選」開始。';
   const seen=await store.get('tour_seen_v1');
   if(!seen)setTimeout(tourStart,500);
+  updateStrength();   // 開頁時抓一次大盤/櫃買強度
 })();
 </script>
