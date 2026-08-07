@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V96</title>
+<title>盤後篩選台 V97</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -77,9 +77,14 @@ a{color:var(--amber)}
 .ecohdr{background:linear-gradient(135deg,rgba(31,158,110,.16),rgba(23,184,144,.08));border:1px solid rgba(31,158,110,.35);border-radius:10px;padding:11px 15px;margin-bottom:12px;font-size:15px;color:var(--paper)}
 .ecohdr b{font-family:var(--mono);font-size:18px;color:#3DBB8A;margin-right:4px}
 .ecohdr .ecohint{display:block;font-size:11.5px;color:var(--dim);margin-top:3px;font-weight:400}
-.ecard{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
-.ecard.exited{opacity:.5;filter:grayscale(.6)}
-.ecard.exited::after{content:'已出場';position:absolute}
+.ecard{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px;overflow:hidden}
+.ecard.exited{opacity:.85}
+.failstamp{position:absolute;top:10px;right:16px;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;pointer-events:none;z-index:5;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
+.failstamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--up);border-radius:4px;opacity:.7}
+.rdtabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:3px;scrollbar-width:thin}
+.rdtab{flex:0 0 auto;padding:8px 18px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono)}
+.rdtab:hover{border-color:var(--amber-d);color:var(--paper)}
+.rdtab.on{background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border-color:transparent}
 .estatus{font-size:12px;font-weight:800;padding:3px 11px;border-radius:20px;margin-left:4px}
 .estatus.out{background:rgba(229,72,77,.18);color:#E5484D;border:1px solid rgba(229,72,77,.5)}
 .estatus.tp{background:rgba(31,158,110,.18);color:#3DBB8A;border:1px solid rgba(31,158,110,.5)}
@@ -394,7 +399,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V96</span>
+    <h1>盤後篩選台</h1><span class="ver">V97</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2732,20 +2737,92 @@ function simRender(){
 $('#btnSim').onclick=async()=>{ await simLoad(); simRender(); $('#simMask').classList.add('on'); };
 
 // ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
-// 推薦歷史：以「推薦日期」為單位存 code 清單，只保留近 7 個交易日，第 8 天洗掉最舊
+// 推薦歷史：以「推薦日期」為單位存整份卡片快照，只保留近 7 個交易日，第 8 天洗掉最舊（第1天）
 const RECO_KEY='easy_reco_hist_v1';
-let RECO_HIST=null;
+let RECO_HIST=null, EASY_SEL_DATE=null;
 async function loadRecoHistory(){ if(RECO_HIST)return RECO_HIST; try{const r=await store.get(RECO_KEY);RECO_HIST=(r&&typeof r==='object')?r:{};}catch(e){RECO_HIST={};} return RECO_HIST; }
-async function saveRecoHistory(date,codes){
-  if(!date)return;
-  await loadRecoHistory();
-  RECO_HIST[date]=codes;
-  // 只留最新 7 個日期
-  const days=Object.keys(RECO_HIST).sort();          // 日期字串遞增
-  while(days.length>7){ const oldest=days.shift(); delete RECO_HIST[oldest]; }
-  try{ await store.set(RECO_KEY,RECO_HIST); }catch(e){}
+// 取某檔目前最新收盤價／漲跌幅（用整份 DB.stocks 的最新資料，不受 OFFSET 影響，用來判斷是否已經「事後」跌破停損）
+function latestPx(code){
+  const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
+  let px=null, prev=null;
+  for(let i=s.c.length-1;i>=0;i--){
+    if(s.c[i]!=null){ if(px==null){px=s.c[i];} else {prev=s.c[i]; break;} }
+  }
+  if(px==null)return null;
+  return {px, chg: prev!=null ? (px-prev)/prev*100 : 0};
 }
-function buildEasyView(){
+// 把一檔 evaluate() 結果凍結成「推薦當天的卡片快照」（買區／停損／停利／標籤都鎖住，之後只有價格會用最新的來判斷是否出場）
+function buildEntrySnapshot(e){
+  const ra=e._risk||{}; const p=ra.plan||{}; const ser=e.ser, N=ser.c.length;
+  const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)}–${p.buyHi.toFixed(2)}` : e.px.toFixed(2);
+  let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(err){}
+  const mvStop = mv?mv.price:p.stop;
+  const mvWhy = mv?mv.why:(p.stopType||'');
+  const target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
+  const tags=[`站上4均線`,`多頭排列`];
+  if(e._easyGap)tags.push('向上缺口');
+  if(e._easyVol)tags.push('今日爆量');
+  if(p.rideName)tags.push(`沿${p.rideName}走`);
+  return {
+    code:e.code, name:e.name||'',
+    buy, mvStop:mvStop!=null?+mvStop:null, mvWhy:mvWhy||'',
+    target:target!=null?+target:null, rideName:p.rideName||'',
+    tags, rlv:ra.level||'—', rcol:ra.lvColor||'var(--dim)', rsc:ra.score!=null?ra.score:'—', radv:ra.advice||'',
+    entryPx:e.px, entryChg:e.chg||0
+  };
+}
+// 依快照＋最新價 render 一張卡片；若最新價已跌破當初停損 → 蓋 FAIL 大戳章
+function easyCardHTML(entry){
+  const live=latestPx(entry.code);
+  const px = live?live.px:entry.entryPx, chg = live?live.chg:entry.entryChg;
+  const exited = (entry.mvStop!=null && px!=null && px<entry.mvStop);
+  const hitTP = (!exited && entry.target!=null && px!=null && px>=entry.target);
+  let statusBadge='';
+  if(exited)statusBadge=`<span class="estatus out">已觸及停損 · 不再追蹤</span>`;
+  else if(hitTP)statusBadge=`<span class="estatus tp">已達停利 · 賣一半續抱</span>`;
+  return `<div class="ecard${exited?' exited':''}">
+    ${exited?`<div class="failstamp">FAIL</div>`:''}
+    <div class="eh"><span class="ecode">${entry.code}</span><span class="ename">${entry.name||''}</span>
+      ${statusBadge}
+      <span class="erisk" style="color:#fff;background:${entry.rcol};border-color:${entry.rcol}">${entry.radv}<i>風險${entry.rlv}·${entry.rsc}</i></span>
+      <span class="epx ${chg>=0?'up':'dn'}">${px!=null?px.toFixed(2):'—'}　${chg>=0?'+':''}${(chg||0).toFixed(2)}%</span></div>
+    <div class="etags">${entry.tags.map(t=>`<span class="etag">${t}</span>`).join('')}</div>
+    <div class="egrid">
+      <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
+      <div class="eg stop"><s>移動停損（會往上移）</s><b>${entry.mvStop!=null?(+entry.mvStop).toFixed(2):'—'}</b></div>
+      <div class="eg tp"><s>停利目標（賣一半）</s><b>${entry.target!=null?entry.target.toFixed(2):'—'}</b></div>
+      <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
+    </div>
+    <div class="ihint" style="margin-top:8px">移動停損依據：${entry.mvWhy||'—'}${entry.rideName?`　·　沿 ${entry.rideName} 前進，靠近不破即支撐`:''}<br>停利做法：到 <b>${entry.target!=null?entry.target.toFixed(2):'—'}</b> 先賣一半落袋，另一半用移動停損續抱、讓它往上跑；收盤跌破移動停損就全出。</div>
+    <div class="ebtns"><button data-code="${entry.code}" class="ekchart">看 K 線圖</button></div>
+  </div>`;
+}
+// 畫上方日期分頁（最多 7 個，最新在最右邊）＋目前選到那天的卡片清單
+function renderEasyTabsAndList(){
+  const body=$('#easyBody');
+  const days=Object.keys(RECO_HIST).sort();     // 舊→新，最多 7 個
+  if(!days.length){
+    body.innerHTML=`<div class="easyempty">今天沒有「站上4均線＋多頭排列」的強勢股，也還沒有任何推薦歷史。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
+    return;
+  }
+  if(!EASY_SEL_DATE||!RECO_HIST[EASY_SEL_DATE])EASY_SEL_DATE=days[days.length-1];
+  const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}</div>`;
+  const entries=RECO_HIST[EASY_SEL_DATE]||[];
+  const dateHdr=`<div class="ecohdr">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦，只保留近 7 個交易日；隔天收盤後可能換股）</span></div>`;
+  if(!entries.length){
+    body.innerHTML=tabsHTML+dateHdr+`<div class="easyempty">這天沒有「站上4均線＋多頭排列」的強勢股。</div>`;
+  }else{
+    const cards=entries.map(easyCardHTML).join('');
+    body.innerHTML=tabsHTML+dateHdr+`<div class="ihint" style="margin:2px 0 12px">符合的股票共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
+  }
+  body.querySelectorAll('.rdtab').forEach(b=>b.onclick=()=>{ EASY_SEL_DATE=b.dataset.date; renderEasyTabsAndList(); });
+  body.querySelectorAll('.ekchart').forEach(b=>b.onclick=()=>{
+    const c=b.dataset.code; $('#easyMask').classList.remove('on');
+    $('#ipCode').value=c; paintInspect(c); drawChart(c);
+  });
+}
+async function buildEasyView(){
+  await loadRecoHistory();
   const body=$('#easyBody');
   const codes=Object.keys(DB.stocks||{});
   if(!codes.length){
@@ -2769,66 +2846,21 @@ function buildEasyView(){
     e._easyVol = (e.ratio5>=1.3 || e.ratio>=e.vx);
     picks.push(e);
   }
-  // 依漲幅排序（強者在前）
   // 依「進場風險評分」由高到低排序（風險低的排前面），同分再看漲幅
   picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
   picks.sort((a,b)=>(b._risk.score||0)-(a._risk.score||0)||(b.chg||0)-(a.chg||0));
-  if(!picks.length){
-    body.innerHTML=`<div class="easyempty">今天沒有「站上4均線＋多頭排列」的強勢股。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
-    return;
-  }
-  // 推薦日期＝目前資料的基準日（收盤日）。記錄近 7 個推薦日，第 8 天洗掉最舊的
+  // 推薦日期＝目前資料的基準日（收盤日）。把今天的完整卡片快照存進歷史，只保留近 7 個推薦日，第 8 天洗掉最舊（第1天）
   const recoDate = (DB.dates && DB.dates.length) ? DB.dates[DB.dates.length-1-OFFSET] : null;
-  saveRecoHistory(recoDate, picks.map(e=>e.code));
-
-  const dateHdr = recoDate ? `<div class="ecohdr">📅 推薦日期　<b>${fmtD(recoDate)}</b><span class="ecohint">（依這天收盤資料推薦，只保留近 7 個交易日；隔天收盤後可能換股）</span></div>` : '';
-  const cards=picks.map(e=>{
-    const ra=e._risk||{};
-    const p=ra.plan||{};
-    const ser=e.ser, N=ser.c.length;
-    const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)}–${p.buyHi.toFixed(2)}` : e.px.toFixed(2);
-    // 移動式停損：規則＝有爆量看爆量低點、有缺口看缺口下緣、否則沿 5MA/10MA
-    let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(err){}
-    const mvStop = mv?mv.price:p.stop;
-    const mvWhy = mv?mv.why:(p.stopType||'');
-    const target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
-    const half = target!=null ? (target+e.px)/2 : null;   // 參考：到停利賣一半
-    // 是否已收盤觸及移動停損＝出場（不再追蹤）
-    const exited = (mvStop!=null && e.px < mvStop);
-    // 是否已到停利目標（可賣一半、另一半續抱）
-    const hitTP = (target!=null && e.px >= target);
-    const tags=[`站上4均線`,`多頭排列`];
-    if(e._easyGap)tags.push('向上缺口');
-    if(e._easyVol)tags.push('今日爆量');
-    if(p.rideName)tags.push(`沿${p.rideName}走`);
-    const rlv=ra.level||'—', rcol=ra.lvColor||'var(--dim)', rsc=ra.score!=null?ra.score:'—', radv=ra.advice||'';
-    // 出場狀態徽章
-    let statusBadge='';
-    if(exited)statusBadge=`<span class="estatus out">已觸及停損 · 不再追蹤</span>`;
-    else if(hitTP)statusBadge=`<span class="estatus tp">已達停利 · 賣一半續抱</span>`;
-    return `<div class="ecard${exited?' exited':''}">
-      <div class="eh"><span class="ecode">${e.code}</span><span class="ename">${e.name||''}</span>
-        ${statusBadge}
-        <span class="erisk" style="color:#fff;background:${rcol};border-color:${rcol}">${radv}<i>風險${rlv}·${rsc}</i></span>
-        <span class="epx ${e.chg>=0?'up':'dn'}">${e.px.toFixed(2)}　${e.chg>=0?'+':''}${(e.chg||0).toFixed(2)}%</span></div>
-      <div class="etags">${tags.map(t=>`<span class="etag">${t}</span>`).join('')}</div>
-      <div class="egrid">
-        <div class="eg buy"><s>建議買區</s><b>${buy}</b></div>
-        <div class="eg stop"><s>移動停損（會往上移）</s><b>${mvStop!=null?(+mvStop).toFixed(2):'—'}</b></div>
-        <div class="eg tp"><s>停利目標（賣一半）</s><b>${target!=null?target.toFixed(2):'—'}</b></div>
-        <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
-      </div>
-      <div class="ihint" style="margin-top:8px">移動停損依據：${mvWhy||'—'}${p.rideName?`　·　沿 ${p.rideName} 前進，靠近不破即支撐`:''}<br>停利做法：到 <b>${target!=null?target.toFixed(2):'—'}</b> 先賣一半落袋，另一半用移動停損續抱、讓它往上跑；收盤跌破移動停損就全出。</div>
-      <div class="ebtns"><button data-code="${e.code}" class="ekchart">看 K 線圖</button></div>
-    </div>`;
-  }).join('');
-  body.innerHTML=dateHdr+`<div class="ihint" style="margin:2px 0 12px">符合的股票共 <b style="color:var(--amber)">${picks.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
-  body.querySelectorAll('.ekchart').forEach(b=>b.onclick=()=>{
-    const c=b.dataset.code; $('#easyMask').classList.remove('on');
-    $('#ipCode').value=c; paintInspect(c); drawChart(c);
-  });
+  if(recoDate){
+    RECO_HIST[recoDate]=picks.map(buildEntrySnapshot);
+    const days=Object.keys(RECO_HIST).sort();
+    while(days.length>7){ delete RECO_HIST[days.shift()]; }
+    try{ await store.set(RECO_KEY,RECO_HIST); }catch(err){}
+    EASY_SEL_DATE=recoDate;
+  }
+  renderEasyTabsAndList();
 }
-$('#btnEasy').onclick=()=>{ buildEasyView(); $('#easyMask').classList.add('on'); };
+$('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); buildEasyView(); };
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
 $('#strTpex').style.cursor='pointer'; $('#strTpex').onclick=()=>updateOneStrength('tpex');
