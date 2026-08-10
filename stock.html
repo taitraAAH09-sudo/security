@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V108</title>
+<title>盤後篩選台 V111</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -136,8 +136,8 @@ a{color:var(--amber)}
 .testrow.exited{opacity:.55}
 .tstat{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .tstat.hold{background:rgba(111,168,220,.16);color:#6FA8DC;border:1px solid rgba(111,168,220,.4)}
-.tstat.out{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
-.tstat.tp{background:rgba(31,158,110,.16);color:#3DBB8A;border:1px solid rgba(31,158,110,.45)}
+.tstat.out{background:rgba(31,158,110,.16);color:#3DBB8A;border:1px solid rgba(31,158,110,.45)}
+.tstat.tp{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
 .simname-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .simname-row label{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
 .simname-row input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--paper);font-size:14px}
@@ -421,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V108</span>
+    <h1>盤後篩選台</h1><span class="ver">V111</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -806,6 +806,21 @@ function makeUniverse(n,dates){
 async function fetchTse(d,keep){
   const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${d}&type=ALLBUT0999&response=json`);
   if(j.stat&&!/OK/i.test(j.stat))return null;
+  // 順便擷取「發行量加權股價指數(大盤)」當天收盤，存進 DB.idxHist（用這個已成功的呼叫，不必另外連 Yahoo/代理）
+  try{
+    if(Array.isArray(j.tables))for(const t of j.tables){
+      const f=t.fields||[], dd=t.data||[];
+      const iName=f.findIndex(x=>/指數/.test(String(x)));
+      const iClose=f.findIndex(x=>/收盤|指數$/.test(String(x)));
+      if(iName>=0){
+        for(const r of dd){ if(/發行量加權股價指數/.test(String(r[iName]||r[0]))){
+          const cv=num(String(r[iClose>=0?iClose:1]).replace(/,/g,''));
+          if(cv!=null&&cv>1000){ DB.idxHist=DB.idxHist||{}; DB.idxHist[d]=cv; }
+          break;
+        }}
+      }
+    }
+  }catch(e){}
   let F=null,D=null;
   if(Array.isArray(j.tables))for(const t of j.tables)
     if(t.fields&&t.fields.includes('證券代號')&&t.fields.some(f=>/收盤價/.test(f))){F=t.fields;D=t.data;break;}
@@ -1213,8 +1228,54 @@ async function wantgooMA(which){
     ma240:parseFloat(m[6].replace(/,/g,''))
   };
 }
+// 大盤/櫃買強度：抓官方指數「近幾個月每日收盤」算 5/10/20/60 均線
+// 用跟主資料同一條可靠路徑（getJSONviaProxy），不再爬 wantgoo HTML
 async function fetchIndexCloses(which){
-  return await wantgooMA(which);
+  // 大盤：優先用「更新並篩選」時順便快取的加權指數歷史（最可靠，不必再連網）
+  if(which==='twse' && DB.idxHist){
+    const ds=Object.keys(DB.idxHist).sort();
+    const closes=ds.map(d=>DB.idxHist[d]).filter(x=>x!=null&&x>1000);
+    if(closes.length>=20){
+      STR_DIAG.twse='';
+      const ma=n=>{ if(closes.length<n)return null; let t=0; for(let k=closes.length-n;k<closes.length;k++)t+=closes[k]; return t/n; };
+      return { px:closes[closes.length-1], ma5:ma(5), ma10:ma(10), ma20:ma(20), ma60:ma(60) };
+    }
+  }
+  const now=new Date();
+  const rows=[];   // {d:'YYYYMMDD', c:收盤指數}
+  // 抓近 5 個月，足夠算 MA60
+  for(let m=0;m<5;m++){
+    const dd = new Date(now.getFullYear(), now.getMonth()-m, 1);
+    try{
+      if(which==='twse'){
+        // TWSE 加權指數每日收盤（FMTQIK 大盤統計，含發行量加權股價指數）
+        const dstr=ymd(dd);
+        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${dstr}&response=json`);
+        const data=(j&&(j.data||j.aaData))||[];
+        const fields=(j&&j.fields)||[];
+        let ci=fields.findIndex(f=>/指數/.test(String(f))); if(ci<0)ci=4;   // 「發行量加權股價指數」欄
+        for(const r of data){ const c=num(String(r[ci]).replace(/,/g,'')); const dt=String(r[0]);
+          if(c!=null&&c>1000){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
+      }else{
+        // 櫃買指數每日收盤（TPEx 指數，走新版 JSON）
+        const roc=`${dd.getFullYear()-1911}/${String(dd.getMonth()+1).padStart(2,'0')}`;
+        const j=await getJSONviaProxy(`https://www.tpex.org.tw/www/zh-tw/indices/histrend?date=${roc}/01&response=json`).catch(()=>null)
+             || await getJSONviaProxy(`https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${roc}&o=json`);
+        const data=(j&&(j.aaData||j.data||j.tables&&j.tables[0]&&j.tables[0].data))||[];
+        for(const r of data){ const c=num(String(r[4]).replace(/,/g,'')); const dt=String(r[0]);
+          if(c!=null&&c>50){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
+      }
+    }catch(e){}
+    await sleep(150);
+  }
+  // 去重、依日期排序，算均線
+  const seen=new Set(), closes=[];
+  rows.sort((a,b)=>a.d<b.d?-1:1);
+  for(const x of rows)if(!seen.has(x.d)){seen.add(x.d);closes.push(x.c);}
+  if(closes.length<20){ STR_DIAG[which]= closes.length?`只取到 ${closes.length} 天，不足算均線`:'官方指數端點無回應（代理可能不通）'; return null; }
+  STR_DIAG[which]='';
+  const ma=n=>{ if(closes.length<n)return null; let t=0; for(let k=closes.length-n;k<closes.length;k++)t+=closes[k]; return t/n; };
+  return { px:closes[closes.length-1], ma5:ma(5), ma10:ma(10), ma20:ma(20), ma60:ma(60) };
 }
 function strengthOf(data){
   if(!data||data.px==null)return null;
@@ -1907,24 +1968,18 @@ function movingStopAt(ser,i){
     const g=findGap(hh,ll,10,0,true,cc);
     if(g&&!g.closed&&g.gapLow!=null)return{price:g.gapLow,why:'缺口下緣',idx:i};
   }catch(e){}
-  // 3) 否則沿均線：看「過去統計」——近 60 根裡，收盤守在 5MA 上 vs 10MA 上的天數，哪條守得多就沿哪條
-  const m5=lo(5), m10=lo(10), px=c[i];
+  // 3) 否則沿均線：看「過去統計」——近 60 根裡，收盤守在 5MA / 10MA / 20MA 上的天數，哪條守得多就沿哪條
+  const m5=lo(5), m10=lo(10), m20=lo(20), px=c[i];
   const maAt=(n,idx)=>{let t=0,cnt=0;for(let k=Math.max(0,idx-n+1);k<=idx;k++){t+=c[k];cnt++;}return cnt>=n?t/cnt:null;};
-  let hold5=0,hold10=0,base5=0,base10=0;
-  for(let k=Math.max(10,i-59);k<=i;k++){
-    const a5=maAt(5,k), a10=maAt(10,k);
-    if(a5!=null){base5++; if(c[k]>=a5)hold5++;}
-    if(a10!=null){base10++; if(c[k]>=a10)hold10++;}
-  }
-  const rate5=base5?hold5/base5:0, rate10=base10?hold10/base10:0;
-  // 選守住率高的那條當「慣性支撐」；若現價已在該線之下，退而用另一條或就用該線價
-  const prefer10 = rate10>rate5;   // 守 10MA 較穩就沿 10MA
-  const pMA = prefer10?m10:m5, pName = prefer10?'10MA':'5MA', pRate=(prefer10?rate10:rate5)*100;
-  const oMA = prefer10?m5:m10, oName = prefer10?'5MA':'10MA';
-  if(pMA!=null && px>=pMA)return{price:pMA,why:`沿 ${pName}（過去守住率 ${pRate.toFixed(0)}%）`,idx:i};
-  if(oMA!=null && px>=oMA)return{price:oMA,why:`沿 ${oName}`,idx:i};
-  // 都跌破就用慣性那條當參考（已是壓力）
-  return pMA!=null?{price:pMA,why:`${pName}（已跌破）`,idx:i}:(m10!=null?{price:m10,why:'10MA（已跌破）',idx:i}:null);
+  const rateOf=n=>{let hold=0,base=0;for(let k=Math.max(n,i-59);k<=i;k++){const a=maAt(n,k);if(a!=null){base++;if(c[k]>=a)hold++;}}return base?hold/base:0;};
+  const cands=[{n:5,ma:m5,name:'5MA',rate:rateOf(5)},{n:10,ma:m10,name:'10MA',rate:rateOf(10)},{n:20,ma:m20,name:'20MA',rate:rateOf(20)}]
+    .filter(x=>x.ma!=null);
+  // 守住率高→低排序，選現價還站得上、守住率最高的那條當移動停損
+  cands.sort((a,b)=>b.rate-a.rate);
+  for(const cd of cands){ if(px>=cd.ma) return{price:cd.ma,why:`沿 ${cd.name}（過去守住率 ${(cd.rate*100).toFixed(0)}%）`,idx:i}; }
+  // 全都跌破 → 用守住率最高那條當參考（已是壓力）
+  if(cands.length)return{price:cands[0].ma,why:`${cands[0].name}（已跌破）`,idx:i};
+  return m10!=null?{price:m10,why:'10MA（已跌破）',idx:i}:null;
 }
 // 從進場日 entryIdx 起，逐日移動停損（只升不降），並偵測是否曾收盤跌破＝出場
 // 停利：到 target 賣一半、剩一半續抱由移動停損保護
@@ -2903,7 +2958,15 @@ function testRefreshStatus(){
     const B={done:false,date:null,px:null,why:''};
     let stop=en.entryMvStop!=null?en.entryMvStop:(en.mvStop!=null?en.mvStop:null);
     // 記住進場當天的初始移動停損（第一次算時鎖定，之後只升不降）
-    if(en.entryMvStop==null && startIdx>=0){ try{ const m0=movingStopAt(ser,startIdx); if(m0&&m0.price!=null){stop=m0.price; en.entryMvStop=m0.price;} }catch(e){} }
+    if(en.entryMvStop==null && startIdx>=0){
+      try{ const m0=movingStopAt(ser,startIdx); if(m0&&m0.price!=null)stop=m0.price; }catch(e){}
+    }
+    // 防呆：初始停損不可高於進場當天收盤（否則等於一進場就在停損之下、當天就被掃出）——含修正舊資料存壞的值
+    {
+      const entryClose=s.c[startIdx];
+      if(stop!=null && entryClose!=null && stop>=entryClose) stop=entryClose*0.95;   // 退成進場價下方 5% 當保底停損
+      en.entryMvStop=stop;
+    }
     let curStop=stop, curWhy=en.mvWhy||'';
     for(let i=startIdx; i<s.c.length; i++){
       const c=s.c[i]; if(c==null)continue;
@@ -2911,6 +2974,8 @@ function testRefreshStatus(){
       // 當天的移動停損（只升不降）
       let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
       if(mv&&mv.price!=null && (curStop==null||mv.price>curStop)){ curStop=mv.price; curWhy=mv.why; }
+      // 進場當天（i===startIdx）只鎖定初始停損、不判斷賣出（當天不可能被停損/停利出場）
+      if(i===startIdx) continue;
       // A 單（賣一半）：當天收盤比前一天漲 ≥ 5%（含漲停）→ 當天用收盤價賣掉入袋
       if(!A.done && prev!=null && prev>0 && (c-prev)/prev>=0.05){ A.done=true; A.date=DB.dates[i]; A.px=c; A.why='單日漲≥5%'; }
       // B 單（另一半）：照移動停損，當天收盤跌破移動停損才賣；沒觸及就一直抱
