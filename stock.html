@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V122</title>
+<title>盤後篩選台 V126</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -79,7 +79,10 @@ a{color:var(--amber)}
 .ecohdr .ecohint{display:block;font-size:11.5px;color:var(--dim);margin-top:3px;font-weight:400}
 .ecard{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px;overflow:hidden}
 .ecard.exited{opacity:.85}
+.donestamp{position:absolute;top:10px;left:16px;padding:5px 20px;border:4px solid var(--amber);border-radius:6px;color:var(--amber);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;pointer-events:none;z-index:5;background:rgba(242,181,68,.06);box-shadow:0 0 0 1px rgba(242,181,68,.35) inset}
+.donestamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--amber);border-radius:4px;opacity:.7}
 .failstamp{position:absolute;top:10px;right:16px;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;pointer-events:none;z-index:5;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
+.donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
 .failstamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--up);border-radius:4px;opacity:.7}
 .rdtabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:3px;scrollbar-width:thin}
 .rdtab{flex:0 0 auto;padding:8px 18px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono)}
@@ -431,7 +434,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V122</span>
+    <h1>盤後篩選台</h1><span class="ver">V126</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3243,7 +3246,28 @@ function testRender(){
 
 // ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
 // 推薦歷史：以「推薦日期」為單位存整份卡片快照，只保留近 7 個交易日，第 8 天洗掉最舊（第1天）
-const RECO_KEY='easy_reco_hist_v1';
+const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
+let RECO_SETTLED=null;   // { 推薦日: 那天整批結案時的交易日 }
+async function loadSettled(){ if(RECO_SETTLED)return RECO_SETTLED;
+  try{ const r=await store.get(SETTLED_KEY); RECO_SETTLED=(r&&typeof r==='object')?r:{}; }catch(e){ RECO_SETTLED={}; }
+  return RECO_SETTLED; }
+// 保留規則：一天之內只要還有股票在跑（沒 DONE 也沒 FAIL）就不刪，讓它一路抱到觸及移動停損為止；
+// 整批都結案後，再多留一個交易日才洗掉。7 天只是「開始考慮刪」的門檻，不是硬上限。
+async function pruneRecoHistory(today){
+  await loadSettled();
+  for(const d of Object.keys(RECO_HIST)){
+    const arr=RECO_HIST[d]||[];
+    const allSettled = arr.length>0 && arr.every(en=>{ const st=easyStatus(en); return st.exited||st.won; });
+    if(allSettled){ if(!RECO_SETTLED[d])RECO_SETTLED[d]=today; }
+    else delete RECO_SETTLED[d];            // 又活過來了（例如重新站上）→ 重新計算
+  }
+  for(const d of Object.keys(RECO_HIST).sort()){
+    if(Object.keys(RECO_HIST).length<=7)break;      // 7 天以內一律留著
+    const st=RECO_SETTLED[d];
+    if(st && st<today){ delete RECO_HIST[d]; delete RECO_SETTLED[d]; }   // 結案滿一個交易日才刪
+  }
+  try{ await store.set(SETTLED_KEY,RECO_SETTLED); }catch(e){}
+}
 let RECO_HIST=null, EASY_SEL_DATE=null;
 // 用某個歷史日期（而不是今天）當基準日去 evaluate 一檔股票：暫時借用 OFFSET 把 cut 切到那天，算完再還原
 function evaluateAsOf(code,date){
@@ -3310,16 +3334,30 @@ function buildEntrySnapshot(e){
   };
 }
 // 依快照＋最新價 render 一張卡片；若最新價已跌破當初停損 → 蓋 FAIL 大戳章
-function easyCardHTML(entry){
+// 一張推薦卡目前的狀態：跌破移動停損＝FAIL、比推薦價漲≥5%＝DONE，兩者都沒有＝還在跑
+function easyStatus(entry){
   const live=latestPx(entry.code);
   const px = live?live.px:entry.entryPx, chg = live?live.chg:entry.entryChg;
   const exited = (entry.mvStop!=null && px!=null && px<entry.mvStop);
-  const hitTP = (!exited && entry.target!=null && px!=null && px>=entry.target);
+  const won = (!exited && entry.entryPx!=null && px!=null && px>=entry.entryPx*1.05);
+  // 從推薦價算到現在賺賠多少（1 張＝1000 股）
+  let pct=null, amt=null;
+  if(entry.entryPx!=null && px!=null){ pct=(px-entry.entryPx)/entry.entryPx*100; amt=(px-entry.entryPx)*LOT; }
+  return {px,chg,exited,won,pct,amt,running:!exited&&!won};
+}
+function easyCardHTML(entry){
+  const st=easyStatus(entry);
+  const px=st.px, chg=st.chg, exited=st.exited, won=st.won;
+  const pnlTxt = st.pct==null?'' :
+    `${st.pct>0?'+':''}${st.pct.toFixed(2)}%　${st.amt>0?'+':''}${Math.round(st.amt).toLocaleString()} 元/張`;
+  // 停利目標＝推薦價 +5%（與 DONE 判定、追蹤成績的「①先賣」同一條規則）；前高壓力只當參考
+  const tp5 = entry.entryPx!=null ? entry.entryPx*1.05 : null;
   let statusBadge='';
   if(exited)statusBadge=`<span class="estatus out">已觸及停損 · 不再追蹤</span>`;
-  else if(hitTP)statusBadge=`<span class="estatus tp">已達停利 · 賣一半續抱</span>`;
+  else if(won)statusBadge=`<span class="estatus tp">已達 +5% · 先賣一半落袋</span>`;
   return `<div class="ecard${exited?' exited':''}">
-    ${exited?`<div class="failstamp">FAIL</div>`:''}
+    ${exited?`<div class="failstamp">FAIL<i>${pnlTxt}</i></div>`:''}
+    ${won?`<div class="donestamp">DONE<i>${pnlTxt}</i></div>`:''}
     <div class="eh"><span class="ecode">${entry.code}</span><span class="ename">${entry.name||''}</span>
       ${statusBadge}
       <span class="erisk" style="color:#fff;background:${entry.rcol};border-color:${entry.rcol}">${entry.radv}<i>風險${entry.rlv}·${entry.rsc}</i></span>
@@ -3328,25 +3366,25 @@ function easyCardHTML(entry){
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
       <div class="eg stop"><s>移動停損（會往上移）</s><b>${entry.mvStop!=null?(+entry.mvStop).toFixed(2):'—'}</b></div>
-      <div class="eg tp"><s>停利目標（賣一半）</s><b>${entry.target!=null?entry.target.toFixed(2):'—'}</b></div>
+      <div class="eg tp"><s>停利目標（賣一半）</s><b>${tp5!=null?tp5.toFixed(2):'—'}</b></div>
       <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
     </div>
-    <div class="ihint" style="margin-top:8px">移動停損依據：${entry.mvWhy||'—'}${entry.rideName?`　·　沿 ${entry.rideName} 前進，靠近不破即支撐`:''}<br>停利做法：到 <b>${entry.target!=null?entry.target.toFixed(2):'—'}</b> 先賣一半落袋，另一半用移動停損續抱、讓它往上跑；收盤跌破移動停損就全出。</div>
+    <div class="ihint" style="margin-top:8px">移動停損依據：${entry.mvWhy||'—'}${entry.rideName?`　·　沿 ${entry.rideName} 前進，靠近不破即支撐`:''}<br>停利做法：漲到 <b>${tp5!=null?tp5.toFixed(2):'—'}</b>（推薦價 ${entry.entryPx!=null?entry.entryPx.toFixed(2):'—'} 的 +5%）先賣一半落袋，另一半用移動停損續抱、讓它往上跑；收盤跌破移動停損就全出。</div>
     <div class="ebtns"><button data-code="${entry.code}" class="ekchart">看 K 線圖</button></div>
   </div>`;
 }
 // 畫上方日期分頁（最多 7 個，最新在最右邊）＋目前選到那天的卡片清單
 function renderEasyTabsAndList(){
   const body=$('#easyBody');
-  const days=Object.keys(RECO_HIST).sort();     // 舊→新，最多 7 個
+  const days=Object.keys(RECO_HIST).sort().reverse();     // 新→舊，最新的排最左邊
   if(!days.length){
     body.innerHTML=`<div class="easyempty">今天沒有「站上4均線＋多頭排列」的強勢股，也還沒有任何推薦歷史。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
     return;
   }
-  if(!EASY_SEL_DATE||!RECO_HIST[EASY_SEL_DATE])EASY_SEL_DATE=days[days.length-1];
+  if(!EASY_SEL_DATE||!RECO_HIST[EASY_SEL_DATE])EASY_SEL_DATE=days[0];
   const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}</div>`;
   const entries=RECO_HIST[EASY_SEL_DATE]||[];
-  const dateHdr=`<div class="ecohdr">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦，只保留近 7 個交易日；隔天收盤後可能換股）</span></div>`;
+  const dateHdr=`<div class="ecohdr">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦；還有股票在跑的日子不會被清掉，整批 DONE/FAIL 後再留一天才洗掉）</span></div>`;
   if(!entries.length){
     body.innerHTML=tabsHTML+dateHdr+`<div class="easyempty">這天沒有「站上4均線＋多頭排列」的強勢股。</div>`;
   }else{
@@ -3391,8 +3429,7 @@ async function buildEasyView(){
   const recoDate = (DB.dates && DB.dates.length) ? DB.dates[DB.dates.length-1-OFFSET] : null;
   if(recoDate){
     RECO_HIST[recoDate]=picks.map(buildEntrySnapshot);
-    const days=Object.keys(RECO_HIST).sort();
-    while(days.length>7){ delete RECO_HIST[days.shift()]; }
+    await pruneRecoHistory(recoDate);
     try{ await store.set(RECO_KEY,RECO_HIST); }catch(err){}
     EASY_SEL_DATE=recoDate;
   }
