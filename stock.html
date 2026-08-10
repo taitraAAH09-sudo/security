@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V104</title>
+<title>盤後篩選台 V106</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -421,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V104</span>
+    <h1>盤後篩選台</h1><span class="ver">V106</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2661,8 +2661,25 @@ async function simLoad(){
   await ensureFbUrl();          // 手機沒設定過也能先找到雲端網址
   let cloud=null;
   try{ cloud=await simFbPull(); }catch(e){}
-  if(Array.isArray(cloud)){ SIM=cloud; try{await store.set(SIM_KEY,SIM);}catch(e){} return; }
-  try{const r=await store.get(SIM_KEY); if(Array.isArray(r))SIM=r; else if(r&&Array.isArray(r.trades))SIM=r.trades; else SIM=[];}catch(e){SIM=[];}
+  // 讀本機既有紀錄
+  let local=[];
+  try{const r=await store.get(SIM_KEY); if(Array.isArray(r))local=r; else if(r&&Array.isArray(r.trades))local=r.trades;}catch(e){}
+  const cloudArr = Array.isArray(cloud)?cloud:null;
+  if(cloudArr && cloudArr.length){
+    // 雲端有資料 → 以雲端為主，並把本機有、雲端沒有的舊紀錄併進去（避免舊紀錄消失）
+    const key=t=>`${t.name}|${t.code}|${t.side}|${t.px}|${t.qty}|${t.date}`;
+    const seen=new Set(cloudArr.map(key));
+    const merged=cloudArr.slice();
+    let mergedIn=0;
+    for(const t of local){ if(!seen.has(key(t))){ merged.push(t); seen.add(key(t)); mergedIn++; } }
+    SIM=merged;
+    try{await store.set(SIM_KEY,SIM);}catch(e){}
+    if(mergedIn)try{ await simFbPush(true); }catch(e){}   // 把本機獨有的舊紀錄補上雲端
+    return;
+  }
+  // 雲端是空的 → 用本機，並「首次上雲」把本機舊紀錄推上去，讓其他裝置看得到
+  SIM=local;
+  if(local.length){ try{ await simFbPush(true); }catch(e){} }
 }
 async function simSave(){
   try{await store.set(SIM_KEY,SIM);}catch(e){}
@@ -2928,22 +2945,40 @@ function testDaysHeld(firstDate){
   if(i<0)return 1;
   return DB.dates.length-i;   // 含首推日
 }
+// 每檔＝買 2 張（A 單、B 單各 1 張）在推薦價進場，算盈虧（元）
+function testPnL(en){
+  const entry=en.entryPx; if(entry==null)return null;
+  const a=en.lotA||{}, b=en.lotB||{};
+  const px=en.curPx!=null?en.curPx:simPx(en.code);
+  let realized=0, unreal=0;
+  // A 單：停利賣出＝已實現；還沒賣＝用現價估未實現
+  if(a.done && a.px!=null) realized += (a.px-entry)*LOT;
+  else if(px!=null)        unreal   += (px-entry)*LOT;
+  // B 單：移動停損賣出＝已實現；還抱著＝用現價估未實現
+  if(b.done && b.px!=null) realized += (b.px-entry)*LOT;
+  else if(px!=null)        unreal   += (px-entry)*LOT;
+  return {realized, unreal, total:realized+unreal, cost:entry*2*LOT};
+}
 function testRender(){
   const box=$('#testTable'), sum=$('#testSum');
   const ents=TEST_TRACK.entries||[];
   if(!ents.length){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
-  // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主
-  let aHit=0, bStop=0, bFly=0, waiting=0;
+  // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主，並加總盈虧
+  let aHit=0, bStop=0, bFly=0, sumReal=0, sumUnreal=0;
   for(const e of ents){
     const a=e.lotA||{}, b=e.lotB||{};
-    if(a.done)aHit++; else waiting++;
-    if(b.done)bStop++; else bFly++;   // B 沒出場＝還在飛
+    if(a.done)aHit++;
+    if(b.done)bStop++; else bFly++;
+    const pl=testPnL(e); if(pl){ sumReal+=pl.realized; sumUnreal+=pl.unreal; }
   }
+  const sumTot=sumReal+sumUnreal;
+  const cls=v=>v>0?'up':v<0?'dn':'';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤檔數（每檔2張）</s><b>${ents.length}</b></div>
-    <div class="sc"><s>A單 已停利賣出</s><b class="up">${aHit}</b></div>
-    <div class="sc"><s>B單 移動停損賣出</s><b class="dn">${bStop}</b></div>
-    <div class="sc"><s>B單 續抱中(飛天)</s><b>${bFly}</b></div>`;
+    <div class="sc"><s>追蹤檔數（每檔買2張）</s><b>${ents.length}</b></div>
+    <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
+    <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
+    <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
+    <div class="sc"><s>A單停利／B單停損／B飛天</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
   // 依「首次推薦日」分組，最新的日期排最上面
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
@@ -2952,29 +2987,32 @@ function testRender(){
   for(const d of dates){
     const rows=byDate[d];
     const held=testDaysHeld(d);
+    let dReal=0,dUnreal=0; for(const r of rows){const pl=testPnL(r);if(pl){dReal+=pl.realized;dUnreal+=pl.unreal;}}
+    const dTot=dReal+dUnreal;
     html+=`<div class="testday">
-      <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天</span></div>
+      <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>移動停損</span><span>A單·停利</span><span>B單·移動</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>A單·停利</span><span>B單·移動</span><span>盈虧(2張)</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
-          // A 單狀態
           let aTxt,aCls;
           if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
           else {aTxt='等停利';aCls='hold';}
-          // B 單狀態
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
           else {bTxt='續抱·飛天中';bCls='hold';}
+          const pl=testPnL(r);
+          const plv=pl?pl.total:null;
+          const plTxt = plv==null?'—':`${plv>0?'+':''}${Math.round(plv).toLocaleString()}`;
           const bothOut=a.done&&b.done;
           return `<div class="testrow${bothOut?' exited':''}">
             <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
             <span>${px!=null?(+px).toFixed(2):'—'}</span>
-            <span>${r.mvStop!=null?(+r.mvStop).toFixed(2):'—'}<br><span style="font-size:10px;color:var(--dim)">${r.mvWhy||''}</span></span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
             <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
+            <span class="${cls(plv)}" style="font-weight:800">${plTxt}${pl&&pl.realized!==0&&pl.unreal!==0?'<br><span style="font-size:9px;font-weight:400;opacity:.7">含未實現</span>':''}</span>
           </div>`;
         }).join('')}
       </div>
@@ -3150,8 +3188,13 @@ $('#simTabTrade').onclick=()=>switchSimTab('trade');
 $('#simTabTest').onclick=()=>switchSimTab('test');
 $('#testSync').onclick=async()=>{
   const note=$('#testNote'); note.textContent='同步中…';
+  const url=await ensureFbUrl();
+  if(!url){ note.textContent='⚠️ 找不到雲端網址，請到左邊「雲端同步」貼上 Realtime Database 網址'; return; }
+  // 先從雲端拉一次（跨裝置看同一份）
+  await testLoad();
   const r=await testAutoSync();
-  note.textContent = r.date ? `已同步 ${fmtD(r.date)}：新增 ${r.added} 檔（重複的不再加入）` : '目前沒有資料，先按「更新並篩選」';
+  const n=(TEST_TRACK.entries||[]).length;
+  note.textContent = `✓ 已連雲端（${url.replace('https://','').split('.')[0]}）· 目前追蹤 ${n} 檔` + (r.added?`，本次新增 ${r.added}`:'');
   testRender();
 };
 $('#testClear').onclick=async()=>{
