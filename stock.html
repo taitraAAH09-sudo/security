@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V106</title>
+<title>盤後篩選台 V108</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -421,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V106</span>
+    <h1>盤後篩選台</h1><span class="ver">V108</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2887,34 +2887,39 @@ function testIngestDay(date, snapshots){
   }
   return added;
 }
-// 用最新資料重算移動停損，分別判斷 A 單（停利點賣）與 B 單（移動停損賣）
+// 從進場日「逐日回放」重算：A 單在真正觸及停利那天成交、B 單在真正跌破移動停損那天成交
+// （不再只用最新一天的價格判斷，避免把不同天發生的事都蓋成今天）
 function testRefreshStatus(){
-  const lastDate = DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:null;
   for(const en of TEST_TRACK.entries){
-    // 相容舊資料：沒有 lotA/lotB 的補上
     if(!en.lotA)en.lotA={done:false,date:null,px:null,why:''};
     if(!en.lotB)en.lotB={done:false,date:null,px:null,why:''};
-    if(en.lotA.done && en.lotB.done)continue;    // 兩張都出場了，不必再算
     const s=DB.stocks&&DB.stocks[en.code];
-    if(!s||!s.c)continue;
+    if(!s||!s.c||!DB.dates)continue;
     const ser={c:s.c,h:s.h||s.c,l:s.l||s.c,q:s.q||[],o:s.o||s.c,d:DB.dates};
-    const N=s.c.length;
-    // 移動停損（只升不降）
-    let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(e){}
-    if(mv&&mv.price!=null){
-      if(en.mvStop==null||mv.price>en.mvStop){ en.mvStop=+mv.price; en.mvWhy=mv.why; }
+    const startIdx=DB.dates.indexOf(en.firstDate);
+    if(startIdx<0)continue;
+    // 每次都從頭重算（狀態不累積錯誤）：重置成未成交，逐日推進
+    const A={done:false,date:null,px:null,why:''};
+    const B={done:false,date:null,px:null,why:''};
+    let stop=en.entryMvStop!=null?en.entryMvStop:(en.mvStop!=null?en.mvStop:null);
+    // 記住進場當天的初始移動停損（第一次算時鎖定，之後只升不降）
+    if(en.entryMvStop==null && startIdx>=0){ try{ const m0=movingStopAt(ser,startIdx); if(m0&&m0.price!=null){stop=m0.price; en.entryMvStop=m0.price;} }catch(e){} }
+    let curStop=stop, curWhy=en.mvWhy||'';
+    for(let i=startIdx; i<s.c.length; i++){
+      const c=s.c[i]; if(c==null)continue;
+      const prev = i>0?s.c[i-1]:null;
+      // 當天的移動停損（只升不降）
+      let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
+      if(mv&&mv.price!=null && (curStop==null||mv.price>curStop)){ curStop=mv.price; curWhy=mv.why; }
+      // A 單（賣一半）：當天收盤比前一天漲 ≥ 5%（含漲停）→ 當天用收盤價賣掉入袋
+      if(!A.done && prev!=null && prev>0 && (c-prev)/prev>=0.05){ A.done=true; A.date=DB.dates[i]; A.px=c; A.why='單日漲≥5%'; }
+      // B 單（另一半）：照移動停損，當天收盤跌破移動停損才賣；沒觸及就一直抱
+      if(!B.done && curStop!=null && c<curStop){ B.done=true; B.date=DB.dates[i]; B.px=c; B.why='移動停損'; }
+      if(A.done && B.done)break;
     }
-    const px=simPx(en.code);
-    if(px==null)continue;
-    en.curPx=px;
-    // A 單：停利點到就賣（只賣一次）
-    if(!en.lotA.done && en.target!=null && px>=en.target){
-      en.lotA.done=true; en.lotA.date=lastDate; en.lotA.px=en.target; en.lotA.why='停利點';
-    }
-    // B 單：照移動停損續抱，收盤跌破移動停損才賣；沒觸及就一直抱
-    if(!en.lotB.done && en.mvStop!=null && px<en.mvStop){
-      en.lotB.done=true; en.lotB.date=lastDate; en.lotB.px=px; en.lotB.why='移動停損';
-    }
+    en.lotA=A; en.lotB=B;
+    en.mvStop=curStop; en.mvWhy=curWhy;
+    en.curPx=simPx(en.code);
   }
 }
 // 每次更新並篩選後自動呼叫：把今天推薦併入、重算狀態、存檔（含雲端）
@@ -2978,7 +2983,7 @@ function testRender(){
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
-    <div class="sc"><s>A單停利／B單停損／B飛天</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
+    <div class="sc"><s>A單漲5%賣／B單停損／B飛天</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
   // 依「首次推薦日」分組，最新的日期排最上面
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
@@ -2992,13 +2997,13 @@ function testRender(){
     html+=`<div class="testday">
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>A單·停利</span><span>B單·移動</span><span>盈虧(2張)</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>A單·漲5%賣</span><span>B單·移動停損</span><span>盈虧(2張)</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
           let aTxt,aCls;
           if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
-          else {aTxt='等停利';aCls='hold';}
+          else {aTxt='等單日漲5%';aCls='hold';}
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
           else {bTxt='續抱·飛天中';bCls='hold';}
@@ -3075,7 +3080,9 @@ function buildEntrySnapshot(e){
   let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(err){}
   const mvStop = mv?mv.price:p.stop;
   const mvWhy = mv?mv.why:(p.stopType||'');
-  const target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
+  // 停利目標必須「高於進場價」才合理；前高壓力若在現價之下不能當停利
+  let target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
+  if(target!=null && target<=e.px) target=null;     // 目標低於或等於現價 → 無效，不設停利（B 單續抱移動停損）
   const tags=[`站上4均線`,`多頭排列`];
   if(e._easyGap)tags.push('向上缺口');
   if(e._easyVol)tags.push('今日爆量');
