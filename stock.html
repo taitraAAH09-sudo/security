@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V119</title>
+<title>盤後篩選台 V122</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -130,10 +130,16 @@ a{color:var(--amber)}
 .testdhd .tdate{font-family:var(--mono);color:var(--amber)}
 .testdhd .tcount{font-size:12px;color:var(--dim)}
 .testdbody{padding:0}
-.testrow{display:grid;grid-template-columns:1.3fr .7fr .7fr .9fr 1fr 1fr;gap:6px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;align-items:center}
+.testrow{display:grid;grid-template-columns:1.5fr .65fr .65fr .95fr .95fr 1.3fr;gap:6px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;align-items:center}
+.testrow>span:last-child{text-align:right}
+.testrow .tnm{display:flex;align-items:center;gap:2px;flex-wrap:wrap;min-width:0}
 .testrow.head{color:var(--dim);font-size:11px;font-weight:700;background:rgba(255,255,255,.02)}
 .testrow .tnm{font-weight:700}
 .testrow.exited{opacity:.6}
+.plwrap{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
+.plpart{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.plpart b{font-family:var(--mono);font-weight:800;font-size:16px}
+.plpart s{text-decoration:none;font-size:10px;opacity:.65;font-weight:400}
 .tflag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle;white-space:nowrap}
 .tflag.done{background:rgba(255,255,255,.10);color:var(--dim);border:1px solid var(--line)}
 .tflag.half{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
@@ -425,7 +431,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V119</span>
+    <h1>盤後篩選台</h1><span class="ver">V122</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2763,11 +2769,20 @@ async function simSave(){
   try{ await simFbPush(); }catch(e){}   // 同步雲端，任何裝置都看得到同一份
 }
 function simFbEnd(){ const u=$('#fbUrl').value.trim().replace(/\/+$/,''); return u?`${u}/simtrades.json`:null; }
+const simKeyOf=t=>`${t.name}|${t.code}|${t.side}|${t.px}|${t.qty}|${t.date}`;
 async function simFbPush(force){ const e=simFbEnd(); if(!e)return false;
   try{
-    if(!force && (!SIM||!SIM.length)){
+    // 沒有明確按刪除／清空時，一律先跟雲端合併再寫回：雲端有、本機沒有的紀錄要補回來，
+    // 避免「在新網域開一次、加一筆交易」就用 1 筆蓋掉雲端整份。
+    if(!force){
       const cur=await simFbPull();
-      if(Array.isArray(cur)&&cur.length)return false;
+      if(Array.isArray(cur)&&cur.length){
+        const have=new Set((SIM||[]).map(simKeyOf));
+        const add=cur.filter(t=>t&&!have.has(simKeyOf(t)));
+        if(add.length){ SIM=(SIM||[]).concat(add); try{await store.set(SIM_KEY,SIM);}catch(_){}
+          try{ if($('#simMask').classList.contains('on'))simRender(); }catch(_){} }
+      }
+      if(!SIM||!SIM.length)return false;   // 本機空、雲端也空 → 不用寫
     }
     const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(SIM)}); return r.ok;
   }catch(err){ return false; } }
@@ -2925,14 +2940,14 @@ function simRender(){
     if(SIM_OPEN.has(nm))SIM_OPEN.delete(nm); else SIM_OPEN.add(nm);
     simRender();
   });
-  box.querySelectorAll('.delx').forEach(b=>b.onclick=async()=>{ SIM.splice(+b.dataset.i,1); await simSave(); simRender(); });
+  box.querySelectorAll('.delx').forEach(b=>b.onclick=async()=>{ SIM.splice(+b.dataset.i,1); await store.set(SIM_KEY,SIM); await simFbPush(true); simRender(); });
   box.querySelectorAll('.simpdel').forEach(b=>b.onclick=async(ev)=>{
     ev.stopPropagation();
     const nm=b.dataset.name;
     if(!confirm(`確定只刪除「${nm}」這個帳戶的所有交易紀錄？其他帳戶不受影響。`))return;
     SIM=SIM.filter(t=>t.name!==nm);
     SIM_OPEN.delete(nm);
-    await simSave(); simRender();
+    await store.set(SIM_KEY,SIM); await simFbPush(true); simRender();
   });
   box.querySelectorAll('.simsell').forEach(b=>b.onclick=async()=>{
     const code=b.dataset.code, nm=b.dataset.name, maxQ=+b.dataset.qty;
@@ -2981,9 +2996,14 @@ function testFbEnd(){
 }
 async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
   try{
-    if(!force && (!TEST_TRACK.entries||!TEST_TRACK.entries.length)){
+    if(!force){
       const cur=await testFbPull();
-      if(cur&&Array.isArray(cur.entries)&&cur.entries.length)return false;
+      if(cur&&Array.isArray(cur.entries)&&cur.entries.length){
+        const have=new Set((TEST_TRACK.entries||[]).map(x=>x.code+'|'+x.firstDate));
+        const add=cur.entries.filter(x=>x&&!have.has(x.code+'|'+x.firstDate));
+        if(add.length)TEST_TRACK.entries=(TEST_TRACK.entries||[]).concat(add);
+      }
+      if(!TEST_TRACK.entries||!TEST_TRACK.entries.length)return false;
     }
     const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(TEST_TRACK)}); return r.ok;
   }catch(err){ return false; } }
@@ -3104,7 +3124,7 @@ async function switchEasyTab(which){
   $('#easyTabReco').classList.toggle('on',!t); $('#easyTabTest').classList.toggle('on',t);
   $('#easyBody').style.display=t?'none':'block';
   $('#easyPaneTest').style.display=t?'block':'none';
-  if(t){ await testLoad(); testRender(); }
+  if(t){ await loadRecoHistory(); await testLoad(); testRender(); }
 }
 function testDaysHeld(firstDate){
   // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
@@ -3150,15 +3170,26 @@ function testRender(){
   // 依「推薦日」分組，上方做日期分頁（預設看最新一天）
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
-  const dates=Object.keys(byDate).sort().reverse();          // 新→舊
-  if(TEST_SEL_DATE!=='ALL' && (!TEST_SEL_DATE||!byDate[TEST_SEL_DATE]))TEST_SEL_DATE=dates[0];
+  // 分頁要列出「所有推薦日」，包含那天推薦的都已經在追蹤中、因此沒開新單的日子
+  const RH=RECO_HIST||{};
+  const dates=[...new Set([...Object.keys(byDate), ...Object.keys(RH)])].sort().reverse();   // 新→舊
+  if(TEST_SEL_DATE!=='ALL' && (!TEST_SEL_DATE||dates.indexOf(TEST_SEL_DATE)<0))TEST_SEL_DATE=dates[0];
   const tabs=`<div class="rdtabs">`
-    + dates.map(d=>`<button class="rdtab${d===TEST_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)} <span style="opacity:.6">${byDate[d].length}</span></button>`).join('')
+    + dates.map(d=>`<button class="rdtab${d===TEST_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)} <span style="opacity:.6">${(byDate[d]||[]).length}</span></button>`).join('')
     + `<button class="rdtab${TEST_SEL_DATE==='ALL'?' on':''}" data-date="ALL">全部 <span style="opacity:.6">${ents.length}</span></button>`
     + `</div>`;
   const show = TEST_SEL_DATE==='ALL' ? dates : [TEST_SEL_DATE];
   let html=tabs;
   for(const d of show){
+    if(!byDate[d]){
+      // 這天有推薦，但推的都是已經在追蹤中的股票 → 沒開新單，講清楚是哪幾檔、在追哪一筆
+      const picks=(RH[d]||[]);
+      const lines=picks.map(pk=>{ const prev=ents.filter(e=>e.code===pk.code).sort((x,y)=>x.firstDate<y.firstDate?1:-1)[0];
+        return `<div class="testrow"><span class="tnm">${pk.code} ${pk.name||''}</span><span style="grid-column:2/-1;color:var(--dim);font-size:12px">${prev?`已在追蹤中（${fmtD(prev.firstDate)} 那筆還沒結束）`:'—'}</span></div>`; }).join('');
+      html+=`<div class="testday"><div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${picks.length} 檔　·　沒有新開單</span></div>
+        <div class="testdbody"><div class="ihint" style="padding:10px 14px">這天推薦的股票<b>全部都已經在追蹤中</b>（同一檔同時只追一筆），所以沒有新開單。</div>${lines}</div></div>`;
+      continue;
+    }
     const rows=byDate[d];
     const held=testDaysHeld(d);
     let dReal=0,dUnreal=0; for(const r of rows){const pl=testPnL(r);if(pl){dReal+=pl.realized;dUnreal+=pl.unreal;}}
@@ -3183,13 +3214,23 @@ function testRender(){
           // 名字後面直接標狀態：兩張都賣掉＝done；只賣掉 A 單＝還剩 B 單抱著
           const flag = bothOut ? '<span class="tflag done">done</span>'
                     : a.done ? '<span class="tflag half">剩②續抱</span>' : '';
+          // 盈虧：已實現與未實現各自一格、並排顯示（一張賣掉、另一張還抱著時看得出誰是誰）
+          const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
+          let plHTML='—';
+          if(pl){
+            const parts=[];
+            if(pl.realized!==0)parts.push(`<span class="plpart"><b class="${cls(pl.realized)}">${money(pl.realized)}</b><s>已實現</s></span>`);
+            if(pl.unreal!==0)  parts.push(`<span class="plpart"><b class="${cls(pl.unreal)}">${money(pl.unreal)}</b><s>未實現</s></span>`);
+            if(!parts.length)  parts.push(`<span class="plpart"><b>0</b><s>—</s></span>`);
+            plHTML=`<span class="plwrap">${parts.join('')}</span>`;
+          }
           return `<div class="testrow${bothOut?' exited':''}">
-            <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>${flag}
+            <span class="tnm"><b class="testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</b>${flag}</span>
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
             <span>${px!=null?(+px).toFixed(2):'—'}</span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
             <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
-            <span class="${cls(plv)}" style="font-weight:800">${plTxt}${pl&&pl.realized!==0&&pl.unreal!==0?'<br><span style="font-size:9px;font-weight:400;opacity:.7">含未實現</span>':''}</span>
+            ${plHTML}
           </div>`;
         }).join('')}
       </div>
