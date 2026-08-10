@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V129</title>
+<title>盤後篩選台 V130</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -87,6 +87,20 @@ a{color:var(--amber)}
 .donestamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--amber);border-radius:4px;opacity:.7}
 .failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
+.calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.calhd b{font-family:var(--mono);font-size:17px}
+.calnav{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:13px}
+.calnav:disabled{opacity:.35;cursor:not-allowed}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.calwk{text-align:center;font-size:11px;color:var(--dim);font-weight:700;padding:2px 0}
+.calcell{min-height:62px;border:1px solid var(--line);border-radius:7px;padding:5px 6px;background:var(--panel2);display:flex;flex-direction:column;gap:2px}
+.calcell.blank{background:transparent;border-color:transparent}
+.calcell.has{cursor:pointer}
+.calcell.has:hover{border-color:var(--amber)}
+.calcell .cd{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.calcell .cv{font-family:var(--mono);font-size:13px;font-weight:800;margin-top:auto}
+.calcell .cn{font-size:10px;color:var(--dim)}
+.calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
 .epnl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px}
 .epnl .epl{font-size:14px;font-weight:800}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
@@ -134,6 +148,8 @@ a{color:var(--amber)}
 .testctl{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .testbtn{background:var(--amber);color:var(--ink);border:0;border-radius:6px;padding:8px 16px;font-weight:800;cursor:pointer}
 .testbtn:hover{filter:brightness(1.08)}
+#testViewList,#testViewCal{background:var(--panel2);color:var(--dim);border:1px solid var(--line);font-weight:700}
+#testViewList.on,#testViewCal.on{background:var(--amber);color:var(--ink);border-color:var(--amber);font-weight:800}
 .testnote{font-size:12px;color:var(--dim)}
 .testsum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .testday{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
@@ -442,7 +458,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V129</span>
+    <h1>盤後篩選台</h1><span class="ver">V130</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -485,6 +501,8 @@ tbody tr{cursor:pointer}
       <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每筆買 2 張：<b>①先賣</b>漲到推薦價 +5% 就入袋、<b>②續抱</b>照移動停損抱到跌破為止。</div>
       <div class="testctl">
         <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
+        <button id="testViewList" class="testbtn on">📋 清單</button>
+        <button id="testViewCal" class="testbtn">📅 月曆</button>
         <span class="testnote" id="testNote"></span>
       </div>
       <div class="testsum" id="testSum"></div>
@@ -3158,10 +3176,64 @@ function testPnL(en){
   else if(px!=null)        unreal   += (px-entry)*LOT;
   return {realized, unreal, total:realized+unreal, cost:entry*2*LOT};
 }
+let TEST_VIEW='list', TEST_MONTH=null;   // 月曆：'YYYYMM'
+// 以「推薦日」為格子的月曆：那天推的那批股票，到現在（或全部結案後）合計賺賠多少
+function testCalendarHTML(){
+  const ents=TEST_TRACK.entries||[];
+  const byDate={};
+  for(const e of ents)(byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e);
+  const last=(DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:ymd(new Date());
+  if(!TEST_MONTH)TEST_MONTH=last.slice(0,6);
+  // 只保留最近 3 個月（含本月）可以翻
+  const lastY=+last.slice(0,4), lastM=+last.slice(4,6);
+  const minD=new Date(lastY,lastM-3,1), maxD=new Date(lastY,lastM-1,1);
+  const y=+TEST_MONTH.slice(0,4), m=+TEST_MONTH.slice(4,6);
+  const cur=new Date(y,m-1,1);
+  const first=new Date(y,m-1,1).getDay();          // 當月 1 號星期幾
+  const dim=new Date(y,m,0).getDate();             // 當月天數
+  let mReal=0,mUnreal=0,mDays=0,mStocks=0;
+  let cells='';
+  for(let i=0;i<first;i++)cells+='<div class="calcell blank"></div>';
+  for(let d=1;d<=dim;d++){
+    const key=`${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+    const rows=byDate[key];
+    if(!rows){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
+    let r=0,u=0;
+    for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; } }
+    const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=rows.length;
+    const cls=tot>0?'up':tot<0?'dn':'';
+    cells+=`<div class="calcell has" data-date="${key}"><span class="cd">${d}</span>
+      <span class="cn">推 ${rows.length} 檔</span>
+      <span class="cv ${cls}">${tot>0?'+':''}${Math.round(tot).toLocaleString()}</span></div>`;
+  }
+  const mTot=mReal+mUnreal;
+  const cls=v=>v>0?'up':v<0?'dn':'';
+  const wk=['日','一','二','三','四','五','六'].map(x=>`<div class="calwk">${x}</div>`).join('');
+  return `<div class="calhd">
+      <button class="calnav" id="calPrev" ${cur<=minD?'disabled':''}>‹ 上個月</button>
+      <b>${y} / ${String(m).padStart(2,'0')}</b>
+      <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
+      <span class="ihint" style="margin-left:auto">只保留最近 3 個月．格子＝那天推薦的那批股票合計賺賠．點格子看明細</span>
+    </div>
+    <div class="calgrid">${wk}${cells}</div>
+    <div class="calsum">
+      <div class="sc"><s>本月有推薦的天數</s><b>${mDays}</b></div>
+      <div class="sc"><s>本月推薦檔數</s><b>${mStocks}</b></div>
+      <div class="sc"><s>已實現</s><b class="${cls(mReal)}">${(mReal>0?'+':'')+Math.round(mReal).toLocaleString()}</b></div>
+      <div class="sc"><s>未實現</s><b class="${cls(mUnreal)}">${(mUnreal>0?'+':'')+Math.round(mUnreal).toLocaleString()}</b></div>
+      <div class="sc"><s>本月合計</s><b class="${cls(mTot)}">${(mTot>0?'+':'')+Math.round(mTot).toLocaleString()}</b></div>
+    </div>`;
+}
+function shiftMonth(delta){
+  const y=+TEST_MONTH.slice(0,4), m=+TEST_MONTH.slice(4,6);
+  const d=new Date(y,m-1+delta,1);
+  TEST_MONTH=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+  testRender();
+}
 function testRender(){
   const box=$('#testTable'), sum=$('#testSum');
   const ents=TEST_TRACK.entries||[];
-  if(!ents.length){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
+  if(!ents.length && TEST_VIEW!=='cal'){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
   // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主，並加總盈虧
   let aHit=0, bStop=0, bFly=0, sumReal=0, sumUnreal=0;
   for(const e of ents){
@@ -3181,6 +3253,18 @@ function testRender(){
   // 依「推薦日」分組，上方做日期分頁（預設看最新一天）
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
+  if(TEST_VIEW==='cal'){
+    box.innerHTML=testCalendarHTML();
+    const pv=$('#calPrev'), nx=$('#calNext');
+    if(pv)pv.onclick=()=>shiftMonth(-1);
+    if(nx)nx.onclick=()=>shiftMonth(1);
+    box.querySelectorAll('.calcell.has').forEach(c=>c.onclick=()=>{
+      TEST_SEL_DATE=c.dataset.date; TEST_VIEW='list';
+      $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on');
+      testRender();
+    });
+    return;
+  }
   // 分頁要列出「所有推薦日」，包含那天推薦的都已經在追蹤中、因此沒開新單的日子
   const RH=RECO_HIST||{};
   const dates=[...new Set([...Object.keys(byDate), ...Object.keys(RH)])].sort().reverse();   // 新→舊
@@ -3487,6 +3571,8 @@ $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#simSync').onclick=simSyncNow;
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
+$('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
+$('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#testSync').onclick=async()=>{
