@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V117</title>
+<title>盤後篩選台 V119</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -425,7 +425,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V117</span>
+    <h1>盤後篩選台</h1><span class="ver">V119</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -459,17 +459,27 @@ tbody tr{cursor:pointer}
 <div class="easymask" id="easyMask">
   <div class="easywin">
     <div class="easyhd"><h2>🔰 新手看盤：直接告訴你買哪些、停損停利在哪</h2><button class="x" id="easyX">✕</button></div>
+    <div class="simtabs">
+      <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
+      <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
+    </div>
     <div class="easybody" id="easyBody"></div>
+    <div class="easybody" id="easyPaneTest" style="display:none">
+      <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每筆買 2 張：<b>①先賣</b>漲到推薦價 +5% 就入袋、<b>②續抱</b>照移動停損抱到跌破為止。</div>
+      <div class="testctl">
+        <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
+        <span class="testnote" id="testNote"></span>
+      </div>
+      <div class="testsum" id="testSum"></div>
+      <div class="simtable" id="testTable"></div>
+      <div class="simft">此追蹤存在雲端（Firebase），任何裝置打開都看得到同一份紀錄。跟「模擬下單」是兩套獨立系統，互不影響。<button id="testClear" class="simclr">清空追蹤紀錄</button></div>
+    </div>
   </div>
 </div>
 
 <div class="simmask" id="simMask">
   <div class="simwin">
     <div class="simhd"><b>模擬下單</b><span class="simsub">以目前已收集到的收盤資料為準，每天更新後自動重算損益</span><button class="simx" id="simX">✕</button></div>
-    <div class="simtabs">
-      <button class="simtab on" id="simTabTrade">✍️ 模擬下單</button>
-      <button class="simtab" id="simTabTest">🧪 Test（每日推薦追蹤）</button>
-    </div>
     <div class="simbody" id="simPaneTrade">
       <div class="simname-row">
         <label>帳戶</label>
@@ -482,19 +492,13 @@ tbody tr{cursor:pointer}
         <select id="simSide"><option value="buy">買進</option><option value="sell">賣出</option></select>
         <button id="simAdd">送出</button>
       </div>
+      <div class="testctl">
+        <button id="simSync" class="testbtn">↻ 從雲端重新載入</button>
+        <span class="testnote" id="simNote"></span>
+      </div>
       <div class="simsum" id="simSum"></div>
       <div class="simtable" id="simTable"></div>
       <div class="simft">以最新收盤價計算未實現損益。這是紙上模擬，不會真的下單。<button id="simClear" class="simclr">清空「所有帳戶」的紀錄</button></div>
-    </div>
-    <div class="simbody" id="simPaneTest" style="display:none">
-      <div class="ihint" style="margin-bottom:10px">每天按「更新並篩選」後，<b>新手看盤推薦的股票會自動進到這裡追蹤</b>。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。每筆買 2 張：<b>A 單</b>漲到推薦價 +5% 就賣、<b>B 單</b>照移動停損續抱。</div>
-      <div class="testctl">
-        <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
-        <span class="testnote" id="testNote"></span>
-      </div>
-      <div class="testsum" id="testSum"></div>
-      <div class="simtable" id="testTable"></div>
-      <div class="simft">此追蹤存在雲端（Firebase），任何裝置打開都看得到同一份紀錄。<button id="testClear" class="simclr">清空 Test 追蹤紀錄</button></div>
     </div>
   </div>
 </div>
@@ -2839,7 +2843,13 @@ function simRender(){
   const box=$('#simTable'), sum=$('#simSum');
   // 更新帳戶 datalist
   const dl=$('#simAccts'); if(dl)dl.innerHTML=simAccounts().map(n=>`<option value="${n}">`).join('');
-  if(!SIM.length){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有交易。輸入帳戶名字、代號、張數，選買進送出。本金無限，想買什麼都行。</div>'; sum.innerHTML=''; return; }
+  if(!SIM.length){
+    const url=$('#fbUrl').value.trim();
+    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">這台裝置目前看不到任何交易。<br>'
+      + (url ? '已連到雲端 <b>'+url.replace('https://','').split('.')[0]+'</b>，但雲端也是空的——可能是你的紀錄還沒上傳過。'
+             : '<b>還沒連上雲端</b>（這個版本／這台裝置的網址欄是空的），所以只讀得到本機紀錄。請按上面「↻ 從雲端重新載入」，或到左邊「雲端同步」貼上 Realtime Database 網址。')
+      + '<br>要新增交易：輸入帳戶名字、代號、張數，選買進送出。本金無限。</div>';
+    sum.innerHTML=''; return; }
 
   let allReal=0,allUnreal=0,allBought=0,allWin=0,allLoss=0;
   let html='';
@@ -2937,7 +2947,15 @@ function simRender(){
     body.style.display=body.style.display==='none'?'block':'none';
   });
 }
-$('#btnSim').onclick=async()=>{ await simLoad(); await testLoad(); simRender(); switchSimTab('trade'); $('#simMask').classList.add('on'); };
+$('#btnSim').onclick=async()=>{ $('#simMask').classList.add('on'); await simSyncNow(); };
+// 從雲端重新載入＋回報連到哪、抓到幾筆（換裝置／換版本時最常見的問題就是網址欄是空的）
+async function simSyncNow(){
+  const note=$('#simNote'); if(note)note.textContent='載入中…';
+  const url=await ensureFbUrl();
+  if(!url){ await simLoad(); simRender(); if(note)note.textContent='⚠️ 找不到雲端網址，請到左邊「雲端同步」貼上 Realtime Database 網址'; return; }
+  await simLoad(); simRender();
+  if(note)note.textContent=`✓ 已連雲端（${url.replace('https://','').split('.')[0]}）· 目前 ${SIM.length} 筆交易`;
+}
 
 // ── 🧪 Test：每天新手看盤推薦的股票自動進來、去重、用移動停損追蹤 ──
 // 結構：TEST_TRACK = { entries:[ {code,name,firstDate,entryPx,mvStop,mvWhy,target,rideName,tags,exited,exitDate,exitPx,hitTP,hitTPDate} ], updatedAt }
@@ -2948,8 +2966,9 @@ async function testLoad(){
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
-  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){} return; }
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; testDedupeExisting(); try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){} return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
+  testDedupeExisting();
 }
 async function testSave(){
   try{ await store.set(TEST_KEY,TEST_TRACK); }catch(e){}
@@ -2971,6 +2990,23 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
 async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 
+// 清掉舊版留下的重複：同一檔在前一筆還沒全數出場前又被開了一筆 → 只留最早那筆
+function testDedupeExisting(){
+  const arr=(TEST_TRACK.entries||[]).slice().sort((a,b)=>String(a.firstDate)<String(b.firstDate)?-1:1);
+  const keep=[], last={}; let removed=0;
+  for(const e of arr){
+    const prev=last[e.code];
+    if(prev){
+      const la=prev.lotA||{}, lb=prev.lotB||{};
+      const closed=la.done&&lb.done;
+      const closeDate=closed?[la.date,lb.date].filter(Boolean).sort().pop():null;
+      if(!closed || !closeDate || closeDate>e.firstDate){ removed++; continue; }   // 前一筆那時還在場上 → 這筆不該存在
+    }
+    keep.push(e); last[e.code]=e;
+  }
+  if(removed)TEST_TRACK.entries=keep;
+  return removed;
+}
 // 把「某個推薦日」的推薦清單併入追蹤（同一檔同時只追一筆；等它兩張單都出場結案後，再被推薦才重新開）
 function testIngestDay(date, snapshots){
   if(!date||!Array.isArray(snapshots))return 0;
@@ -3055,18 +3091,20 @@ async function testAutoSync(){
   if(recoDate && !snap){ await buildEasyView(); snap=RECO_HIST[recoDate]; }
   let added=0;
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
+  testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
   testRefreshStatus();
   await testSave();
   return {added, date:recoDate};
 }
-function switchSimTab(which){
+// 新手看盤視窗的兩個分頁：推薦清單 / 追蹤成績
+async function switchEasyTab(which){
   const t=which==='test';
-  $('#simTabTrade').classList.toggle('on',!t); $('#simTabTest').classList.toggle('on',t);
-  $('#simPaneTrade').style.display=t?'none':'block';
-  $('#simPaneTest').style.display=t?'block':'none';
-  if(t)testRender();
+  $('#easyTabReco').classList.toggle('on',!t); $('#easyTabTest').classList.toggle('on',t);
+  $('#easyBody').style.display=t?'none':'block';
+  $('#easyPaneTest').style.display=t?'block':'none';
+  if(t){ await testLoad(); testRender(); }
 }
 function testDaysHeld(firstDate){
   // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
@@ -3108,7 +3146,7 @@ function testRender(){
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
-    <div class="sc"><s>A單+5%賣／B單停損／B飛天</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
+    <div class="sc"><s>①已入袋／②已停損／②續抱中</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
   // 依「推薦日」分組，上方做日期分頁（預設看最新一天）
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
@@ -3128,7 +3166,7 @@ function testRender(){
     html+=`<div class="testday">
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>A單·比推薦價+5%</span><span>B單·移動停損</span><span>盈虧(2張)</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①先賣·到+5%</span><span>②續抱·移動停損</span><span>盈虧</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
@@ -3137,14 +3175,14 @@ function testRender(){
           else {aTxt='等漲到 '+(r.entryPx!=null?(r.entryPx*1.05).toFixed(2):'+5%');aCls='hold';}
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
-          else {bTxt='續抱·飛天中';bCls='hold';}
+          else {bTxt='續抱中';bCls='hold';}
           const pl=testPnL(r);
           const plv=pl?pl.total:null;
           const plTxt = plv==null?'—':`${plv>0?'+':''}${Math.round(plv).toLocaleString()}`;
           const bothOut=a.done&&b.done;
           // 名字後面直接標狀態：兩張都賣掉＝done；只賣掉 A 單＝還剩 B 單抱著
           const flag = bothOut ? '<span class="tflag done">done</span>'
-                    : a.done ? '<span class="tflag half">剩B單</span>' : '';
+                    : a.done ? '<span class="tflag half">剩②續抱</span>' : '';
           return `<div class="testrow${bothOut?' exited':''}">
             <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>${flag}
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
@@ -3159,7 +3197,7 @@ function testRender(){
   }
   box.innerHTML=html;
   box.querySelectorAll('.rdtab').forEach(b=>b.onclick=()=>{ TEST_SEL_DATE=b.dataset.date; testRender(); });
-  box.querySelectorAll('.testk').forEach(b=>b.onclick=()=>{ $('#simMask').classList.remove('on'); drawChart(b.dataset.code); });
+  box.querySelectorAll('.testk').forEach(b=>b.onclick=()=>{ $('#easyMask').classList.remove('on'); drawChart(b.dataset.code); });
 }
 
 // ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
@@ -3319,14 +3357,15 @@ async function buildEasyView(){
   }
   renderEasyTabsAndList();
 }
-$('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); buildEasyView(); };
+$('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('reco'); buildEasyView(); };
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
+$('#simSync').onclick=simSyncNow;
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
-$('#simTabTrade').onclick=()=>switchSimTab('trade');
-$('#simTabTest').onclick=()=>switchSimTab('test');
+$('#easyTabReco').onclick=()=>switchEasyTab('reco');
+$('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#testSync').onclick=async()=>{
   const note=$('#testNote'); note.textContent='同步中…';
   const url=await ensureFbUrl();
