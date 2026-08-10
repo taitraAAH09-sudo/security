@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V100</title>
+<title>盤後篩選台 V103</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -116,6 +116,28 @@ a{color:var(--amber)}
 .simsub{color:var(--dim);font-size:12px;flex:1}
 .simx{background:var(--panel2);border:1px solid var(--line);border-radius:5px;width:30px;height:30px;color:var(--muted);cursor:pointer;font-size:14px}
 .simbody{padding:16px 18px}
+.simtabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 18px}
+.simtab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font-size:14px;font-weight:700;padding:12px 18px;cursor:pointer}
+.simtab.on{color:var(--amber);border-bottom-color:var(--amber)}
+.simtab:hover{color:var(--paper)}
+.testctl{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.testbtn{background:var(--amber);color:var(--ink);border:0;border-radius:6px;padding:8px 16px;font-weight:800;cursor:pointer}
+.testbtn:hover{filter:brightness(1.08)}
+.testnote{font-size:12px;color:var(--dim)}
+.testsum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.testday{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.testdhd{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel2);font-weight:700;cursor:pointer}
+.testdhd .tdate{font-family:var(--mono);color:var(--amber)}
+.testdhd .tcount{font-size:12px;color:var(--dim)}
+.testdbody{padding:0}
+.testrow{display:grid;grid-template-columns:1.3fr .7fr .7fr .9fr 1fr 1fr;gap:6px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;align-items:center}
+.testrow.head{color:var(--dim);font-size:11px;font-weight:700;background:rgba(255,255,255,.02)}
+.testrow .tnm{font-weight:700}
+.testrow.exited{opacity:.55}
+.tstat{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.tstat.hold{background:rgba(111,168,220,.16);color:#6FA8DC;border:1px solid rgba(111,168,220,.4)}
+.tstat.out{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
+.tstat.tp{background:rgba(31,158,110,.16);color:#3DBB8A;border:1px solid rgba(31,158,110,.45)}
 .simname-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .simname-row label{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
 .simname-row input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--paper);font-size:14px}
@@ -399,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V100</span>
+    <h1>盤後篩選台</h1><span class="ver">V103</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -441,7 +463,11 @@ tbody tr{cursor:pointer}
 <div class="simmask" id="simMask">
   <div class="simwin">
     <div class="simhd"><b>模擬下單</b><span class="simsub">以目前已收集到的收盤資料為準，每天更新後自動重算損益</span><button class="simx" id="simX">✕</button></div>
-    <div class="simbody">
+    <div class="simtabs">
+      <button class="simtab on" id="simTabTrade">✍️ 模擬下單</button>
+      <button class="simtab" id="simTabTest">🧪 Test（每日推薦追蹤）</button>
+    </div>
+    <div class="simbody" id="simPaneTrade">
       <div class="simname-row">
         <label>帳戶</label>
         <input id="simName" placeholder="輸入名字＝建立/選擇帳戶（本金無限）" maxlength="12" list="simAccts">
@@ -456,6 +482,16 @@ tbody tr{cursor:pointer}
       <div class="simsum" id="simSum"></div>
       <div class="simtable" id="simTable"></div>
       <div class="simft">以最新收盤價計算未實現損益。這是紙上模擬，不會真的下單。<button id="simClear" class="simclr">清空「所有帳戶」的紀錄</button></div>
+    </div>
+    <div class="simbody" id="simPaneTest" style="display:none">
+      <div class="ihint" style="margin-bottom:10px">每天按「更新並篩選」後，<b>新手看盤推薦的股票會自動進到這裡追蹤</b>。已經追蹤過的（前幾天推過的同一檔）不會重複加入。每檔用<b>移動式停損</b>追蹤，觸及停損就標記出場，讓你檢驗每天推的到底有沒有觸及停損。</div>
+      <div class="testctl">
+        <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
+        <span class="testnote" id="testNote"></span>
+      </div>
+      <div class="testsum" id="testSum"></div>
+      <div class="simtable" id="testTable"></div>
+      <div class="simft">此追蹤存在雲端（Firebase），任何裝置打開都看得到同一份紀錄。<button id="testClear" class="simclr">清空 Test 追蹤紀錄</button></div>
     </div>
   </div>
 </div>
@@ -1020,6 +1056,7 @@ async function doFetch(){
   updateStrength();   // 更新完成後刷新大盤/櫃買強度
   if(INSPECTED)drawChart(INSPECTED);   // 更新完成後，若目前正開著某檔的 K 線，自動重畫最新資料
   if($('#fbAuto').checked&&fbEnd())await fbPush(true);
+  try{ await testAutoSync(); }catch(e){}   // 自動把今天推薦併入 Test 追蹤、重算移動停損狀態、同步雲端
   log('完成。','ok');
 }
 function finish(){$('#btnFetch').disabled=false;$('#btnStop').style.display='none';$('#pbar').style.width='0';
@@ -1486,9 +1523,10 @@ function patCell(r){
 }
 function gapCell(g){
   if(!g||!$('#cGap').checked)return'—';
-  const N=Math.max(1,+$('#gapDays').value||5);
+  const ago=g.ago;   // 幾根前出現這個缺口
+  const agoTxt = ago<=0?'今天':`${ago} 天前`;
   return`<span class="chip ${g.unf?'g2':'g1'}">▲${g.pct.toFixed(2)}%</span>`+
-    `<span class="ago">${N-g.ago}/${N} ${g.unf?'未補':'已補'}</span>`;
+    `<span class="ago" title="這個跳空缺口出現在幾個交易日前，以及是否已被回補">${agoTxt}·${g.unf?'未補':'已補'}</span>`;
 }
 function burstCell(ratio){
   const vx=+$('#volX').value||3;
@@ -2271,7 +2309,7 @@ function paintInspect(code){
     row(e.ri!=null&&e.ri<=e.nR,on.i,`投信買超前 ${e.nR}`,
       e.i==null?'當日無資料':`${e.i>0?'買超':'賣超'} ${Math.abs(e.i).toLocaleString()} 張${e.ri?`　排名 ${e.ri}`:'　未進買超榜'}`)+
     row(gapOK,on.gap,`多缺口（近 ${e.gapN} 日）`,
-      e.gap?`▲${e.gap.pct.toFixed(2)}%　第 ${e.gapN-e.gap.ago}/${e.gapN} 日${e.gap.ago?`（${e.gap.ago} 日前）`:'（今日）'}　${e.gap.closed?'已實體封閉':e.gap.unf?'未回補':'已觸及'}　封閉停損 ${e.gap.gapLow.toFixed(2)}`:`近 ${e.gapN} 日無多方缺口`)+
+      e.gap?`▲${e.gap.pct.toFixed(2)}%　${e.gap.ago?`${e.gap.ago} 日前出現`:'今日出現'}　${e.gap.closed?'已實體封閉':e.gap.unf?'未回補':'已觸及'}　封閉停損 ${e.gap.gapLow.toFixed(2)}`:`近 ${e.gapN} 日無多方缺口`)+
     row(e.hhll,on.hh,'型態1（波段型態）',e.hhll?'成立':'未成立')+
     row(!!e.wpat,on.w,'型態2（符合型態）',
       e.wpat?`頸線 ${e.wpat.neck.toFixed(2)}　${e.wpat.ago?e.wpat.ago+' 日前突破':'今日突破'}${e.wpat.volOK?'（帶量）':''}　滿足 ${e.wpat.target.toFixed(2)}`:'未成立')+
@@ -2612,8 +2650,22 @@ $('#tblwrap').addEventListener('click',ev=>{
 const SIM_KEY='sim_trades_v2';
 let SIM=[];   // 交易流水：{name,code,qty,side:'buy'|'sell',px,date}
 let SIM_OPEN=new Set();   // 目前展開中的帳戶名字
-async function simLoad(){ try{const r=await store.get(SIM_KEY); if(Array.isArray(r))SIM=r; else if(r&&Array.isArray(r.trades))SIM=r.trades; else SIM=[];}catch(e){SIM=[];} }
-async function simSave(){ try{await store.set(SIM_KEY,SIM);}catch(e){} }
+async function simLoad(){
+  // 先試雲端（跨裝置），有就用雲端；否則用本機
+  let cloud=null;
+  try{ cloud=await simFbPull(); }catch(e){}
+  if(Array.isArray(cloud)){ SIM=cloud; try{await store.set(SIM_KEY,SIM);}catch(e){} return; }
+  try{const r=await store.get(SIM_KEY); if(Array.isArray(r))SIM=r; else if(r&&Array.isArray(r.trades))SIM=r.trades; else SIM=[];}catch(e){SIM=[];}
+}
+async function simSave(){
+  try{await store.set(SIM_KEY,SIM);}catch(e){}
+  try{ await simFbPush(); }catch(e){}   // 同步雲端，任何裝置都看得到同一份
+}
+function simFbEnd(){ const u=$('#fbUrl').value.trim().replace(/\/+$/,''); return u?`${u}/simtrades.json`:null; }
+async function simFbPush(){ const e=simFbEnd(); if(!e)return false;
+  try{ const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(SIM)}); return r.ok; }catch(err){ return false; } }
+async function simFbPull(){ const e=simFbEnd(); if(!e)return null;
+  try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 function simPx(code){ const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
   for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null)return s.c[i]; return null; }
 function simNm(code){ const s=DB.stocks&&DB.stocks[code]; return s&&s.n||code; }
@@ -2750,7 +2802,167 @@ function simRender(){
     body.style.display=body.style.display==='none'?'block':'none';
   });
 }
-$('#btnSim').onclick=async()=>{ await simLoad(); simRender(); $('#simMask').classList.add('on'); };
+$('#btnSim').onclick=async()=>{ await simLoad(); await testLoad(); simRender(); switchSimTab('trade'); $('#simMask').classList.add('on'); };
+
+// ── 🧪 Test：每天新手看盤推薦的股票自動進來、去重、用移動停損追蹤 ──
+// 結構：TEST_TRACK = { entries:[ {code,name,firstDate,entryPx,mvStop,mvWhy,target,rideName,tags,exited,exitDate,exitPx,hitTP,hitTPDate} ], updatedAt }
+const TEST_KEY='test_track_v1';
+let TEST_TRACK={entries:[]};
+async function testLoad(){
+  // 先試雲端（跨裝置），失敗再本機
+  let cloud=null;
+  try{ cloud=await testFbPull(); }catch(e){}
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){} return; }
+  try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
+}
+async function testSave(){
+  try{ await store.set(TEST_KEY,TEST_TRACK); }catch(e){}
+  try{ await testFbPush(); }catch(e){}   // 同步到雲端，任何裝置都看得到
+}
+// Firebase：Test 追蹤存在 DB 網址同 host 的另一個路徑 testtrack
+function testFbEnd(){
+  const u=$('#fbUrl').value.trim().replace(/\/+$/,''); if(!u)return null;
+  return `${u}/testtrack.json`;
+}
+async function testFbPush(){ const e=testFbEnd(); if(!e)return false;
+  try{ const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(TEST_TRACK)}); return r.ok; }catch(err){ return false; } }
+async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
+  try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
+
+// 把「某個推薦日」的推薦清單併入追蹤（已追蹤過的同一檔不再加入）
+function testIngestDay(date, snapshots){
+  if(!date||!Array.isArray(snapshots))return 0;
+  const have=new Set(TEST_TRACK.entries.map(x=>x.code));
+  let added=0;
+  for(const s of snapshots){
+    if(have.has(s.code))continue;    // 前幾天推過了 → 不重複進表
+    TEST_TRACK.entries.push({
+      code:s.code, name:s.name||'', firstDate:date,
+      entryPx:s.entryPx, mvStop:s.mvStop, mvWhy:s.mvWhy||'',
+      target:s.target, rideName:s.rideName||'', tags:s.tags||[],
+      // 兩張下單：
+      // A 單（停利單）：停利點到就賣掉
+      lotA:{done:false, date:null, px:null, why:''},
+      // B 單（移動單）：一直照移動停損續抱，跌破才賣；沒觸及就一直抱（飛天）
+      lotB:{done:false, date:null, px:null, why:''}
+    });
+    have.add(s.code); added++;
+  }
+  return added;
+}
+// 用最新資料重算移動停損，分別判斷 A 單（停利點賣）與 B 單（移動停損賣）
+function testRefreshStatus(){
+  const lastDate = DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:null;
+  for(const en of TEST_TRACK.entries){
+    // 相容舊資料：沒有 lotA/lotB 的補上
+    if(!en.lotA)en.lotA={done:false,date:null,px:null,why:''};
+    if(!en.lotB)en.lotB={done:false,date:null,px:null,why:''};
+    if(en.lotA.done && en.lotB.done)continue;    // 兩張都出場了，不必再算
+    const s=DB.stocks&&DB.stocks[en.code];
+    if(!s||!s.c)continue;
+    const ser={c:s.c,h:s.h||s.c,l:s.l||s.c,q:s.q||[],o:s.o||s.c,d:DB.dates};
+    const N=s.c.length;
+    // 移動停損（只升不降）
+    let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(e){}
+    if(mv&&mv.price!=null){
+      if(en.mvStop==null||mv.price>en.mvStop){ en.mvStop=+mv.price; en.mvWhy=mv.why; }
+    }
+    const px=simPx(en.code);
+    if(px==null)continue;
+    en.curPx=px;
+    // A 單：停利點到就賣（只賣一次）
+    if(!en.lotA.done && en.target!=null && px>=en.target){
+      en.lotA.done=true; en.lotA.date=lastDate; en.lotA.px=en.target; en.lotA.why='停利點';
+    }
+    // B 單：照移動停損續抱，收盤跌破移動停損才賣；沒觸及就一直抱
+    if(!en.lotB.done && en.mvStop!=null && px<en.mvStop){
+      en.lotB.done=true; en.lotB.date=lastDate; en.lotB.px=px; en.lotB.why='移動停損';
+    }
+  }
+}
+// 每次更新並篩選後自動呼叫：把今天推薦併入、重算狀態、存檔（含雲端）
+async function testAutoSync(){
+  await loadRecoHistory();
+  await testLoad();
+  const recoDate = DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:null;
+  // 確保今天的推薦快照已存在（buildEasyView 會存；這裡若沒有就臨時算一份）
+  let snap = recoDate?RECO_HIST[recoDate]:null;
+  if(recoDate && !snap){ await buildEasyView(); snap=RECO_HIST[recoDate]; }
+  let added=0;
+  if(recoDate && snap) added=testIngestDay(recoDate, snap);
+  testRefreshStatus();
+  await testSave();
+  return {added, date:recoDate};
+}
+function switchSimTab(which){
+  const t=which==='test';
+  $('#simTabTrade').classList.toggle('on',!t); $('#simTabTest').classList.toggle('on',t);
+  $('#simPaneTrade').style.display=t?'none':'block';
+  $('#simPaneTest').style.display=t?'block':'none';
+  if(t)testRender();
+}
+function testDaysHeld(firstDate){
+  // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
+  if(!DB.dates||!DB.dates.length)return 1;
+  const i=DB.dates.indexOf(firstDate);
+  if(i<0)return 1;
+  return DB.dates.length-i;   // 含首推日
+}
+function testRender(){
+  const box=$('#testTable'), sum=$('#testSum');
+  const ents=TEST_TRACK.entries||[];
+  if(!ents.length){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
+  // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主
+  let aHit=0, bStop=0, bFly=0, waiting=0;
+  for(const e of ents){
+    const a=e.lotA||{}, b=e.lotB||{};
+    if(a.done)aHit++; else waiting++;
+    if(b.done)bStop++; else bFly++;   // B 沒出場＝還在飛
+  }
+  sum.innerHTML=`
+    <div class="sc"><s>追蹤檔數（每檔2張）</s><b>${ents.length}</b></div>
+    <div class="sc"><s>A單 已停利賣出</s><b class="up">${aHit}</b></div>
+    <div class="sc"><s>B單 移動停損賣出</s><b class="dn">${bStop}</b></div>
+    <div class="sc"><s>B單 續抱中(飛天)</s><b>${bFly}</b></div>`;
+  // 依「首次推薦日」分組，最新的日期排最上面
+  const byDate={};
+  for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
+  const dates=Object.keys(byDate).sort().reverse();
+  let html='';
+  for(const d of dates){
+    const rows=byDate[d];
+    const held=testDaysHeld(d);
+    html+=`<div class="testday">
+      <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天</span></div>
+      <div class="testdbody">
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>移動停損</span><span>A單·停利</span><span>B單·移動</span></div>
+        ${rows.map(r=>{
+          const px=r.curPx!=null?r.curPx:simPx(r.code);
+          const a=r.lotA||{}, b=r.lotB||{};
+          // A 單狀態
+          let aTxt,aCls;
+          if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
+          else {aTxt='等停利';aCls='hold';}
+          // B 單狀態
+          let bTxt,bCls;
+          if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
+          else {bTxt='續抱·飛天中';bCls='hold';}
+          const bothOut=a.done&&b.done;
+          return `<div class="testrow${bothOut?' exited':''}">
+            <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>
+            <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
+            <span>${px!=null?(+px).toFixed(2):'—'}</span>
+            <span>${r.mvStop!=null?(+r.mvStop).toFixed(2):'—'}<br><span style="font-size:10px;color:var(--dim)">${r.mvWhy||''}</span></span>
+            <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
+            <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('.testk').forEach(b=>b.onclick=()=>{ $('#simMask').classList.remove('on'); drawChart(b.dataset.code); });
+}
 
 // ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
 // 推薦歷史：以「推薦日期」為單位存整份卡片快照，只保留近 7 個交易日，第 8 天洗掉最舊（第1天）
@@ -2914,6 +3126,19 @@ $('#strTpex').style.cursor='pointer'; $('#strTpex').onclick=()=>updateOneStrengt
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
+$('#simTabTrade').onclick=()=>switchSimTab('trade');
+$('#simTabTest').onclick=()=>switchSimTab('test');
+$('#testSync').onclick=async()=>{
+  const note=$('#testNote'); note.textContent='同步中…';
+  const r=await testAutoSync();
+  note.textContent = r.date ? `已同步 ${fmtD(r.date)}：新增 ${r.added} 檔（重複的不再加入）` : '目前沒有資料，先按「更新並篩選」';
+  testRender();
+};
+$('#testClear').onclick=async()=>{
+  if(!confirm('確定清空 Test 追蹤紀錄？（雲端與本機都會清）'))return;
+  TEST_TRACK={entries:[]};
+  await testSave(); testRender();
+};
 $('#simMask').onclick=e=>{ if(e.target===$('#simMask'))$('#simMask').classList.remove('on'); };
 $('#simAdd').onclick=async()=>{
   const code=$('#simCode').value.trim(), qty=Math.max(1,+$('#simQty').value||1);
