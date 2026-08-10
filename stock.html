@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V116</title>
+<title>盤後篩選台 V117</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -133,7 +133,10 @@ a{color:var(--amber)}
 .testrow{display:grid;grid-template-columns:1.3fr .7fr .7fr .9fr 1fr 1fr;gap:6px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;align-items:center}
 .testrow.head{color:var(--dim);font-size:11px;font-weight:700;background:rgba(255,255,255,.02)}
 .testrow .tnm{font-weight:700}
-.testrow.exited{opacity:.55}
+.testrow.exited{opacity:.6}
+.tflag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle;white-space:nowrap}
+.tflag.done{background:rgba(255,255,255,.10);color:var(--dim);border:1px solid var(--line)}
+.tflag.half{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
 .tstat{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .tstat.hold{background:rgba(111,168,220,.16);color:#6FA8DC;border:1px solid rgba(111,168,220,.4)}
 .tstat.out{background:rgba(31,158,110,.16);color:#3DBB8A;border:1px solid rgba(31,158,110,.45)}
@@ -147,6 +150,7 @@ a{color:var(--amber)}
 .simform #simQty{width:80px;font-family:var(--mono)}
 .simform #simAdd{background:var(--up);color:#fff;border:0;border-radius:5px;padding:9px 20px;font-weight:700;cursor:pointer}
 .simsum{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.closedhd{margin:12px 0 6px;font-size:12px;font-weight:700;color:var(--dim)}
 .simsum .sc,.testsum .sc{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;flex:1;min-width:130px}
 .simsum .sc s,.testsum .sc s{text-decoration:none;color:var(--dim);font-size:11px;display:block}
 .simsum .sc b,.testsum .sc b{font-family:var(--mono);font-size:19px;font-weight:700;display:block;margin-top:3px}
@@ -421,7 +425,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V116</span>
+    <h1>盤後篩選台</h1><span class="ver">V117</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -432,7 +436,6 @@ tbody tr{cursor:pointer}
   <div class="hbtnbar">
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
-    <span class="mktstr" id="strTpex" title="點一下更新：櫃買指數站上幾條均線">櫃買<i class="ststub">中小企業</i> <b>—</b></span>
   </div>
   <div class="strip" id="strip"></div>
 </div>
@@ -484,7 +487,7 @@ tbody tr{cursor:pointer}
       <div class="simft">以最新收盤價計算未實現損益。這是紙上模擬，不會真的下單。<button id="simClear" class="simclr">清空「所有帳戶」的紀錄</button></div>
     </div>
     <div class="simbody" id="simPaneTest" style="display:none">
-      <div class="ihint" style="margin-bottom:10px">每天按「更新並篩選」後，<b>新手看盤推薦的股票會自動進到這裡追蹤</b>。同一檔隔天又被推薦＝另開一筆，各自算各自的。每筆買 2 張：<b>A 單</b>漲到推薦價 +5% 就賣、<b>B 單</b>照移動停損續抱。</div>
+      <div class="ihint" style="margin-bottom:10px">每天按「更新並篩選」後，<b>新手看盤推薦的股票會自動進到這裡追蹤</b>。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。每筆買 2 張：<b>A 單</b>漲到推薦價 +5% 就賣、<b>B 單</b>照移動停損續抱。</div>
       <div class="testctl">
         <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
         <span class="testnote" id="testNote"></span>
@@ -1322,10 +1325,10 @@ function renderStrength(el,label,sub,st){
 }
 async function updateStrength(){
   // 兩顆各自獨立更新（互不影響、也不影響主資料）
-  await Promise.all([updateOneStrength('twse'), updateOneStrength('tpex')]);
+  await updateOneStrength('twse');   // 櫃買徽章已移除：櫃買指數只能靠免費代理抓，穩定度不足、寧可不顯示
 }
 async function updateOneStrength(which){
-  const el = which==='twse' ? $('#strTwse') : $('#strTpex');
+  const el = which==='twse' ? $('#strTwse') : null;
   const label = which==='twse' ? '大盤' : '櫃買';
   const sub = which==='twse' ? '大型權值股' : '中小企業';
   if(el){el.classList.add('loading');el.innerHTML=`${label}<i class="ststub">${sub}</i> <b><span class="spin">⟳</span> 抓取中</b>`;el.style.color='var(--amber)';el.style.borderColor='var(--amber)';}
@@ -2807,6 +2810,29 @@ function simAccount(name){
   return {name,trades,realized,realizedWin,realizedLoss,boughtCost,holdings,holdCost,holdVal,unreal,
     totalPL:realized+unreal};
 }
+// 已了結交易：先進先出配對買賣，算出每一趟「幾號買→哪天賣、賺賠多少」
+function simClosed(name){
+  const ts=SIM.filter(t=>t.name===name).slice().sort((a,b)=>String(a.date)<String(b.date)?-1:1);
+  const lots={}, out=[];
+  for(const t of ts){
+    const L=lots[t.code]=lots[t.code]||[];
+    if(t.side==='buy'){ L.push({qty:t.qty,px:t.px,date:t.date}); continue; }
+    let q=t.qty;
+    while(q>0&&L.length){
+      const l=L[0], use=Math.min(q,l.qty);
+      out.push({code:t.code,qty:use,buyPx:l.px,buyDate:l.date,sellPx:t.px,sellDate:t.date,
+        pl:(t.px-l.px)*use*LOT, pct:(t.px-l.px)/l.px*100});
+      l.qty-=use; q-=use; if(l.qty<=0)L.shift();
+    }
+  }
+  return out.sort((a,b)=>String(a.sellDate)<String(b.sellDate)?1:-1);   // 最近賣出的排最上面
+}
+// 持有幾個交易日（兩端都在資料裡就用交易日，否則退回日曆天）
+function simHeld(d1,d2){
+  if(DB.dates&&DB.dates.length){ const i=DB.dates.indexOf(d1), j=DB.dates.indexOf(d2); if(i>=0&&j>=0)return j-i; }
+  const a=new Date(d1.slice(0,4),+d1.slice(4,6)-1,d1.slice(6)), b=new Date(d2.slice(0,4),+d2.slice(4,6)-1,d2.slice(6));
+  return Math.round((b-a)/86400000);
+}
 function simAccounts(){ return [...new Set(SIM.map(t=>t.name||'（未命名）'))]; }
 
 function simRender(){
@@ -2854,7 +2880,16 @@ function simRender(){
         </div>
         <table><thead><tr><th>持倉</th><th>均成本</th><th>張</th><th>現價</th><th>未實現</th><th>報酬%</th><th></th></tr></thead>
         <tbody>${holdRows}</tbody></table>
-        <div class="simhist" data-name="${name}">交易紀錄 ${a.trades.length} 筆　<button class="simhistbtn" data-name="${name}">展開/收合</button>
+        ${(()=>{const cl=simClosed(name); if(!cl.length)return '<div class="ihint" style="margin:10px 0 4px">還沒有已了結的交易（賣出後才會出現買賣配對明細）。</div>';
+          const tot=cl.reduce((x,r)=>x+r.pl,0);
+          return `<div class="closedhd">已了結交易 ${cl.length} 趟　·　合計 <b class="${tot>0?'up':tot<0?'dn':''}">${(tot>0?'+':'')+Math.round(tot).toLocaleString()}</b></div>
+          <table><thead><tr><th>股票</th><th>買進日</th><th>買價</th><th>賣出日</th><th>賣價</th><th>張</th><th>持有</th><th>損益</th><th>報酬%</th></tr></thead><tbody>`
+          + cl.map(r=>`<tr><td>${r.code} ${simNm(r.code)}</td><td>${fmtD(r.buyDate)}</td><td>${r.buyPx.toFixed(2)}</td>
+              <td>${fmtD(r.sellDate)}</td><td>${r.sellPx.toFixed(2)}</td><td>${r.qty}</td><td>${simHeld(r.buyDate,r.sellDate)} 天</td>
+              <td class="${r.pl>0?'up':r.pl<0?'dn':''}">${(r.pl>0?'+':'')+Math.round(r.pl).toLocaleString()}</td>
+              <td class="${r.pl>0?'up':r.pl<0?'dn':''}">${(r.pct>0?'+':'')+r.pct.toFixed(2)}%</td></tr>`).join('')
+          + `</tbody></table>`;})()}
+        <div class="simhist" data-name="${name}">全部進出紀錄 ${a.trades.length} 筆　<button class="simhistbtn" data-name="${name}">展開/收合</button>
           <div class="simhistbody" style="display:none">${a.trades.map(({t,idx})=>`
             <div class="simhrow"><span>${fmtD(t.date)}</span><span class="${t.side==='buy'?'up':'dn'}">${t.side==='buy'?'買':'賣'}</span>
               <span>${t.code} ${simNm(t.code)}</span><span>${t.px.toFixed(2)} × ${t.qty}張</span>
@@ -2936,13 +2971,20 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
 async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 
-// 把「某個推薦日」的推薦清單併入追蹤（同一天同一檔不重複；不同天重複推薦＝各自獨立一筆）
+// 把「某個推薦日」的推薦清單併入追蹤（同一檔同時只追一筆；等它兩張單都出場結案後，再被推薦才重新開）
 function testIngestDay(date, snapshots){
   if(!date||!Array.isArray(snapshots))return 0;
-  const have=new Set(TEST_TRACK.entries.map(x=>x.code+'|'+x.firstDate));
   let added=0;
+  // 同一檔同時只留一筆在追蹤。既有那筆若「A、B 兩張都已出場」才算結案，之後再被推薦就重新開一筆。
+  const openCode=new Set(), sameDay=new Set();
+  for(const x of TEST_TRACK.entries){
+    sameDay.add(x.code+'|'+x.firstDate);
+    const closed=(x.lotA&&x.lotA.done)&&(x.lotB&&x.lotB.done);
+    if(!closed)openCode.add(x.code);
+  }
   for(const s of snapshots){
-    if(have.has(s.code+'|'+date))continue;    // 只有「同一天同一檔」才算重複；隔天又被推薦＝另開一筆（各自的推薦價與移動停損）
+    if(sameDay.has(s.code+'|'+date))continue;   // 同一天同一檔
+    if(openCode.has(s.code))continue;           // 之前推過、還在追蹤中 → 不重複開單
     TEST_TRACK.entries.push({
       code:s.code, name:s.name||'', firstDate:date,
       entryPx:s.entryPx, mvStop:s.mvStop, mvWhy:s.mvWhy||'',
@@ -2953,7 +2995,7 @@ function testIngestDay(date, snapshots){
       // B 單（移動單）：一直照移動停損續抱，跌破才賣；沒觸及就一直抱（飛天）
       lotB:{done:false, date:null, px:null, why:''}
     });
-    have.add(s.code+'|'+date); added++;
+    sameDay.add(s.code+'|'+date); openCode.add(s.code); added++;
   }
   return added;
 }
@@ -3013,7 +3055,8 @@ async function testAutoSync(){
   if(recoDate && !snap){ await buildEasyView(); snap=RECO_HIST[recoDate]; }
   let added=0;
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
-  for(const d of Object.keys(RECO_HIST).sort()) added += testIngestDay(d, RECO_HIST[d]);
+  // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
+  for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
   testRefreshStatus();
   await testSave();
   return {added, date:recoDate};
@@ -3099,8 +3142,11 @@ function testRender(){
           const plv=pl?pl.total:null;
           const plTxt = plv==null?'—':`${plv>0?'+':''}${Math.round(plv).toLocaleString()}`;
           const bothOut=a.done&&b.done;
+          // 名字後面直接標狀態：兩張都賣掉＝done；只賣掉 A 單＝還剩 B 單抱著
+          const flag = bothOut ? '<span class="tflag done">done</span>'
+                    : a.done ? '<span class="tflag half">剩B單</span>' : '';
           return `<div class="testrow${bothOut?' exited':''}">
-            <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>
+            <span class="tnm testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</span>${flag}
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
             <span>${px!=null?(+px).toFixed(2):'—'}</span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
@@ -3276,7 +3322,6 @@ async function buildEasyView(){
 $('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); buildEasyView(); };
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
-$('#strTpex').style.cursor='pointer'; $('#strTpex').onclick=()=>updateOneStrength('tpex');
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
