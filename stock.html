@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V111</title>
+<title>盤後篩選台 V114</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -421,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V111</span>
+    <h1>盤後篩選台</h1><span class="ver">V114</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1231,59 +1231,72 @@ async function wantgooMA(which){
 // 大盤/櫃買強度：抓官方指數「近幾個月每日收盤」算 5/10/20/60 均線
 // 用跟主資料同一條可靠路徑（getJSONviaProxy），不再爬 wantgoo HTML
 async function fetchIndexCloses(which){
-  // 大盤：優先用「更新並篩選」時順便快取的加權指數歷史（最可靠，不必再連網）
-  if(which==='twse' && DB.idxHist){
-    const ds=Object.keys(DB.idxHist).sort();
-    const closes=ds.map(d=>DB.idxHist[d]).filter(x=>x!=null&&x>1000);
-    if(closes.length>=20){
-      STR_DIAG.twse='';
-      const ma=n=>{ if(closes.length<n)return null; let t=0; for(let k=closes.length-n;k<closes.length;k++)t+=closes[k]; return t/n; };
-      return { px:closes[closes.length-1], ma5:ma(5), ma10:ma(10), ma20:ma(20), ma60:ma(60) };
+  const HK  = which==='twse' ? 'idxHist' : 'otcHist';    // 指數收盤歷史快取（跟主資料一起存本機／上雲端）
+  const LO  = which==='twse' ? 1000 : 50;                // 合理下限，濾掉抓錯欄位的值
+  const HI  = which==='twse' ? 60000 : 5000;             // 合理上限
+  const mkMA = closes => { const ma=n=>{ if(closes.length<n)return null; let t=0; for(let k=closes.length-n;k<closes.length;k++)t+=closes[k]; return t/n; };
+    return { px:closes[closes.length-1], ma5:ma(5), ma10:ma(10), ma20:ma(20), ma60:ma(60), days:closes.length }; };
+  // 合理性檢查：指數不會單日跳 12%，跳這麼多代表抓到的不是收盤指數欄（端點改版）
+  const sane = closes => { for(let k=1;k<closes.length;k++){ const a=closes[k-1],b=closes[k]; if(a>0&&Math.abs(b-a)/a>0.12)return false; } return true; };
+
+  // ① 先用快取（「更新並篩選」時順便存的指數歷史）。跟雲端一起同步，所以匯入後不必再連網重抓。
+  const need = (DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:'';
+  if(DB[HK]){
+    const ds=Object.keys(DB[HK]).sort().filter(d=>{const v=DB[HK][d];return v!=null&&v>LO&&v<HI;});
+    if(ds.length>=20 && (!need || ds[ds.length-1]>=need)){
+      const closes=ds.map(d=>DB[HK][d]);
+      if(sane(closes)){ STR_DIAG[which]=''; const r=mkMA(closes); r.src='快取到 '+fmtD(ds[ds.length-1]); return r; }
     }
   }
+
+  // ② 快取不夠新才連網抓官方端點
   const now=new Date();
   const rows=[];   // {d:'YYYYMMDD', c:收盤指數}
-  // 抓近 5 個月，足夠算 MA60
-  for(let m=0;m<5;m++){
+  for(let m=0;m<5;m++){                      // 近 5 個月，足夠算 MA60
     const dd = new Date(now.getFullYear(), now.getMonth()-m, 1);
     try{
       if(which==='twse'){
-        // TWSE 加權指數每日收盤（FMTQIK 大盤統計，含發行量加權股價指數）
-        const dstr=ymd(dd);
-        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${dstr}&response=json`);
+        const j=await getJSONviaProxy(`https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=${ymd(dd)}&response=json`);
         const data=(j&&(j.data||j.aaData))||[];
         const fields=(j&&j.fields)||[];
-        let ci=fields.findIndex(f=>/指數/.test(String(f))); if(ci<0)ci=4;   // 「發行量加權股價指數」欄
+        let ci=fields.findIndex(f=>/指數/.test(String(f))); if(ci<0)ci=4;
         for(const r of data){ const c=num(String(r[ci]).replace(/,/g,'')); const dt=String(r[0]);
-          if(c!=null&&c>1000){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
+          if(c!=null&&c>LO&&c<HI){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
       }else{
-        // 櫃買指數每日收盤（TPEx 指數，走新版 JSON）
         const roc=`${dd.getFullYear()-1911}/${String(dd.getMonth()+1).padStart(2,'0')}`;
         const j=await getJSONviaProxy(`https://www.tpex.org.tw/www/zh-tw/indices/histrend?date=${roc}/01&response=json`).catch(()=>null)
              || await getJSONviaProxy(`https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${roc}&o=json`);
-        const data=(j&&(j.aaData||j.data||j.tables&&j.tables[0]&&j.tables[0].data))||[];
-        for(const r of data){ const c=num(String(r[4]).replace(/,/g,'')); const dt=String(r[0]);
-          if(c!=null&&c>50){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
+        const tb=(j&&j.tables&&j.tables[0])||null;
+        const data=(j&&(j.aaData||j.data||(tb&&tb.data)))||[];
+        // 欄位不要寫死：兩支端點欄位順序不同，寫死第 5 欄會抓到成交金額之類的數字
+        const flds=(j&&j.fields)||(tb&&tb.fields)||[];
+        let ci=flds.findIndex(f=>/收盤/.test(String(f)));
+        if(ci<0)ci=flds.findIndex(f=>/指數/.test(String(f))&&!/漲跌|漲跌幅|報酬/.test(String(f)));
+        if(ci<0)ci=4;
+        for(const r of data){ const c=num(String(r[ci]).replace(/,/g,'')); const dt=String(r[0]);
+          if(c!=null&&c>LO&&c<HI){ const g=dt.split('/'); if(g.length===3)rows.push({d:(+g[0]+1911)+g[1].padStart(2,'0')+g[2].padStart(2,'0'),c}); } }
       }
     }catch(e){}
     await sleep(150);
   }
-  // 去重、依日期排序，算均線
-  const seen=new Set(), closes=[];
+  const seen=new Set(), closes=[]; const kept=[];
   rows.sort((a,b)=>a.d<b.d?-1:1);
-  for(const x of rows)if(!seen.has(x.d)){seen.add(x.d);closes.push(x.c);}
+  for(const x of rows)if(!seen.has(x.d)){seen.add(x.d);closes.push(x.c);kept.push(x);}
   if(closes.length<20){ STR_DIAG[which]= closes.length?`只取到 ${closes.length} 天，不足算均線`:'官方指數端點無回應（代理可能不通）'; return null; }
+  if(!sane(closes)){ STR_DIAG[which]='抓到的數字不像指數（單日跳動超過 12%），端點欄位可能改版了'; return null; }
+  // 存進快取，下次（含換裝置匯入雲端後）就不必再連網
+  DB[HK]=DB[HK]||{}; for(const x of kept)DB[HK][x.d]=x.c;
+  try{ store.set(KEY,DB); }catch(e){}
   STR_DIAG[which]='';
-  const ma=n=>{ if(closes.length<n)return null; let t=0; for(let k=closes.length-n;k<closes.length;k++)t+=closes[k]; return t/n; };
-  return { px:closes[closes.length-1], ma5:ma(5), ma10:ma(10), ma20:ma(20), ma60:ma(60) };
+  const r=mkMA(closes); r.src='官方端點 '+fmtD(kept[kept.length-1].d); return r;
 }
 function strengthOf(data){
   if(!data||data.px==null)return null;
   const px=data.px;
-  const lvls=[data.ma5,data.ma10,data.ma20,data.ma60].map(m=>m!=null?px>=m:null);
-  const valid=lvls.filter(x=>x!=null);
-  const up=valid.filter(Boolean).length;
-  return {px,up,total:valid.length};
+  const ns=[5,10,20,60], mas=[data.ma5,data.ma10,data.ma20,data.ma60];
+  const det=[]; let up=0,total=0;
+  ns.forEach((n,k)=>{ const m=mas[k]; if(m==null)return; total++; const ok=px>=m; if(ok)up++; det.push({n,ma:m,ok}); });
+  return {px,up,total,det,src:data.src||'',days:data.days||0};
 }
 function renderStrength(el,label,sub,st){
   if(!el)return;
@@ -1303,7 +1316,8 @@ function renderStrength(el,label,sub,st){
   else {col='#E08A3C';txt='偏空';}
   el.innerHTML=`${label}${subhtml} <b>${txt}</b> <span style="opacity:.7;font-size:15px">${st.up}/${st.total}</span>`;
   el.style.color=col; el.style.borderColor=col;
-  el.title=`${label}指數站上 ${st.up}/${st.total} 條均線（5/10/20/60）` + (st.up===0?'——全數跌破，空方，不建議追多':'');
+  const detail=(st.det||[]).map(d=>`MA${d.n} ${d.ma.toFixed(2)} ${d.ok?'站上':'跌破'}`).join('　');
+  el.title=`${label}指數 ${st.px.toFixed(2)}（${st.src}，共 ${st.days} 天資料）\n站上 ${st.up}/${st.total} 條均線\n${detail}` + (st.up===0?'\n全數跌破，空方，不建議追多':'');
 }
 async function updateStrength(){
   // 兩顆各自獨立更新（互不影響、也不影響主資料）
@@ -2921,13 +2935,13 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
 async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 
-// 把「某個推薦日」的推薦清單併入追蹤（已追蹤過的同一檔不再加入）
+// 把「某個推薦日」的推薦清單併入追蹤（同一天同一檔不重複；不同天重複推薦＝各自獨立一筆）
 function testIngestDay(date, snapshots){
   if(!date||!Array.isArray(snapshots))return 0;
-  const have=new Set(TEST_TRACK.entries.map(x=>x.code));
+  const have=new Set(TEST_TRACK.entries.map(x=>x.code+'|'+x.firstDate));
   let added=0;
   for(const s of snapshots){
-    if(have.has(s.code))continue;    // 前幾天推過了 → 不重複進表
+    if(have.has(s.code+'|'+date))continue;    // 只有「同一天同一檔」才算重複；隔天又被推薦＝另開一筆（各自的推薦價與移動停損）
     TEST_TRACK.entries.push({
       code:s.code, name:s.name||'', firstDate:date,
       entryPx:s.entryPx, mvStop:s.mvStop, mvWhy:s.mvWhy||'',
@@ -2938,7 +2952,7 @@ function testIngestDay(date, snapshots){
       // B 單（移動單）：一直照移動停損續抱，跌破才賣；沒觸及就一直抱（飛天）
       lotB:{done:false, date:null, px:null, why:''}
     });
-    have.add(s.code); added++;
+    have.add(s.code+'|'+date); added++;
   }
   return added;
 }
@@ -2991,12 +3005,13 @@ function testRefreshStatus(){
 async function testAutoSync(){
   await loadRecoHistory();
   await testLoad();
-  const recoDate = DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:null;
+  const recoDate = DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1-OFFSET]:null;   // 要跟 buildEasyView 用同一個基準日，否則切到「前一天」時對不到快照、永遠併不進來
   // 確保今天的推薦快照已存在（buildEasyView 會存；這裡若沒有就臨時算一份）
   let snap = recoDate?RECO_HIST[recoDate]:null;
   if(recoDate && !snap){ await buildEasyView(); snap=RECO_HIST[recoDate]; }
   let added=0;
-  if(recoDate && snap) added=testIngestDay(recoDate, snap);
+  // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
+  for(const d of Object.keys(RECO_HIST).sort()) added += testIngestDay(d, RECO_HIST[d]);
   testRefreshStatus();
   await testSave();
   return {added, date:recoDate};
@@ -3044,7 +3059,7 @@ function testRender(){
   const sumTot=sumReal+sumUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤檔數（每檔買2張）</s><b>${ents.length}</b></div>
+    <div class="sc"><s>追蹤筆數（每筆買2張）</s><b>${ents.length}</b></div>
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
