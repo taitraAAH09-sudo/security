@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V103</title>
+<title>盤後篩選台 V104</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -421,7 +421,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V103</span>
+    <h1>盤後篩選台</h1><span class="ver">V104</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2650,8 +2650,15 @@ $('#tblwrap').addEventListener('click',ev=>{
 const SIM_KEY='sim_trades_v2';
 let SIM=[];   // 交易流水：{name,code,qty,side:'buy'|'sell',px,date}
 let SIM_OPEN=new Set();   // 目前展開中的帳戶名字
+// 確保 fbUrl 有值：欄位空（例如手機第一次開、沒設定過）就自動偵測，讓跨裝置抓得到雲端
+async function ensureFbUrl(){
+  let u=$('#fbUrl').value.trim();
+  if(u)return u;
+  try{ u=await fbDetect(); }catch(e){ u=null; }
+  return u||'';
+}
 async function simLoad(){
-  // 先試雲端（跨裝置），有就用雲端；否則用本機
+  await ensureFbUrl();          // 手機沒設定過也能先找到雲端網址
   let cloud=null;
   try{ cloud=await simFbPull(); }catch(e){}
   if(Array.isArray(cloud)){ SIM=cloud; try{await store.set(SIM_KEY,SIM);}catch(e){} return; }
@@ -2662,8 +2669,14 @@ async function simSave(){
   try{ await simFbPush(); }catch(e){}   // 同步雲端，任何裝置都看得到同一份
 }
 function simFbEnd(){ const u=$('#fbUrl').value.trim().replace(/\/+$/,''); return u?`${u}/simtrades.json`:null; }
-async function simFbPush(){ const e=simFbEnd(); if(!e)return false;
-  try{ const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(SIM)}); return r.ok; }catch(err){ return false; } }
+async function simFbPush(force){ const e=simFbEnd(); if(!e)return false;
+  try{
+    if(!force && (!SIM||!SIM.length)){
+      const cur=await simFbPull();
+      if(Array.isArray(cur)&&cur.length)return false;
+    }
+    const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(SIM)}); return r.ok;
+  }catch(err){ return false; } }
 async function simFbPull(){ const e=simFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 function simPx(code){ const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
@@ -2809,6 +2822,7 @@ $('#btnSim').onclick=async()=>{ await simLoad(); await testLoad(); simRender(); 
 const TEST_KEY='test_track_v1';
 let TEST_TRACK={entries:[]};
 async function testLoad(){
+  await ensureFbUrl();          // 手機沒設定過也能先找到雲端網址
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
@@ -2824,8 +2838,14 @@ function testFbEnd(){
   const u=$('#fbUrl').value.trim().replace(/\/+$/,''); if(!u)return null;
   return `${u}/testtrack.json`;
 }
-async function testFbPush(){ const e=testFbEnd(); if(!e)return false;
-  try{ const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(TEST_TRACK)}); return r.ok; }catch(err){ return false; } }
+async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
+  try{
+    if(!force && (!TEST_TRACK.entries||!TEST_TRACK.entries.length)){
+      const cur=await testFbPull();
+      if(cur&&Array.isArray(cur.entries)&&cur.entries.length)return false;
+    }
+    const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(TEST_TRACK)}); return r.ok;
+  }catch(err){ return false; } }
 async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 
@@ -3137,7 +3157,8 @@ $('#testSync').onclick=async()=>{
 $('#testClear').onclick=async()=>{
   if(!confirm('確定清空 Test 追蹤紀錄？（雲端與本機都會清）'))return;
   TEST_TRACK={entries:[]};
-  await testSave(); testRender();
+  try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
+  await testFbPush(true); testRender();
 };
 $('#simMask').onclick=e=>{ if(e.target===$('#simMask'))$('#simMask').classList.remove('on'); };
 $('#simAdd').onclick=async()=>{
@@ -3154,7 +3175,7 @@ $('#simAdd').onclick=async()=>{
   SIM.push({name,code,qty,side,px,date:DB.dates[DB.dates.length-1]});
   await simSave(); $('#simCode').value=''; $('#simQty').value='1'; simRender();
 };
-$('#simClear').onclick=async()=>{ if(confirm('確定清空所有帳戶與交易紀錄？')){ SIM=[]; await simSave(); simRender(); } };
+$('#simClear').onclick=async()=>{ if(confirm('確定清空所有帳戶與交易紀錄？（雲端與本機都會清）')){ SIM=[]; try{await store.set(SIM_KEY,SIM);}catch(e){} await simFbPush(true); simRender(); } };
 // ── 個股檢查：模糊比對（代號或名稱）＋名單外自動抓 ──
 function ipCandidates(q){
   q=(q||'').trim(); if(!q)return [];
