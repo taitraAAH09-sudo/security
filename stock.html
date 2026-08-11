@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V142</title>
+<title>盤後篩選台 V144</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -91,15 +91,17 @@ a{color:var(--amber)}
 .failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
 .secctl{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.iconbtn{background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:16px;line-height:1;font-weight:700}
+.iconbtn:hover{border-color:var(--amber);color:var(--amber)}
 .sechd{font-size:14px;font-weight:800;margin:4px 0 6px}
 .secdiv{height:1px;background:var(--line);margin:18px 0 14px}
-.sectop{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px}
-.sectopc{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.sectop{display:flex;flex-direction:column;gap:5px;margin-bottom:4px}
+.sectopc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;display:grid;grid-template-columns:34px 1fr 92px auto;gap:12px;align-items:center;cursor:pointer}
 .sectopc:hover{border-color:var(--amber)}
-.sectopc .strk{font-size:20px;line-height:1;color:var(--amber);font-weight:800}
-.sectopc .stnm{font-weight:800;font-size:14px;text-align:center}
-.sectopc .stpc{font-family:var(--mono);font-weight:800;font-size:16px}
-@media(max-width:760px){.sectop{grid-template-columns:repeat(2,1fr)}}
+.sectopc .strk{font-size:22px;line-height:1;color:var(--amber);font-weight:800;text-align:center}
+.sectopc .stnm{font-weight:800;font-size:15px}
+.sectopc .stpc{font-family:var(--mono);font-weight:800;font-size:17px;text-align:right}
+@media(max-width:760px){.sectopc{grid-template-columns:28px 1fr 78px;}.sectopc .secma{display:none}}
 .sectbl{display:flex;flex-direction:column;gap:3px}
 .secrow{display:grid;grid-template-columns:30px 116px 1fr 72px 66px 72px 96px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
 .secrow:nth-child(odd){background:var(--panel2)}
@@ -114,6 +116,10 @@ a{color:var(--amber)}
 .secma{display:flex;gap:4px;justify-content:flex-end}
 .secma em{font-style:normal;font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
 .secma em.on{border-color:var(--up);color:var(--up);font-weight:800}
+.secflag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.secflag.today{background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5)}
+.secflag.hold{background:rgba(242,181,68,.14);color:var(--amber);border:1px solid rgba(242,181,68,.45)}
+.secflag.past{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--line)}
 @media(max-width:760px){.secrow{grid-template-columns:24px 88px 1fr 62px 62px;}.secma{display:none}}
 .calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .calhd b{font-family:var(--mono);font-size:17px}
@@ -487,7 +493,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V142</span>
+    <h1>盤後篩選台</h1><span class="ver">V144</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3306,13 +3312,13 @@ async function buildSectorCodes(force){
       if(F&&D){ const iC=F.indexOf('證券代號'), iN=F.indexOf('證券名稱');
         for(const r of D){ const c=String(r[iC]||'').trim(); if(/^\d{4}$/.test(c))mem.push({code:c,name:String(r[iN]||'').trim()}); } }
       if(hit){ DB.secCode[hit]=tp; if(mem.length)DB.secMembers[hit]=mem; }
-      else if(title) unmatched.push(title.replace(/^\d+年\d+月\d+日\s*/,'').replace(/每日收盤行情.*$/,'').trim());
+      else if(title) unmatched.push(titles.map(x=>String(x).replace(/\d+年\d+月\d+日/g,'').replace(/每日收盤行情|各類指數|漲跌幅度|成交統計/g,'').trim()).filter(Boolean).join('/'));
     }catch(e){}
     await sleep(240);
   }
   try{ await store.set(KEY,DB); }catch(e){}
   if(note)note.textContent = `對照表完成：認出 ${Object.keys(DB.secCode).length} 個類股`
-    + (unmatched.length?`（沒對上：${unmatched.filter(Boolean).slice(0,6).join('、')}）`:'');
+    + ((()=>{const u=[...new Set(unmatched.filter(Boolean))]; return u.length?`（沒對上：${u.slice(0,6).join('、')}）`:'';})());
   return DB.secCode;
 }
 // 點某個類股 → 抓那一類的成分股當日行情，依漲跌排序
@@ -3358,18 +3364,30 @@ async function openSectorStocks(name){
   rows=rows.filter(r=>r.c!=null||r.name);
   rows.sort((a,b)=>(b.chg==null?-99:b.chg)-(a.chg==null?-99:a.chg));
   // 今天推薦清單裡有的標出來
-  const picks=new Set(((RECO_HIST||{})[(DB.dates||[]).slice(-1)[0]]||[]).map(x=>x.code));
+  // 系統推薦過的標出來：今天推薦 / 追蹤中（還沒出場）/ 之前推薦過
+  const RH=RECO_HIST||{}, allDays=Object.keys(RH).sort();
+  const todayPicks=new Set((RH[allDays[allDays.length-1]]||[]).map(x=>x.code));
+  const everPick={};
+  for(const dd of allDays)for(const x of (RH[dd]||[]))everPick[x.code]=dd;      // 留最後一次被推薦的日子
+  const holding={};
+  for(const en of (TEST_TRACK.entries||[])){
+    const closed=(en.lotA&&en.lotA.done)&&(en.lotB&&en.lotB.done);
+    if(!closed)holding[en.code]=en.firstDate;
+  }
+  const mark=c=> todayPicks.has(c) ? '<span class="secflag today">⭐ 今日推薦</span>'
+              : holding[c]        ? `<span class="secflag hold">追蹤中 ${fmtD(holding[c])}</span>`
+              : everPick[c]       ? `<span class="secflag past">曾推薦 ${fmtD(everPick[c])}</span>` : '';
   box.innerHTML=`<div class="secdhd"><b>${name}</b>　${rows.length} 檔　·　依當日漲跌排序
       <button class="calnav" id="secClose" style="margin-left:auto">關閉</button></div>
     <div class="sectbl">${rows.map(r=>`
       <div class="secrow">
-        <span class="secrk">${picks.has(r.code)?'⭐':''}</span>
+        <span class="secrk"></span>
         <span class="secnm secgo" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted">${r.code} ${r.name}</span>
-        <span></span><span></span><span></span>
+        <span>${mark(r.code)}</span><span></span><span></span>
         <span class="secpc">${r.c==null?'—':r.c.toFixed(2)}</span>
         <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg==null?'—':(r.chg>0?'+':'')+r.chg.toFixed(2)+'%'}</span>
       </div>`).join('')}</div>
-    <div class="ihint" style="margin-top:6px">⭐＝今天推薦清單裡也有這一檔．點股票名看 K 線</div>`;
+    <div class="ihint" style="margin-top:6px">⭐今日推薦＝今天的推薦清單有這一檔；追蹤中＝之前推薦過、兩張單還沒出場；曾推薦＝推過但已結案．點股票名看 K 線</div>`;
   const cl=$('#secClose'); if(cl)cl.onclick=()=>{ box.style.display='none'; box.innerHTML=''; };
   box.querySelectorAll('.secgo').forEach(el=>el.onclick=()=>{ $('#easyMask').classList.remove('on'); drawChart(el.dataset.code); });
 }
@@ -3423,7 +3441,7 @@ async function renderSectors(auto){
 
   box.innerHTML=`<div class="secctl">
       <button class="testbtn" id="secFill">↻ 補抓過去 25 天</button>
-      <button class="testbtn" id="secMap">🧭 重建類股對照表</button>
+      <button class="testbtn iconbtn" id="secMap" title="重建類股對照表：重新掃描各產業的成分股名單。點類股出現「找不到成分股」時才需要按。">⟳</button>
       <span class="testnote" id="secNote">目前有 ${days.length} 個交易日的類股資料${days.length<20?'（滿 20 天才會顯示 20 日均線標記）':''}</span>
     </div>
     <div id="secDetail" style="display:none;margin-bottom:12px"></div>
