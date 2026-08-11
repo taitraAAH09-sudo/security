@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V161</title>
+<title>盤後篩選台 V163</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -86,10 +86,12 @@ a{color:var(--amber)}
 .stampslot{width:150px;display:flex}
 .stampslot.l{justify-content:flex-end}
 .stampslot.r{justify-content:flex-start}
-.donestamp{position:relative;padding:5px 20px;border:4px solid var(--amber);border-radius:6px;color:var(--amber);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(242,181,68,.06);box-shadow:0 0 0 1px rgba(242,181,68,.35) inset}
-.donestamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--amber);border-radius:4px;opacity:.7}
-.failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
+.donestamp{position:relative;padding:6px 22px;border:4px double var(--amber);border-radius:6px;color:#1a1408;font-family:var(--mono);font-weight:900;font-size:30px;letter-spacing:5px;transform:rotate(-13deg);opacity:1;background:var(--amber);box-shadow:0 3px 10px rgba(242,181,68,.35)}
+.donestamp::after{content:'✓';position:absolute;top:-9px;left:-11px;font-size:19px;color:var(--amber);background:var(--panel);border:2px solid var(--amber);border-radius:50%;width:26px;height:26px;line-height:23px;text-align:center}
+.failstamp{position:relative;padding:5px 18px;border:3px dashed var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:25px;letter-spacing:4px;transform:rotate(8deg);opacity:.82;background:transparent}
+.failstamp::after{content:'✕';position:absolute;top:-8px;right:-10px;font-size:17px;color:var(--up);background:var(--panel);border:2px solid var(--up);border-radius:50%;width:24px;height:24px;line-height:21px;text-align:center}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
+.donestamp i{color:#2a2008}
 .secctl{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
 .iconbtn{background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:16px;line-height:1;font-weight:700}
 .iconbtn:hover{border-color:var(--amber);color:var(--amber)}
@@ -153,6 +155,8 @@ a{color:var(--amber)}
 .rptlist{line-height:2;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .rpttag{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 10px;margin:2px 4px 2px 0;color:var(--paper);font-weight:700}
 .rpttag i{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;font-weight:400}
+.whyq{display:inline-block;margin-left:5px;width:14px;height:14px;line-height:13px;text-align:center;border:1px solid var(--line);border-radius:50%;font-style:normal;font-size:10px;color:var(--dim);cursor:help}
+.eg.stop{cursor:help}
 .epnl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px}
 .epnl .epl{font-size:14px;font-weight:800}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
@@ -220,7 +224,9 @@ a{color:var(--amber)}
 .plpart b{font-family:var(--mono);font-weight:800;font-size:16px}
 .plpart s{text-decoration:none;font-size:10px;opacity:.65;font-weight:400}
 .tflag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle;white-space:nowrap}
-.tflag.done{background:rgba(255,255,255,.10);color:var(--dim);border:1px solid var(--line)}
+.tflag.win{background:var(--amber);color:#1a1408;border:1px solid var(--amber);letter-spacing:.5px}
+.tflag.lose{background:transparent;color:var(--up);border:1px dashed var(--up);letter-spacing:.5px}
+.tflag.even{background:rgba(255,255,255,.08);color:var(--dim);border:1px solid var(--line)}
 .tflag.half{background:rgba(229,72,77,.16);color:#E5484D;border:1px solid rgba(229,72,77,.45)}
 .tstat{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .tstat.hold{background:rgba(111,168,220,.16);color:#6FA8DC;border:1px solid rgba(111,168,220,.4)}
@@ -510,7 +516,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V161</span>
+    <h1>盤後篩選台</h1><span class="ver">V163</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3693,16 +3699,21 @@ function testRender(){
           let aTxt,aCls;
           if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
           else {aTxt='等漲到 '+(r.entryPx!=null?(r.entryPx*1.05).toFixed(2):'+5%');aCls='hold';}
+          const why = (r.mvWhy||'依系統規則推算')
+            + '（依據順序：近5根爆量的最低價 → 近10根未封閉缺口的下緣 → 守住率最高的均線；若與 20MA 相差 1.5% 內就統一看 20MA）';
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
-          else {bTxt='續抱中';bCls='hold';}
+          else {bTxt=`續抱中${r.mvStop!=null?`　停損 ${(+r.mvStop).toFixed(2)}`:''}`;bCls='hold';}
           const pl=testPnL(r);
           const plv=pl?pl.total:null;
           const plTxt = plv==null?'—':`${plv>0?'+':''}${Math.round(plv).toLocaleString()}`;
           const bothOut=a.done&&b.done;
-          // 名字後面直接標狀態：兩張都賣掉＝done；只賣掉 A 單＝還剩 B 單抱著
-          const flag = bothOut ? '<span class="tflag done">done</span>'
-                    : a.done ? '<span class="tflag half">剩②續抱</span>' : '';
+          // 名字後面直接標結果：兩張都出場後看合計賺賠 → 賺＝DONE、賠＝FAIL；只賣掉①＝還剩②抱著
+          const flag = bothOut
+              ? (plv>0 ? '<span class="tflag win">✓ DONE</span>'
+                : plv<0 ? '<span class="tflag lose">✕ FAIL</span>'
+                        : '<span class="tflag even">— 打平</span>')
+              : a.done ? '<span class="tflag half">剩②續抱</span>' : '';
           // 盈虧：已實現與未實現各自一格、並排顯示（一張賣掉、另一張還抱著時看得出誰是誰）
           const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
           let plHTML='—';
@@ -3718,7 +3729,7 @@ function testRender(){
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
             <span>${px!=null?(+px).toFixed(2):'—'}</span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
-            <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
+            <span class="tstat ${bCls}" title="${why.replace(/"/g,'')}" style="cursor:help">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
             ${plHTML}
           </div>`;
         }).join('')}
@@ -3892,6 +3903,9 @@ function easyCardHTML(entry, firstDate){
   const pnlTxt = st.pl==null?'' : `${money(st.pl)} 元`;
   // 停損顯示追蹤那邊已經上移到的值（快照裡的 mvStop 是推薦當天的初始值，會跟追蹤成績對不起來）
   const curStop = (L&&L.stop!=null)?L.stop:entry.mvStop;
+  // 停損依據：優先用追蹤那筆記下的 mvWhy，沒有才用快照的
+  const stopWhy = ((L&&L.mvWhy)||entry.mvWhy||'依系統規則推算')
+    .replace(/"/g,'')+'（依據順序：近5根爆量的最低價 → 近10根未封閉缺口的下緣 → 守住率最高的均線；若與 20MA 相差 1.5% 內就統一看 20MA）';
   // 兩張合計損益，擺在四個方塊的正上方
   const lotLine = L ? `<div class="epnl">
       <span class="epl ${st.pl>0?'up':st.pl<0?'dn':''}">兩張合計 <b>${money(st.pl)}</b> 元</span>
@@ -3917,7 +3931,7 @@ function easyCardHTML(entry, firstDate){
     ${lotLine}
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
-      <div class="eg stop"><s>移動停損（會往上移）</s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
+      <div class="eg stop" title="${stopWhy}"><s>移動停損（會往上移）<em class="whyq">?</em></s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
       <div class="eg tp"><s>停利目標（賣一半）</s><b>${tp5!=null?tp5.toFixed(2):'—'}</b></div>
       <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
     </div>
