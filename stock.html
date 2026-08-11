@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V137</title>
+<title>盤後篩選台 V138</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -90,6 +90,7 @@ a{color:var(--amber)}
 .donestamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--amber);border-radius:4px;opacity:.7}
 .failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
+.secctl{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
 .sectbl{display:flex;flex-direction:column;gap:3px}
 .secrow{display:grid;grid-template-columns:30px 116px 1fr 78px 96px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
 .secrow:nth-child(odd){background:var(--panel2)}
@@ -475,7 +476,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V137</span>
+    <h1>盤後篩選台</h1><span class="ver">V138</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -883,28 +884,7 @@ async function fetchTse(d,keep){
       }
     }
   }catch(e){}
-  // 順便收「各類股指數」：族群強弱就從這裡來，不必另外連網
-  try{
-    if(Array.isArray(j.tables))for(const t of j.tables){
-      const f=t.fields||[], dd=t.data||[];
-      const iN=f.findIndex(x=>/指數/.test(String(x)));
-      const iC=f.findIndex(x=>/收盤指數|收盤/.test(String(x)));
-      const iP=f.findIndex(x=>/漲跌百分比|漲跌幅|漲跌\(%\)/.test(String(x)));
-      const iS=f.findIndex(x=>/^漲跌$|漲跌\(\+\/-\)/.test(String(x)));
-      const iD=f.findIndex(x=>/漲跌點數|漲跌指數/.test(String(x)));
-      if(iN<0||iC<0)continue;
-      for(const r of dd){
-        const nm=String(r[iN]||'').trim();
-        if(!/類指數$/.test(nm))continue;                 // 只收「XX類指數」，跳過大盤與未含金電那幾條
-        const c=num(String(r[iC]).replace(/,/g,'')); if(c==null)continue;
-        let chg=iP>=0?num(String(r[iP]).replace(/,/g,'')):null;
-        if(chg!=null && iS>=0 && /-/.test(String(r[iS])))chg=-Math.abs(chg);   // 有些欄位把正負號放在另一欄
-        if(chg==null && iD>=0){ const pt=num(String(r[iD]).replace(/,/g,'')); if(pt!=null&&c-pt!==0)chg=pt/(c-pt)*100; }
-        DB.secHist=DB.secHist||{}; DB.secHist[d]=DB.secHist[d]||{};
-        DB.secHist[d][nm.replace(/類指數$/,'')]={c, chg:chg!=null?+chg.toFixed(2):null};
-      }
-    }
-  }catch(e){}
+  captureSectors(j,d);   // 順便收各類股指數（族群強弱用）
   let F=null,D=null;
   if(Array.isArray(j.tables))for(const t of j.tables)
     if(t.fields&&t.fields.includes('證券代號')&&t.fields.some(f=>/收盤價/.test(f))){F=t.fields;D=t.data;break;}
@@ -3225,13 +3205,69 @@ async function switchEasyTab(which){
   if(which==='test'){ await loadRecoHistory(); await testLoad(); testRender(); }
   if(which==='sec') renderSectors();
 }
+// 從 MI_INDEX 回應裡把「各類股指數」撿出來存進 DB.secHist[日期]
+function captureSectors(j,d){
+  try{
+    if(!Array.isArray(j.tables))return 0;
+    let n=0;
+    for(const t of j.tables){
+      const f=t.fields||[], dd=t.data||[];
+      const iN=f.findIndex(x=>/指數/.test(String(x)));
+      const iC=f.findIndex(x=>/收盤指數|收盤/.test(String(x)));
+      const iP=f.findIndex(x=>/漲跌百分比|漲跌幅/.test(String(x)));
+      const iS=f.findIndex(x=>/^漲跌$|漲跌\(\+\/-\)/.test(String(x)));
+      const iD=f.findIndex(x=>/漲跌點數|漲跌指數/.test(String(x)));
+      if(iN<0||iC<0)continue;
+      for(const r of dd){
+        const nm=String(r[iN]||'').trim();
+        if(!/類指數$/.test(nm))continue;                 // 只收「XX類指數」，排除大盤與未含金電那幾條
+        const c=num(String(r[iC]).replace(/,/g,'')); if(c==null)continue;
+        let chg=iP>=0?num(String(r[iP]).replace(/,/g,'')):null;
+        if(chg!=null && iS>=0 && /-/.test(String(r[iS])))chg=-Math.abs(chg);
+        if(chg==null && iD>=0){ const pt=num(String(r[iD]).replace(/,/g,'')); if(pt!=null&&c-pt!==0)chg=pt/(c-pt)*100; }
+        DB.secHist=DB.secHist||{}; DB.secHist[d]=DB.secHist[d]||{};
+        DB.secHist[d][nm.replace(/類指數$/,'')]={c, chg:chg!=null?+chg.toFixed(2):null}; n++;
+      }
+    }
+    return n;
+  }catch(e){ return 0; }
+}
+// 補抓過去 N 個交易日的類股指數（打的是跟主資料同一支已證實可用的 MI_INDEX，不必等明天更新）
+let SEC_BUSY=false;
+async function backfillSectors(n){
+  if(SEC_BUSY)return 0;
+  SEC_BUSY=true;
+  const note=$('#secNote');
+  try{
+    const days=(DB.dates||[]).slice(-n).filter(d=>!(DB.secHist&&DB.secHist[d]));
+    let ok=0;
+    for(let i=0;i<days.length;i++){
+      const d=days[i];
+      if(note)note.textContent=`抓取中… ${i+1}/${days.length}（${fmtD(d)}）`;
+      try{
+        const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${d}&type=ALLBUT0999&response=json`);
+        if(captureSectors(j,d))ok++;
+      }catch(e){}
+      await sleep(260);
+    }
+    try{ await store.set(KEY,DB); }catch(e){}
+    if(note)note.textContent = ok?`✓ 補齊 ${ok} 個交易日`:'沒抓到新資料（可能已經齊了或端點暫時不通）';
+    return ok;
+  } finally { SEC_BUSY=false; }
+}
 // 今日產業：用更新並篩選時順手收下來的各類股指數，排出當天最強的族群
-function renderSectors(){
+async function renderSectors(auto){
   const box=$('#easyPaneSec'); if(!box)return;
-  const SH=DB.secHist||{};
-  const days=Object.keys(SH).sort();
+  let SH=DB.secHist||{};
+  let days=Object.keys(SH).sort();
+  // 沒資料（或只有一天、算不出漲跌）就直接去補抓過去 25 個交易日，不必等明天更新
+  if(auto!==false && days.length<2 && (DB.dates||[]).length){
+    box.innerHTML='<div class="secctl"><span class="testnote" id="secNote">準備抓取類股指數…</span></div>';
+    await backfillSectors(25);
+    SH=DB.secHist||{}; days=Object.keys(SH).sort();
+  }
   if(!days.length){
-    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有產業資料。<br>類股指數是「更新並篩選」時順便收下來的，<b>按一次更新</b>之後這裡就會有東西。</div>';
+    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">抓不到類股指數。<br>證交所端點可能暫時不通，稍後再點一次「🏭 今日產業」試試。</div>';
     return;
   }
   const d=days[days.length-1], today=SH[d], prev=days.length>1?SH[days[days.length-2]]:null;
@@ -3245,12 +3281,17 @@ function renderSectors(){
     return {name, c:cur.c, chg, up5:m5!=null?cur.c>=m5:null, up20:m20!=null?cur.c>=m20:null};
   }).filter(r=>r.chg!=null).sort((a,b)=>b.chg-a.chg);
   if(!rows.length){
-    box.innerHTML=`<div class="ihint" style="padding:24px 0;text-align:center">目前只有 ${d.slice(4,6)}/${d.slice(6)} 一天的類股資料，還算不出漲跌。<br>明天再更新一次就有了。</div>`;
+    box.innerHTML=`<div class="secctl"><button class="testbtn" id="secFill">↻ 補抓過去 25 天</button><span class="testnote" id="secNote">目前只有 ${fmtD(d)} 一天的資料，算不出漲跌</span></div>`;
+    const b0=$('#secFill'); if(b0)b0.onclick=async()=>{ await backfillSectors(25); renderSectors(false); };
     return;
   }
   const max=Math.max(...rows.map(r=>Math.abs(r.chg)))||1;
   const strong=rows.filter(r=>r.chg>0).length;
-  box.innerHTML=`<div class="ihint" style="margin-bottom:10px">📅 ${fmtD(d)} 收盤．上市 ${rows.length} 個類股，<b>${strong}</b> 個收紅。
+  box.innerHTML=`<div class="secctl">
+      <button class="testbtn" id="secFill">↻ 補抓過去 25 天</button>
+      <span class="testnote" id="secNote">目前有 ${days.length} 個交易日的類股資料${days.length<20?'（滿 20 天才會顯示 20 日均線標記）':''}</span>
+    </div>
+    <div class="ihint" style="margin-bottom:10px">📅 ${fmtD(d)} 收盤．上市 ${rows.length} 個類股，<b>${strong}</b> 個收紅。
       由強到弱排序，紅漲綠跌${days.length>=5?'；站上均線代表族群不是只有今天強':''}。這是族群強弱，不是個股建議。</div>
     <div class="sectbl">${rows.map((r,i)=>`
       <div class="secrow">
@@ -3260,6 +3301,8 @@ function renderSectors(){
         <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}%</span>
         <span class="secma">${r.up5==null?'':`<em class="${r.up5?'on':''}">5日</em>`}${r.up20==null?'':`<em class="${r.up20?'on':''}">20日</em>`}</span>
       </div>`).join('')}</div>`;
+  const b=$('#secFill');
+  if(b)b.onclick=async()=>{ await backfillSectors(25); renderSectors(false); };
 }
 function testDaysHeld(firstDate){
   // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
