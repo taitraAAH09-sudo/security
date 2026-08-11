@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V160</title>
+<title>盤後篩選台 V161</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -510,7 +510,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V160</span>
+    <h1>盤後篩選台</h1><span class="ver">V161</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3224,8 +3224,12 @@ function testRefreshStatus(){
       // A 單（賣一半）：基準固定是「推薦那天的收盤價」，之後任何一天收盤比推薦價高 ≥5% 就賣掉入袋
       // （不是拿每天的前一日收盤重算，基準不會隨著日子往上跑）
       if(!A.done && base!=null && base>0 && (c-base)/base>=0.05){ A.done=true; A.date=DB.dates[i]; A.px=c; A.why='比推薦價漲≥5%'; }
-      // B 單（另一半）：照移動停損，當天收盤跌破移動停損才賣；沒觸及就一直抱
-      if(!B.done && curStop!=null && c<curStop){ B.done=true; B.date=DB.dates[i]; B.px=c; B.why='移動停損'; }
+      // ②續抱：照移動停損，當天收盤跌破就賣；沒觸及就一直抱
+      // 跌破移動停損＝趨勢壞了 → 兩張一起出場，①若還沒到 +5% 也用同一天收盤認賠
+      if(!B.done && curStop!=null && c<curStop){
+        B.done=true; B.date=DB.dates[i]; B.px=c; B.why='移動停損';
+        if(!A.done){ A.done=true; A.date=DB.dates[i]; A.px=c; A.why='跟著移動停損一起出場'; }
+      }
       if(A.done && B.done)break;
     }
     en.lotA=A; en.lotB=B;
@@ -3859,7 +3863,7 @@ function easyLots(entry, firstDate){
     if(mv&&mv.price!=null&&(cur==null||mv.price>cur))cur=mv.price;
     if(i===i0)continue;
     if(!A && base>0 && (c-base)/base>=0.05)A={px:c,date:DB.dates[i]};
-    if(!B && cur!=null && c<cur)B={px:c,date:DB.dates[i]};
+    if(!B && cur!=null && c<cur){ B={px:c,date:DB.dates[i]}; if(!A)A={px:c,date:DB.dates[i]}; }   // 跌破就兩張一起出
     if(A&&B)break;
   }
   let last=null; for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null){last=s.c[i];break;}
@@ -3899,7 +3903,7 @@ function easyCardHTML(entry, firstDate){
   if(exited)statusBadge=`<span class="estatus out">兩張都出場 · 收工</span>`;
   else if(won)statusBadge=`<span class="estatus tp">兩張都出場 · 收工</span>`;
   else if(L&&L.A&&!L.B)statusBadge=`<span class="estatus tp">①已賣 +5% 落袋 · ②續抱中</span>`;
-  else if(L&&L.B&&!L.A)statusBadge=`<span class="estatus out">②已停損出場 · ①仍等 +5%</span>`;
+
   return `<div class="ecard${st.settled?' exited':''}">
     ${(won||exited)?`<div class="stamps">
       <span class="stampslot l">${won?`<span class="donestamp">DONE<i>${pnlTxt}</i></span>`:''}</span>
