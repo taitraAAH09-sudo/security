@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V138</title>
+<title>盤後篩選台 V140</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -91,9 +91,20 @@ a{color:var(--amber)}
 .failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
 .secctl{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.sechd{font-size:14px;font-weight:800;margin:4px 0 6px}
+.secdiv{height:1px;background:var(--line);margin:18px 0 14px}
+.sectop{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px}
+.sectopc{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.sectopc:hover{border-color:var(--amber)}
+.sectopc .strk{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.sectopc .stnm{font-weight:800;font-size:14px;text-align:center}
+.sectopc .stpc{font-family:var(--mono);font-weight:800;font-size:16px}
+@media(max-width:760px){.sectop{grid-template-columns:repeat(2,1fr)}}
 .sectbl{display:flex;flex-direction:column;gap:3px}
 .secrow{display:grid;grid-template-columns:30px 116px 1fr 78px 96px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
 .secrow:nth-child(odd){background:var(--panel2)}
+.secrow.secpick:hover{background:rgba(242,181,68,.12)}
+.secdhd{display:flex;align-items:center;gap:10px;padding:6px 8px;font-size:13px}
 .secrk{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right}
 .secnm{font-weight:700;font-size:13px}
 .secbar{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
@@ -476,7 +487,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V138</span>
+    <h1>盤後篩選台</h1><span class="ver">V140</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -485,7 +496,7 @@ tbody tr{cursor:pointer}
     <button class="simbtn" id="btnSim">模擬下單</button>
   </div>
   <div class="hbtnbar">
-    <button class="secbtn" id="btnSector" title="今天哪些族群最強（依上市各類股指數漲跌排序）">🏭 今日產業</button>
+    <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋近期持續強勢的產業">🏭 近期產業</button>
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
@@ -514,7 +525,7 @@ tbody tr{cursor:pointer}
     <div class="simtabs">
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
-      <button class="simtab" id="easyTabSec">🏭 今日產業</button>
+      <button class="simtab" id="easyTabSec">🏭 近期產業</button>
     </div>
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
@@ -3194,7 +3205,7 @@ async function testAutoSync(){
   await testSave();
   return {added, date:recoDate};
 }
-// 新手看盤視窗的三個分頁：推薦清單 / 追蹤成績 / 今日產業
+// 新手看盤視窗的三個分頁：推薦清單 / 追蹤成績 / 近期產業
 async function switchEasyTab(which){
   $('#easyTabReco').classList.toggle('on',which==='reco');
   $('#easyTabTest').classList.toggle('on',which==='test');
@@ -3255,7 +3266,75 @@ async function backfillSectors(n){
     return ok;
   } finally { SEC_BUSY=false; }
 }
-// 今日產業：用更新並篩選時順手收下來的各類股指數，排出當天最強的族群
+// 類股名 → MI_INDEX 的 type 代碼。不寫死代碼表，改掃一次 01~38、從回應標題認出是哪個類股。
+async function buildSectorCodes(){
+  if(DB.secCode && Object.keys(DB.secCode).length) return DB.secCode;
+  const note=$('#secNote');
+  const d=(DB.dates||[]).slice(-1)[0]; if(!d)return null;
+  const names=Object.keys((DB.secHist&&DB.secHist[d])||{});
+  DB.secCode=DB.secCode||{};
+  for(let t=1;t<=38;t++){
+    const tp=String(t).padStart(2,'0');
+    if(note)note.textContent=`建立類股對照表… ${t}/38`;
+    try{
+      const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${d}&type=${tp}&response=json`);
+      const title=String((j&&j.title)||'');
+      // 標題像「115年08月10日 水泥工業 每日收盤行情」→ 找出是哪個類股
+      const hit=names.filter(n=>title.includes(n)).sort((a,b)=>b.length-a.length)[0];
+      if(hit)DB.secCode[hit]=tp;
+    }catch(e){}
+    await sleep(240);
+  }
+  try{ await store.set(KEY,DB); }catch(e){}
+  return DB.secCode;
+}
+// 點某個類股 → 抓那一類的成分股當日行情，依漲跌排序
+async function openSectorStocks(name){
+  const box=$('#secDetail'); if(!box)return;
+  const d=(DB.dates||[]).slice(-1)[0];
+  box.style.display='block';
+  box.innerHTML=`<div class="ihint">讀取 ${name} 成分股…</div>`;
+  let code=(DB.secCode||{})[name];
+  if(!code){ await buildSectorCodes(); code=(DB.secCode||{})[name]; }
+  if(!code){ box.innerHTML=`<div class="ihint">找不到 ${name} 的類股代碼，證交所端點可能暫時不通。</div>`; return; }
+  let rows=[];
+  try{
+    const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${d}&type=${code}&response=json`);
+    let F=null,D=null;
+    if(Array.isArray(j.tables))for(const t of j.tables)
+      if(t.fields&&t.fields.includes('證券代號')&&t.fields.some(f=>/收盤價/.test(f))){F=t.fields;D=t.data;break;}
+    if(F&&D){
+      const iC=F.indexOf('證券代號'), iN=F.indexOf('證券名稱'),
+            iP=F.findIndex(f=>/收盤價/.test(f)), iS=F.findIndex(f=>/漲跌\(\+\/-\)/.test(f)),
+            iD=F.findIndex(f=>/漲跌價差/.test(f));
+      for(const r of D){
+        const c=num(r[iP]); if(c==null)continue;
+        let diff=iD>=0?num(r[iD]):null;
+        if(diff!=null && iS>=0 && /-/.test(String(r[iS])))diff=-Math.abs(diff);
+        rows.push({code:String(r[iC]).trim(), name:String(r[iN]).trim(), c,
+          chg: (diff!=null && c-diff!==0) ? diff/(c-diff)*100 : null});
+      }
+    }
+  }catch(e){}
+  if(!rows.length){ box.innerHTML=`<div class="ihint">抓不到 ${name} 的成分股行情，稍後再試。</div>`; return; }
+  rows.sort((a,b)=>(b.chg==null?-99:b.chg)-(a.chg==null?-99:a.chg));
+  // 今天推薦清單裡有的標出來
+  const picks=new Set(((RECO_HIST||{})[(DB.dates||[]).slice(-1)[0]]||[]).map(x=>x.code));
+  box.innerHTML=`<div class="secdhd"><b>${name}</b>　${rows.length} 檔　·　依當日漲跌排序
+      <button class="calnav" id="secClose" style="margin-left:auto">關閉</button></div>
+    <div class="sectbl">${rows.map(r=>`
+      <div class="secrow">
+        <span class="secrk">${picks.has(r.code)?'⭐':''}</span>
+        <span class="secnm secgo" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted">${r.code} ${r.name}</span>
+        <span></span>
+        <span class="secpc">${r.c.toFixed(2)}</span>
+        <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg==null?'—':(r.chg>0?'+':'')+r.chg.toFixed(2)+'%'}</span>
+      </div>`).join('')}</div>
+    <div class="ihint" style="margin-top:6px">⭐＝今天推薦清單裡也有這一檔．點股票名看 K 線</div>`;
+  const cl=$('#secClose'); if(cl)cl.onclick=()=>{ box.style.display='none'; box.innerHTML=''; };
+  box.querySelectorAll('.secgo').forEach(el=>el.onclick=()=>{ $('#easyMask').classList.remove('on'); drawChart(el.dataset.code); });
+}
+// 近期產業：上半部＝今日最強 TOP 5，分隔線下＝站上 5 日／20 日均線的持續強勢族群
 async function renderSectors(auto){
   const box=$('#easyPaneSec'); if(!box)return;
   let SH=DB.secHist||{};
@@ -3267,7 +3346,7 @@ async function renderSectors(auto){
     SH=DB.secHist||{}; days=Object.keys(SH).sort();
   }
   if(!days.length){
-    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">抓不到類股指數。<br>證交所端點可能暫時不通，稍後再點一次「🏭 今日產業」試試。</div>';
+    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">抓不到類股指數。<br>證交所端點可能暫時不通，稍後再點一次「🏭 近期產業」試試。</div>';
     return;
   }
   const d=days[days.length-1], today=SH[d], prev=days.length>1?SH[days[days.length-2]]:null;
@@ -3287,22 +3366,46 @@ async function renderSectors(auto){
   }
   const max=Math.max(...rows.map(r=>Math.abs(r.chg)))||1;
   const strong=rows.filter(r=>r.chg>0).length;
+  const maBadge=r=>`${r.up5==null?'':`<em class="${r.up5?'on':''}">5日</em>`}${r.up20==null?'':`<em class="${r.up20?'on':''}">20日</em>`}`;
+  const top5=rows.slice(0,5);
+  // 下半部＝近期持續強勢的（站上自己的 5 日或 20 日均線），資料不足就先列全部
+  const hasMA=rows.some(r=>r.up5!=null||r.up20!=null);
+  const steady=hasMA ? rows.filter(r=>r.up5||r.up20) : rows;
+
   box.innerHTML=`<div class="secctl">
       <button class="testbtn" id="secFill">↻ 補抓過去 25 天</button>
       <span class="testnote" id="secNote">目前有 ${days.length} 個交易日的類股資料${days.length<20?'（滿 20 天才會顯示 20 日均線標記）':''}</span>
     </div>
-    <div class="ihint" style="margin-bottom:10px">📅 ${fmtD(d)} 收盤．上市 ${rows.length} 個類股，<b>${strong}</b> 個收紅。
-      由強到弱排序，紅漲綠跌${days.length>=5?'；站上均線代表族群不是只有今天強':''}。這是族群強弱，不是個股建議。</div>
-    <div class="sectbl">${rows.map((r,i)=>`
-      <div class="secrow">
+    <div id="secDetail" style="display:none;margin-bottom:12px"></div>
+
+    <div class="sechd">⭐ 今日最強族群 TOP 5</div>
+    <div class="ihint" style="margin-bottom:8px">📅 ${fmtD(d)} 收盤．上市 ${rows.length} 個類股，<b>${strong}</b> 個收紅。<b>點任一個看成分股</b>。</div>
+    <div class="sectop">${top5.map((r,i)=>`
+      <div class="sectopc secpick" data-sec="${r.name}">
+        <span class="strk">${i+1}</span>
+        <span class="stnm">${r.name}</span>
+        <span class="stpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}%</span>
+        <span class="secma">${maBadge(r)}</span>
+      </div>`).join('')}</div>
+
+    <div class="secdiv"></div>
+
+    <div class="sechd">📈 近期持續強勢的產業</div>
+    <div class="ihint" style="margin-bottom:8px">${hasMA
+      ? `列出<b>站上自己 5 日或 20 日均線</b>的類股（共 ${steady.length} 個），代表強勢是延續的、不是只有今天跳一下。標記亮起＝站上那條均線。`
+      : `類股歷史還不夠算均線，先列全部。按上面「補抓過去 25 天」就能算 5 日／20 日。`}</div>
+    <div class="sectbl">${steady.map((r,i)=>`
+      <div class="secrow secpick" data-sec="${r.name}" style="cursor:pointer">
         <span class="secrk">${i+1}</span>
         <span class="secnm">${r.name}</span>
         <span class="secbar"><i class="${r.chg>0?'up':'dn'}" style="width:${Math.abs(r.chg)/max*100}%"></i></span>
         <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}%</span>
-        <span class="secma">${r.up5==null?'':`<em class="${r.up5?'on':''}">5日</em>`}${r.up20==null?'':`<em class="${r.up20?'on':''}">20日</em>`}</span>
-      </div>`).join('')}</div>`;
+        <span class="secma">${maBadge(r)}</span>
+      </div>`).join('')}</div>
+    <div class="ihint" style="margin-top:8px">這是族群強弱，不是個股建議。</div>`;
   const b=$('#secFill');
   if(b)b.onclick=async()=>{ await backfillSectors(25); renderSectors(false); };
+  box.querySelectorAll('.secpick').forEach(el=>el.onclick=()=>openSectorStocks(el.dataset.sec));
 }
 function testDaysHeld(firstDate){
   // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
