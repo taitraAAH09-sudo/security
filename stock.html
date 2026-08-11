@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V130</title>
+<title>盤後篩選台 V136</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -87,6 +87,19 @@ a{color:var(--amber)}
 .donestamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--amber);border-radius:4px;opacity:.7}
 .failstamp{position:relative;padding:5px 20px;border:4px solid var(--up);border-radius:6px;color:var(--up);font-family:var(--mono);font-weight:900;font-size:28px;letter-spacing:5px;transform:rotate(-14deg);opacity:.9;background:rgba(229,72,77,.06);box-shadow:0 0 0 1px rgba(229,72,77,.35) inset}
 .donestamp i,.failstamp i{display:block;font-style:normal;font-size:11px;letter-spacing:0;font-weight:800;margin-top:2px;text-align:center;opacity:.95}
+.sectbl{display:flex;flex-direction:column;gap:3px}
+.secrow{display:grid;grid-template-columns:30px 116px 1fr 78px 96px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
+.secrow:nth-child(odd){background:var(--panel2)}
+.secrk{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right}
+.secnm{font-weight:700;font-size:13px}
+.secbar{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
+.secbar i{display:block;height:100%;border-radius:5px}
+.secbar i.up{background:var(--up)} .secbar i.dn{background:var(--dn,#1F9E6E)}
+.secpc{font-family:var(--mono);font-weight:800;font-size:13px;text-align:right}
+.secma{display:flex;gap:4px;justify-content:flex-end}
+.secma em{font-style:normal;font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
+.secma em.on{border-color:var(--up);color:var(--up);font-weight:800}
+@media(max-width:760px){.secrow{grid-template-columns:24px 92px 1fr 66px;}.secma{display:none}}
 .calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .calhd b{font-family:var(--mono);font-size:17px}
 .calnav{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:13px}
@@ -97,6 +110,7 @@ a{color:var(--amber)}
 .calcell.blank{background:transparent;border-color:transparent}
 .calcell.has{cursor:pointer}
 .calcell.has:hover{border-color:var(--amber)}
+.calcell.arch{opacity:.7;border-style:dashed}
 .calcell .cd{font-family:var(--mono);font-size:11px;color:var(--dim)}
 .calcell .cv{font-family:var(--mono);font-size:13px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:10px;color:var(--dim)}
@@ -458,7 +472,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V130</span>
+    <h1>盤後篩選台</h1><span class="ver">V136</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -495,8 +509,10 @@ tbody tr{cursor:pointer}
     <div class="simtabs">
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
+      <button class="simtab" id="easyTabSec">🏭 今日產業</button>
     </div>
     <div class="easybody" id="easyBody"></div>
+    <div class="easybody" id="easyPaneSec" style="display:none"></div>
     <div class="easybody" id="easyPaneTest" style="display:none">
       <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每筆買 2 張：<b>①先賣</b>漲到推薦價 +5% 就入袋、<b>②續抱</b>照移動停損抱到跌破為止。</div>
       <div class="testctl">
@@ -860,6 +876,28 @@ async function fetchTse(d,keep){
           if(cv!=null&&cv>1000){ DB.idxHist=DB.idxHist||{}; DB.idxHist[d]=cv; }
           break;
         }}
+      }
+    }
+  }catch(e){}
+  // 順便收「各類股指數」：族群強弱就從這裡來，不必另外連網
+  try{
+    if(Array.isArray(j.tables))for(const t of j.tables){
+      const f=t.fields||[], dd=t.data||[];
+      const iN=f.findIndex(x=>/指數/.test(String(x)));
+      const iC=f.findIndex(x=>/收盤指數|收盤/.test(String(x)));
+      const iP=f.findIndex(x=>/漲跌百分比|漲跌幅|漲跌\(%\)/.test(String(x)));
+      const iS=f.findIndex(x=>/^漲跌$|漲跌\(\+\/-\)/.test(String(x)));
+      const iD=f.findIndex(x=>/漲跌點數|漲跌指數/.test(String(x)));
+      if(iN<0||iC<0)continue;
+      for(const r of dd){
+        const nm=String(r[iN]||'').trim();
+        if(!/類指數$/.test(nm))continue;                 // 只收「XX類指數」，跳過大盤與未含金電那幾條
+        const c=num(String(r[iC]).replace(/,/g,'')); if(c==null)continue;
+        let chg=iP>=0?num(String(r[iP]).replace(/,/g,'')):null;
+        if(chg!=null && iS>=0 && /-/.test(String(r[iS])))chg=-Math.abs(chg);   // 有些欄位把正負號放在另一欄
+        if(chg==null && iD>=0){ const pt=num(String(r[iD]).replace(/,/g,'')); if(pt!=null&&c-pt!==0)chg=pt/(c-pt)*100; }
+        DB.secHist=DB.secHist||{}; DB.secHist[d]=DB.secHist[d]||{};
+        DB.secHist[d][nm.replace(/類指數$/,'')]={c, chg:chg!=null?+chg.toFixed(2):null};
       }
     }
   }catch(e){}
@@ -3032,6 +3070,8 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
         const add=cur.entries.filter(x=>x&&!have.has(x.code+'|'+x.firstDate));
         if(add.length)TEST_TRACK.entries=(TEST_TRACK.entries||[]).concat(add);
       }
+      // 封存的每日盈虧永久保留：雲端有而本機沒有的日子要補回來
+      if(cur&&cur.arch){ TEST_TRACK.arch=Object.assign({},cur.arch,TEST_TRACK.arch||{}); }
       if(!TEST_TRACK.entries||!TEST_TRACK.entries.length)return false;
     }
     const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(TEST_TRACK)}); return r.ok;
@@ -3039,6 +3079,28 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
 async function testFbPull(){ const e=testFbEnd(); if(!e)return null;
   try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
 
+// 封存規則：月曆的「每日盈虧」永久保留，但超過兩個月的明細會被刪掉（點不進去看個股）。
+// 只封存「已結案」（兩張單都出場）的；還在續抱的不動，它還是活的部位。
+function testArchive(){
+  const ents=TEST_TRACK.entries||[];
+  if(!ents.length)return 0;
+  const last=(DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:ymd(new Date());
+  const ly=+last.slice(0,4), lm=+last.slice(4,6);
+  const keepFrom=new Date(ly,lm-2,1);                       // 保留本月＋上個月的明細
+  const cut=`${keepFrom.getFullYear()}${String(keepFrom.getMonth()+1).padStart(2,'0')}01`;
+  TEST_TRACK.arch=TEST_TRACK.arch||{};
+  const keep=[]; let n=0;
+  for(const en of ents){
+    const closed=(en.lotA&&en.lotA.done)&&(en.lotB&&en.lotB.done);
+    if(en.firstDate>=cut || !closed){ keep.push(en); continue; }
+    const pl=testPnL(en);
+    const a=TEST_TRACK.arch[en.firstDate]||{n:0,realized:0,unreal:0,total:0};
+    a.n++; if(pl){ a.realized+=pl.realized; a.unreal+=pl.unreal; a.total+=pl.total; }
+    TEST_TRACK.arch[en.firstDate]=a; n++;
+  }
+  if(n)TEST_TRACK.entries=keep;
+  return n;
+}
 // 清掉舊版留下的重複：同一檔在前一筆還沒全數出場前又被開了一筆 → 只留最早那筆
 function testDedupeExisting(){
   const arr=(TEST_TRACK.entries||[]).slice().sort((a,b)=>String(a.firstDate)<String(b.firstDate)?-1:1);
@@ -3144,16 +3206,56 @@ async function testAutoSync(){
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
   testRefreshStatus();
+  testArchive();      // 超過兩個月且已結案的明細 → 結算成每日盈虧後刪掉
   await testSave();
   return {added, date:recoDate};
 }
-// 新手看盤視窗的兩個分頁：推薦清單 / 追蹤成績
+// 新手看盤視窗的三個分頁：推薦清單 / 追蹤成績 / 今日產業
 async function switchEasyTab(which){
-  const t=which==='test';
-  $('#easyTabReco').classList.toggle('on',!t); $('#easyTabTest').classList.toggle('on',t);
-  $('#easyBody').style.display=t?'none':'block';
-  $('#easyPaneTest').style.display=t?'block':'none';
-  if(t){ await loadRecoHistory(); await testLoad(); testRender(); }
+  $('#easyTabReco').classList.toggle('on',which==='reco');
+  $('#easyTabTest').classList.toggle('on',which==='test');
+  $('#easyTabSec').classList.toggle('on',which==='sec');
+  $('#easyBody').style.display=which==='reco'?'block':'none';
+  $('#easyPaneTest').style.display=which==='test'?'block':'none';
+  $('#easyPaneSec').style.display=which==='sec'?'block':'none';
+  if(which==='test'){ await loadRecoHistory(); await testLoad(); testRender(); }
+  if(which==='sec') renderSectors();
+}
+// 今日產業：用更新並篩選時順手收下來的各類股指數，排出當天最強的族群
+function renderSectors(){
+  const box=$('#easyPaneSec'); if(!box)return;
+  const SH=DB.secHist||{};
+  const days=Object.keys(SH).sort();
+  if(!days.length){
+    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有產業資料。<br>類股指數是「更新並篩選」時順便收下來的，<b>按一次更新</b>之後這裡就會有東西。</div>';
+    return;
+  }
+  const d=days[days.length-1], today=SH[d], prev=days.length>1?SH[days[days.length-2]]:null;
+  const ma=(name,n)=>{ const arr=days.slice(-n).map(x=>SH[x]&&SH[x][name]&&SH[x][name].c).filter(v=>v!=null);
+    return arr.length>=n ? arr.reduce((a,b)=>a+b,0)/n : null; };
+  const rows=Object.keys(today).map(name=>{
+    const cur=today[name];
+    let chg=cur.chg;
+    if(chg==null && prev && prev[name] && prev[name].c) chg=(cur.c-prev[name].c)/prev[name].c*100;   // 沒有漲跌欄就自己跟前一天比
+    const m5=ma(name,5), m20=ma(name,20);
+    return {name, c:cur.c, chg, up5:m5!=null?cur.c>=m5:null, up20:m20!=null?cur.c>=m20:null};
+  }).filter(r=>r.chg!=null).sort((a,b)=>b.chg-a.chg);
+  if(!rows.length){
+    box.innerHTML=`<div class="ihint" style="padding:24px 0;text-align:center">目前只有 ${d.slice(4,6)}/${d.slice(6)} 一天的類股資料，還算不出漲跌。<br>明天再更新一次就有了。</div>`;
+    return;
+  }
+  const max=Math.max(...rows.map(r=>Math.abs(r.chg)))||1;
+  const strong=rows.filter(r=>r.chg>0).length;
+  box.innerHTML=`<div class="ihint" style="margin-bottom:10px">📅 ${fmtD(d)} 收盤．上市 ${rows.length} 個類股，<b>${strong}</b> 個收紅。
+      由強到弱排序，紅漲綠跌${days.length>=5?'；站上均線代表族群不是只有今天強':''}。這是族群強弱，不是個股建議。</div>
+    <div class="sectbl">${rows.map((r,i)=>`
+      <div class="secrow">
+        <span class="secrk">${i+1}</span>
+        <span class="secnm">${r.name}</span>
+        <span class="secbar"><i class="${r.chg>0?'up':'dn'}" style="width:${Math.abs(r.chg)/max*100}%"></i></span>
+        <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}%</span>
+        <span class="secma">${r.up5==null?'':`<em class="${r.up5?'on':''}">5日</em>`}${r.up20==null?'':`<em class="${r.up20?'on':''}">20日</em>`}</span>
+      </div>`).join('')}</div>`;
 }
 function testDaysHeld(firstDate){
   // 從首推日到最新資料日，經過幾個交易日（首推日算第1天）
@@ -3182,28 +3284,34 @@ function testCalendarHTML(){
   const ents=TEST_TRACK.entries||[];
   const byDate={};
   for(const e of ents)(byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e);
+  const arch=TEST_TRACK.arch||{};
   const last=(DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:ymd(new Date());
   if(!TEST_MONTH)TEST_MONTH=last.slice(0,6);
-  // 只保留最近 3 個月（含本月）可以翻
+  // 每日盈虧永久保留，所以可以一路翻到有資料的最早那個月（明細只留兩個月，更早的點不進去）
   const lastY=+last.slice(0,4), lastM=+last.slice(4,6);
-  const minD=new Date(lastY,lastM-3,1), maxD=new Date(lastY,lastM-1,1);
+  const allKeys=[...Object.keys(byDate), ...Object.keys(arch)].sort();
+  const first=allKeys.length?allKeys[0]:last;
+  const minD=new Date(+first.slice(0,4), +first.slice(4,6)-1, 1);
+  const maxD=new Date(lastY,lastM-1,1);
   const y=+TEST_MONTH.slice(0,4), m=+TEST_MONTH.slice(4,6);
   const cur=new Date(y,m-1,1);
-  const first=new Date(y,m-1,1).getDay();          // 當月 1 號星期幾
+  const wd1=new Date(y,m-1,1).getDay();           // 當月 1 號星期幾
   const dim=new Date(y,m,0).getDate();             // 當月天數
   let mReal=0,mUnreal=0,mDays=0,mStocks=0;
   let cells='';
-  for(let i=0;i<first;i++)cells+='<div class="calcell blank"></div>';
+  for(let i=0;i<wd1;i++)cells+='<div class="calcell blank"></div>';
   for(let d=1;d<=dim;d++){
     const key=`${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
-    const rows=byDate[key];
-    if(!rows){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
-    let r=0,u=0;
-    for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; } }
-    const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=rows.length;
+    const rows=byDate[key], ar=arch[key];
+    if(!rows && !ar){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
+    let r=0,u=0,n=0;
+    if(rows){ for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; } } n+=rows.length; }
+    if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0; }   // 已封存的日子：明細沒了，盈虧還在
+    const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=n;
     const cls=tot>0?'up':tot<0?'dn':'';
-    cells+=`<div class="calcell has" data-date="${key}"><span class="cd">${d}</span>
-      <span class="cn">推 ${rows.length} 檔</span>
+    const openable=!!rows;                                       // 明細還在才點得進去
+    cells+=`<div class="calcell ${openable?'has':'arch'}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}</span>
+      <span class="cn">${openable?'':'🔒 '}推 ${n} 檔</span>
       <span class="cv ${cls}">${tot>0?'+':''}${Math.round(tot).toLocaleString()}</span></div>`;
   }
   const mTot=mReal+mUnreal;
@@ -3213,7 +3321,7 @@ function testCalendarHTML(){
       <button class="calnav" id="calPrev" ${cur<=minD?'disabled':''}>‹ 上個月</button>
       <b>${y} / ${String(m).padStart(2,'0')}</b>
       <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
-      <span class="ihint" style="margin-left:auto">只保留最近 3 個月．格子＝那天推薦的那批股票合計賺賠．點格子看明細</span>
+      <span class="ihint" style="margin-left:auto">每日盈虧永久保留．明細只留兩個月，更早的標 🔒 點不進去</span>
     </div>
     <div class="calgrid">${wk}${cells}</div>
     <div class="calsum">
@@ -3269,9 +3377,15 @@ function testRender(){
   const RH=RECO_HIST||{};
   const dates=[...new Set([...Object.keys(byDate), ...Object.keys(RH)])].sort().reverse();   // 新→舊
   if(TEST_SEL_DATE!=='ALL' && (!TEST_SEL_DATE||dates.indexOf(TEST_SEL_DATE)<0))TEST_SEL_DATE=dates[0];
+  // 分頁只排近 7 個推薦日，免得橫向爆掉；但從月曆點進來的那天就算更早，也要補一顆進去看得到
+  let tabDays=dates.slice(0,7);
+  const fromCal = TEST_SEL_DATE!=='ALL' && tabDays.indexOf(TEST_SEL_DATE)<0 && dates.indexOf(TEST_SEL_DATE)>=0;
+  if(fromCal){ tabDays=[...tabDays,TEST_SEL_DATE].sort().reverse(); }
+  const older = dates.length-tabDays.length;
   const tabs=`<div class="rdtabs">`
-    + dates.map(d=>`<button class="rdtab${d===TEST_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)} <span style="opacity:.6">${(byDate[d]||[]).length}</span></button>`).join('')
+    + tabDays.map(d=>`<button class="rdtab${d===TEST_SEL_DATE?' on':''}" data-date="${d}">${(fromCal&&d===TEST_SEL_DATE)?'📅 ':''}${fmtD(d)} <span style="opacity:.6">${(byDate[d]||[]).length}</span></button>`).join('')
     + `<button class="rdtab${TEST_SEL_DATE==='ALL'?' on':''}" data-date="ALL">全部 <span style="opacity:.6">${ents.length}</span></button>`
+    + (older>0?`<span class="ihint" style="align-self:center;margin-left:4px">還有 ${older} 天更早的，用「📅 月曆」點進去看</span>`:'')
     + `</div>`;
   const show = TEST_SEL_DATE==='ALL' ? dates : [TEST_SEL_DATE];
   let html=tabs;
@@ -3429,6 +3543,30 @@ function buildEntrySnapshot(e){
 // 從推薦日逐日回放兩張單：①先賣＝收盤比推薦價高 5% 那天賣；②續抱＝跌破移動停損那天賣。
 // 沒觸發的那張用最新收盤估。結案＝②出場（整組收工），這時才蓋章。
 function easyLots(entry, firstDate){
+  // ① 優先用「追蹤成績」那一筆的結果（同一檔、同一推薦日）。兩邊各算一次一定會有對不起來的風險，
+  //    因為追蹤那邊的初始停損 entryMvStop 是第一次算完就鎖住的，卡片這邊每次重算不見得一樣。
+  const all=(TEST_TRACK.entries||[]).filter(x=>x.code===entry.code);
+  let tk=all.find(x=>x.firstDate===firstDate), inherited=false;
+  if(!tk){
+    // 這天推薦時同一檔已在追蹤中（去重擋掉沒開新單）→ 沿用「涵蓋這一天」的那一筆，兩邊才會講同一件事
+    const cand=all.filter(x=>x.firstDate<=firstDate)
+      .sort((x,y)=>x.firstDate<y.firstDate?1:-1);
+    tk=cand.find(x=>{ const b=x.lotB||{}; return !b.done || (b.date&&b.date>=firstDate); }) || cand[0];
+    if(tk)inherited=true;
+  }
+  if(tk){
+    const a=tk.lotA||{}, b=tk.lotB||{};
+    const base = tk.entryPx!=null?tk.entryPx:entry.entryPx;
+    const last = tk.curPx!=null?tk.curPx:simPx(entry.code);   // 跟 testPnL 取同一個現價
+    const aPx = a.done?a.px:last, bPx = b.done?b.px:last;
+    if(base!=null && aPx!=null && bPx!=null)
+      return { A: a.done?{px:a.px,date:a.date}:null,
+               B: b.done?{px:b.px,date:b.date}:null,
+               base, aPx, bPx, pl:((aPx-base)+(bPx-base))*LOT,
+               stop: tk.mvStop, settled: !!b.done, last, src:'track',
+               inherited, srcDate: tk.firstDate, mvWhy: tk.mvWhy||'' };
+  }
+  // ② 追蹤成績沒有那一筆才自己回放
   const s=DB.stocks&&DB.stocks[entry.code];
   if(!s||!s.c||!DB.dates||!DB.dates.length)return null;
   const i0=DB.dates.indexOf(firstDate); if(i0<0)return null;
@@ -3460,7 +3598,7 @@ function easyStatus(entry, firstDate){
   const px = live?live.px:entry.entryPx, chg = live?live.chg:entry.entryChg;
   const lots = firstDate?easyLots(entry,firstDate):null;
   const settled = !!(lots&&lots.settled);
-  const pl = lots?lots.pl:((entry.entryPx!=null&&px!=null)?(px-entry.entryPx)*2*LOT:null);
+  const pl = lots?lots.pl:null;      // 算不出兩張單就不給數字，免得跟追蹤成績各說各話
   const won  = settled && pl!=null && pl>0;
   const lost = settled && pl!=null && pl<0;
   const pct = (entry.entryPx!=null&&px!=null)?(px-entry.entryPx)/entry.entryPx*100:null;
@@ -3472,17 +3610,19 @@ function easyCardHTML(entry, firstDate){
   const L=st.lots;
   const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
   const pnlTxt = st.pl==null?'' : `${money(st.pl)} 元`;
+  // 停損顯示追蹤那邊已經上移到的值（快照裡的 mvStop 是推薦當天的初始值，會跟追蹤成績對不起來）
+  const curStop = (L&&L.stop!=null)?L.stop:entry.mvStop;
   // 兩張合計損益，擺在四個方塊的正上方
   const lotLine = L ? `<div class="epnl">
       <span class="epl ${st.pl>0?'up':st.pl<0?'dn':''}">兩張合計 <b>${money(st.pl)}</b> 元</span>
-      <span class="eplsub">①先賣 ${L.A?`已賣 ${L.A.px.toFixed(2)}（${fmtD(L.A.date)}）`:`等漲到 ${(L.base*1.05).toFixed(2)}`}　·　②續抱 ${L.B?`停損賣 ${L.B.px.toFixed(2)}（${fmtD(L.B.date)}）`:`續抱中，停損 ${L.stop!=null?L.stop.toFixed(2):'—'}`}</span>
+      <span class="eplsub">${L.inherited?`<b style="color:var(--amber)">沿用 ${fmtD(L.srcDate)} 開的那筆</b>　·　`:''}①先賣 ${L.A?`已賣 ${L.A.px.toFixed(2)}（${fmtD(L.A.date)}）`:`等漲到 ${(L.base*1.05).toFixed(2)}`}　·　②續抱 ${L.B?`停損賣 ${L.B.px.toFixed(2)}（${fmtD(L.B.date)}）`:`續抱中，停損 ${L.stop!=null?L.stop.toFixed(2):'—'}`}</span>
     </div>` : '';
   // 停利目標＝推薦價 +5%（與 DONE 判定、追蹤成績的「①先賣」同一條規則）；前高壓力只當參考
   const tp5 = entry.entryPx!=null ? entry.entryPx*1.05 : null;
   let statusBadge='';
   if(exited)statusBadge=`<span class="estatus out">已觸及停損 · 不再追蹤</span>`;
   else if(won)statusBadge=`<span class="estatus tp">已達 +5% · 先賣一半落袋</span>`;
-  return `<div class="ecard${exited?' exited':''}">
+  return `<div class="ecard${st.settled?' exited':''}">
     ${(won||exited)?`<div class="stamps">
       <span class="stampslot l">${won?`<span class="donestamp">DONE<i>${pnlTxt}</i></span>`:''}</span>
       <span class="stampslot r">${exited?`<span class="failstamp">FAIL<i>${pnlTxt}</i></span>`:''}</span>
@@ -3495,7 +3635,7 @@ function easyCardHTML(entry, firstDate){
     ${lotLine}
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
-      <div class="eg stop"><s>移動停損（會往上移）</s><b>${entry.mvStop!=null?(+entry.mvStop).toFixed(2):'—'}</b></div>
+      <div class="eg stop"><s>移動停損（會往上移）</s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
       <div class="eg tp"><s>停利目標（賣一半）</s><b>${tp5!=null?tp5.toFixed(2):'—'}</b></div>
       <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
     </div>
@@ -3528,6 +3668,7 @@ function renderEasyTabsAndList(){
 }
 async function buildEasyView(){
   await loadRecoHistory();
+  try{ await testLoad(); }catch(e){}    // 卡片要拿追蹤成績那一筆的結果，先確保載入
   const body=$('#easyBody');
   const codes=Object.keys(DB.stocks||{});
   if(!codes.length){
@@ -3573,6 +3714,7 @@ $('#simSync').onclick=simSyncNow;
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
 $('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
 $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
+$('#easyTabSec').onclick=()=>switchEasyTab('sec');
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#testSync').onclick=async()=>{
