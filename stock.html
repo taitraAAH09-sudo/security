@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V156</title>
+<title>盤後篩選台 V160</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -143,18 +143,16 @@ a{color:var(--amber)}
 .calcell .cv{font-family:var(--mono);font-size:13px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:10px;color:var(--dim)}
 .calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
-.rvrow{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
-.rvtag{font-size:12px;font-weight:800;padding:3px 10px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
-.rvtag.up{color:var(--up);border-color:rgba(229,72,77,.45);background:rgba(229,72,77,.10)}
-.rvtag.dn{color:var(--dn,#1F9E6E);border-color:rgba(31,158,110,.45);background:rgba(31,158,110,.10)}
-.rvtag.hi{color:var(--up);border-color:var(--up);background:rgba(229,72,77,.18)}
-.rvtag.lo{color:var(--dn,#1F9E6E);border-color:var(--dn,#1F9E6E);background:rgba(31,158,110,.18)}
-.rptbox{border:1px dashed var(--line);border-radius:9px;padding:9px 12px;margin:4px 0 10px;font-size:12px;color:var(--dim);line-height:2}
+.rptbox{border:1px dashed var(--line);border-radius:9px;padding:8px 12px;margin:4px 0 10px;font-size:12px;color:var(--dim)}
+.rptbox>summary{cursor:pointer;list-style:none;line-height:1.7}
+.rptbox>summary::-webkit-details-marker{display:none}
+.rptbox>summary::before{content:'▸ ';color:var(--amber)}
+.rptbox[open]>summary::before{content:'▾ '}
+.rptbox>summary:hover{color:var(--paper)}
+.rptmore{opacity:.7;margin-left:6px}
+.rptlist{line-height:2;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .rpttag{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 10px;margin:2px 4px 2px 0;color:var(--paper);font-weight:700}
 .rpttag i{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;font-weight:400}
-.revbar{display:flex;align-items:center;gap:8px;margin-left:auto;flex:0 0 auto}
-.revbar .testnote{white-space:nowrap}
-@media(max-width:760px){.ecohdr{flex-wrap:wrap}.revbar{margin-left:0;width:100%;justify-content:flex-end}}
 .epnl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px}
 .epnl .epl{font-size:14px;font-weight:800}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
@@ -512,7 +510,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V156</span>
+    <h1>盤後篩選台</h1><span class="ver">V160</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3912,7 +3910,6 @@ function easyCardHTML(entry, firstDate){
       <span class="erisk" style="color:#fff;background:${entry.rcol};border-color:${entry.rcol}">${entry.radv}<i>風險${entry.rlv}·${entry.rsc}</i></span>
       <span class="epx ${chg>=0?'up':'dn'}">${px!=null?px.toFixed(2):'—'}　${chg>=0?'+':''}${(chg||0).toFixed(2)}%</span></div>
     <div class="etags">${entry.tags.map(t=>`<span class="etag">${t}</span>`).join('')}</div>
-    ${(()=>{const rv=revTags(entry.code);return rv?`<div class="rvrow">${rv}</div>`:'';})()}
     ${lotLine}
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
@@ -3923,60 +3920,7 @@ function easyCardHTML(entry, firstDate){
     <div class="ebtns"><button data-code="${entry.code}" class="ekchart">看 K 線圖</button></div>
   </div>`;
 }
-// 畫上方日期分頁（最多 7 個，最新在最右邊）＋目前選到那天的卡片清單
-// ── 月營收（證交所 OpenAPI t187ap05_L，免金鑰、只有上市、只回「最新一期」全市場快照）
-// 歷史要自己每月抓一次存起來，所以每次抓到新的資料年月就存進 DB.revHist，久了才算得出「近 N 月新高／新低」
-let REV_BUSY=false;
-async function fetchRevenue(force){
-  if(REV_BUSY)return DB.rev;
-  const note=$('#revNote');
-  if(!force && DB.rev && DB.rev.ym){
-    // 同一個資料年月不重抓；每月 10 日後才可能有新的一期
-    const now=new Date(), curYM=(now.getFullYear()-1911)+String(now.getMonth()+1).padStart(2,'0');
-    if(DB.rev.ym>=String(+curYM-1))return DB.rev;
-  }
-  REV_BUSY=true;
-  try{
-    if(note)note.textContent='讀取月營收…';
-    const rows=await get('https://openapi.twse.com.tw/v1/opendata/t187ap05_L');
-    if(!Array.isArray(rows)||!rows.length){ if(note)note.textContent='月營收：端點沒回資料，按 ⟳ 再試'; return DB.rev; }
-    const n=x=>{ const v=parseFloat(String(x==null?'':x).replace(/,/g,'')); return isFinite(v)?v:null; };
-    const ym=String(rows[0]['資料年月']||'');
-    const map={};
-    for(const r of rows){
-      const c=String(r['公司代號']||'').trim(); if(!/^\d{4}$/.test(c))continue;
-      map[c]={ cur:n(r['營業收入-當月營收']), mom:n(r['營業收入-上月比較增減(%)']),
-               yoy:n(r['營業收入-去年同月增減(%)']), cum:n(r['累計營業收入-前期比較增減(%)']) };
-    }
-    DB.rev={ym, map};
-    DB.revHist=DB.revHist||{};
-    DB.revHist[ym]={}; for(const c in map)if(map[c].cur!=null)DB.revHist[ym][c]=map[c].cur;
-    const keep=Object.keys(DB.revHist).sort().slice(-24);        // 最多留 24 個月
-    const nh={}; for(const k of keep)nh[k]=DB.revHist[k]; DB.revHist=nh;
-    try{ await store.set(KEY,DB); }catch(e){}
-    if(note)note.textContent=`✓ 月營收 ${ym.slice(0,3)}/${ym.slice(3)}（${Object.keys(map).length} 檔）· 已累積 ${keep.length} 個月`;
-    return DB.rev;
-  }catch(e){ if(note)note.textContent='月營收讀取失敗（'+e.message+'）'; return DB.rev; }
-  finally{ REV_BUSY=false; }
-}
-// 一檔的營收標籤：年增／月增，以及累積夠月份後的「近 N 月新高／新低」
-function revTags(code){
-  const R=DB.rev; if(!R||!R.map||!R.map[code])return '';
-  const r=R.map[code], out=[];
-  const pct=v=>`${v>0?'+':''}${v.toFixed(1)}%`;
-  if(r.yoy!=null) out.push(`<span class="rvtag ${r.yoy>0?'up':'dn'}">營收年增 ${pct(r.yoy)}</span>`);
-  if(r.mom!=null) out.push(`<span class="rvtag ${r.mom>0?'up':'dn'}">月增 ${pct(r.mom)}</span>`);
-  const H=DB.revHist||{}, yms=Object.keys(H).sort();
-  if(yms.length>=6 && r.cur!=null){
-    const hist=yms.map(y=>H[y]&&H[y][code]).filter(v=>v!=null);
-    if(hist.length>=6){
-      const past=hist.slice(0,-1);
-      if(past.length && r.cur>Math.max(...past)) out.push(`<span class="rvtag hi">🔺 營收創近 ${hist.length} 月新高</span>`);
-      else if(past.length && r.cur<Math.min(...past)) out.push(`<span class="rvtag lo">🔻 營收創近 ${hist.length} 月新低</span>`);
-    }
-  }
-  return out.join('');
-}
+// 畫上方日期分頁＋目前選到那天的卡片清單
 function renderEasyTabsAndList(){
   const body=$('#easyBody');
   const days=Object.keys(RECO_HIST).sort().reverse();     // 新→舊，最新的排最左邊
@@ -3997,19 +3941,16 @@ function renderEasyTabsAndList(){
         return !closed || !cd || cd>EASY_SEL_DATE; });      // 那天還在場上
     if(prev) repeats.push({e,prev}); else entries.push(e);
   }
-  const repeatHTML = repeats.length ? `<div class="rptbox">🔁 另有 <b>${repeats.length}</b> 檔今天也符合條件，但<b>已經在追蹤中</b>、不重複列出：
-      ${repeats.map(r=>`<span class="rpttag">${r.e.code} ${r.e.name||''}<i>${fmtD(r.prev.firstDate)} 開的</i></span>`).join('')}</div>` : '';
-  // 月營收狀態放在推薦日期那一列的右邊（用 flex，不用 float，才不會蓋到下面的卡片）
-  const revBar=`<span class="revbar"><span class="testnote" id="revNote">${DB.rev&&DB.rev.ym?`月營收 ${DB.rev.ym.slice(0,3)}/${DB.rev.ym.slice(3)}`:'月營收未讀取'}</span>
-    <button class="iconbtn" id="revFill" title="重抓最新一期月營收（每月 10 日前公告上月營收，只涵蓋上市）">⟳</button></span>`;
-  const dateHdr=`<div class="ecohdr"><span class="ecohdmain">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦；還有股票在跑的日子不會被清掉，整批 DONE/FAIL 後再留一天才洗掉）</span></span>${revBar}</div>`;
+  const repeatHTML = repeats.length ? `<details class="rptbox"><summary>🔁 另有 <b>${repeats.length}</b> 檔今天也符合條件，但<b>已經在追蹤中</b>、不重複列出<span class="rptmore">（點開看是哪幾檔）</span></summary>
+      <div class="rptlist">${repeats.map(r=>`<span class="rpttag">${r.e.code} ${r.e.name||''}<i>${fmtD(r.prev.firstDate)} 開的</i></span>`).join('')}</div></details>` : '';
+  const dateHdr=`<div class="ecohdr"><span class="ecohdmain">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦；還有股票在跑的日子不會被清掉，整批 DONE/FAIL 後再留一天才洗掉）</span></span></div>`;
   if(!entries.length){
     body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="easyempty">${allEntries.length?'這天符合條件的都已經在追蹤中，沒有新的可以買。':'這天沒有「站上4均線＋多頭排列」的強勢股。'}</div>`;
   }else{
     const cards=entries.map(e=>easyCardHTML(e,EASY_SEL_DATE)).join('');
     body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="ihint" style="margin:2px 0 12px">新的推薦共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
   }
-  const rf=$('#revFill'); if(rf)rf.onclick=async()=>{ await fetchRevenue(true); renderEasyTabsAndList(); };
+
   body.querySelectorAll('.rdtab').forEach(b=>b.onclick=()=>{ EASY_SEL_DATE=b.dataset.date; renderEasyTabsAndList(); });
   body.querySelectorAll('.ekchart').forEach(b=>b.onclick=()=>{
     const c=b.dataset.code; $('#easyMask').classList.remove('on');
@@ -4019,7 +3960,6 @@ function renderEasyTabsAndList(){
 async function buildEasyView(){
   await loadRecoHistory();
   try{ await testLoad(); }catch(e){}    // 卡片要拿追蹤成績那一筆的結果，先確保載入
-  try{ await fetchRevenue(); }catch(e){}  // 月營收（每月一期，同一期不重抓）
   const body=$('#easyBody');
   const codes=Object.keys(DB.stocks||{});
   if(!codes.length){
@@ -4068,7 +4008,6 @@ $('#simSync').onclick=simSyncNow;
 $('#simX').onclick=()=>$('#simMask').classList.remove('on');
 $('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
 $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
-$('#easyTabSec').onclick=()=>switchEasyTab('sec');
 $('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('sec'); };
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
