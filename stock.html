@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V147</title>
+<title>盤後篩選台 V148</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -108,10 +108,12 @@ a{color:var(--amber)}
 .secrow.secpick:hover{background:rgba(242,181,68,.12)}
 .secdhd{display:flex;align-items:center;gap:10px;padding:6px 8px;font-size:15px}
 .secdhd b{font-size:18px}
-.secdetail .secrow{grid-template-columns:26px 190px 1fr 100px 110px;gap:12px;padding:10px 10px;font-size:15px}
+.secdetail .secrow{grid-template-columns:200px 1fr 110px 110px;gap:14px;padding:12px 12px;font-size:15px;white-space:nowrap}
 .secdetail .secnm{font-size:15px;font-weight:700}
-.secdetail .secpc{font-size:16px}
-@media(max-width:760px){.secdetail .secrow{grid-template-columns:0 1fr 0 84px 88px;gap:8px}}
+.secdetail .secpc{font-size:16px;text-align:right}
+.secdetail .secmk{overflow:hidden}
+@media(max-width:760px){.secdetail .secrow{grid-template-columns:1fr auto 78px 82px;gap:8px;padding:10px 8px;font-size:13px}
+  .secdetail .secnm{font-size:13px}.secdetail .secpc{font-size:14px}.secflag{font-size:11px;padding:3px 8px}}
 .secrk{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right}
 .secnm{font-weight:700;font-size:13px}
 .secbar{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
@@ -498,7 +500,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V147</span>
+    <h1>盤後篩選台</h1><span class="ver">V148</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3397,9 +3399,8 @@ async function openSectorStocks(name){
       <button class="calnav" id="secClose" style="margin-left:auto">關閉</button></div>
     <div class="sectbl">${rows.map(r=>`
       <div class="secrow">
-        <span class="secrk"></span>
         <span class="secnm secgo" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted">${r.code} ${r.name}</span>
-        <span>${mark(r.code)}</span><span></span><span></span>
+        <span class="secmk">${mark(r.code)}</span>
         <span class="secpc">${r.c==null?'—':r.c.toFixed(2)}</span>
         <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg==null?'—':(r.chg>0?'+':'')+r.chg.toFixed(2)+'%'}</span>
       </div>`).join('')}</div>
