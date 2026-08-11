@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V154</title>
+<title>盤後篩選台 V156</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -149,6 +149,9 @@ a{color:var(--amber)}
 .rvtag.dn{color:var(--dn,#1F9E6E);border-color:rgba(31,158,110,.45);background:rgba(31,158,110,.10)}
 .rvtag.hi{color:var(--up);border-color:var(--up);background:rgba(229,72,77,.18)}
 .rvtag.lo{color:var(--dn,#1F9E6E);border-color:var(--dn,#1F9E6E);background:rgba(31,158,110,.18)}
+.rptbox{border:1px dashed var(--line);border-radius:9px;padding:9px 12px;margin:4px 0 10px;font-size:12px;color:var(--dim);line-height:2}
+.rpttag{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 10px;margin:2px 4px 2px 0;color:var(--paper);font-weight:700}
+.rpttag i{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;font-weight:400}
 .revbar{display:flex;align-items:center;gap:8px;margin-left:auto;flex:0 0 auto}
 .revbar .testnote{white-space:nowrap}
 @media(max-width:760px){.ecohdr{flex-wrap:wrap}.revbar{margin-left:0;width:100%;justify-content:flex-end}}
@@ -509,7 +512,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V154</span>
+    <h1>盤後篩選台</h1><span class="ver">V156</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3838,7 +3841,7 @@ function easyLots(entry, firstDate){
       return { A: a.done?{px:a.px,date:a.date}:null,
                B: b.done?{px:b.px,date:b.date}:null,
                base, aPx, bPx, pl:((aPx-base)+(bPx-base))*LOT,
-               stop: tk.mvStop, settled: !!b.done, last, src:'track',
+               stop: tk.mvStop, settled: !!(a.done&&b.done), last, src:'track',
                inherited, srcDate: tk.firstDate, mvWhy: tk.mvWhy||'' };
   }
   // ② 追蹤成績沒有那一筆才自己回放
@@ -3865,7 +3868,7 @@ function easyLots(entry, firstDate){
   const aPx=A?A.px:last, bPx=B?B.px:last;
   if(aPx==null||bPx==null)return null;
   const pl=((aPx-base)+(bPx-base))*LOT;
-  return {A,B,base,aPx,bPx,pl,stop:cur,settled:!!B,last};
+  return {A,B,base,aPx,bPx,pl,stop:cur,settled:!!(A&&B),last};
 }
 // DONE/FAIL 只看「兩張合計是賺是賠」，而且要等②續抱單出場（結案）才蓋章
 function easyStatus(entry, firstDate){
@@ -3895,8 +3898,10 @@ function easyCardHTML(entry, firstDate){
   // 停利目標＝推薦價 +5%（與 DONE 判定、追蹤成績的「①先賣」同一條規則）；前高壓力只當參考
   const tp5 = entry.entryPx!=null ? entry.entryPx*1.05 : null;
   let statusBadge='';
-  if(exited)statusBadge=`<span class="estatus out">已觸及停損 · 不再追蹤</span>`;
-  else if(won)statusBadge=`<span class="estatus tp">已達 +5% · 先賣一半落袋</span>`;
+  if(exited)statusBadge=`<span class="estatus out">兩張都出場 · 收工</span>`;
+  else if(won)statusBadge=`<span class="estatus tp">兩張都出場 · 收工</span>`;
+  else if(L&&L.A&&!L.B)statusBadge=`<span class="estatus tp">①已賣 +5% 落袋 · ②續抱中</span>`;
+  else if(L&&L.B&&!L.A)statusBadge=`<span class="estatus out">②已停損出場 · ①仍等 +5%</span>`;
   return `<div class="ecard${st.settled?' exited':''}">
     ${(won||exited)?`<div class="stamps">
       <span class="stampslot l">${won?`<span class="donestamp">DONE<i>${pnlTxt}</i></span>`:''}</span>
@@ -3981,16 +3986,28 @@ function renderEasyTabsAndList(){
   }
   if(!EASY_SEL_DATE||!RECO_HIST[EASY_SEL_DATE])EASY_SEL_DATE=days[0];
   const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}</div>`;
-  const entries=RECO_HIST[EASY_SEL_DATE]||[];
+  const allEntries=RECO_HIST[EASY_SEL_DATE]||[];
+  // 同一檔已經有「更早開、還沒結案」的那一筆在追蹤中 → 今天不重複列卡片（例：8/10 推過萬海，8/11 就不再出現）
+  const repeats=[], entries=[];
+  for(const e of allEntries){
+    const prev=(TEST_TRACK.entries||[]).filter(x=>x.code===e.code && x.firstDate<EASY_SEL_DATE)
+      .sort((x,y)=>x.firstDate<y.firstDate?1:-1)
+      .find(x=>{ const a=x.lotA||{},b=x.lotB||{}; const closed=a.done&&b.done;
+        const cd=closed?[a.date,b.date].filter(Boolean).sort().pop():null;
+        return !closed || !cd || cd>EASY_SEL_DATE; });      // 那天還在場上
+    if(prev) repeats.push({e,prev}); else entries.push(e);
+  }
+  const repeatHTML = repeats.length ? `<div class="rptbox">🔁 另有 <b>${repeats.length}</b> 檔今天也符合條件，但<b>已經在追蹤中</b>、不重複列出：
+      ${repeats.map(r=>`<span class="rpttag">${r.e.code} ${r.e.name||''}<i>${fmtD(r.prev.firstDate)} 開的</i></span>`).join('')}</div>` : '';
   // 月營收狀態放在推薦日期那一列的右邊（用 flex，不用 float，才不會蓋到下面的卡片）
   const revBar=`<span class="revbar"><span class="testnote" id="revNote">${DB.rev&&DB.rev.ym?`月營收 ${DB.rev.ym.slice(0,3)}/${DB.rev.ym.slice(3)}`:'月營收未讀取'}</span>
     <button class="iconbtn" id="revFill" title="重抓最新一期月營收（每月 10 日前公告上月營收，只涵蓋上市）">⟳</button></span>`;
   const dateHdr=`<div class="ecohdr"><span class="ecohdmain">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦；還有股票在跑的日子不會被清掉，整批 DONE/FAIL 後再留一天才洗掉）</span></span>${revBar}</div>`;
   if(!entries.length){
-    body.innerHTML=tabsHTML+dateHdr+`<div class="easyempty">這天沒有「站上4均線＋多頭排列」的強勢股。</div>`;
+    body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="easyempty">${allEntries.length?'這天符合條件的都已經在追蹤中，沒有新的可以買。':'這天沒有「站上4均線＋多頭排列」的強勢股。'}</div>`;
   }else{
     const cards=entries.map(e=>easyCardHTML(e,EASY_SEL_DATE)).join('');
-    body.innerHTML=tabsHTML+dateHdr+`<div class="ihint" style="margin:2px 0 12px">符合的股票共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
+    body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="ihint" style="margin:2px 0 12px">新的推薦共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
   }
   const rf=$('#revFill'); if(rf)rf.onclick=async()=>{ await fetchRevenue(true); renderEasyTabsAndList(); };
   body.querySelectorAll('.rdtab').forEach(b=>b.onclick=()=>{ EASY_SEL_DATE=b.dataset.date; renderEasyTabsAndList(); });
