@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V136</title>
+<title>盤後篩選台 V137</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -51,6 +51,9 @@ a{color:var(--amber)}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
 .hbtnbar{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.secbtn{margin-right:auto;background:var(--panel2);color:var(--paper);border:1px solid var(--line);border-radius:22px;padding:9px 18px;font-size:14px;font-weight:800;cursor:pointer}
+.secbtn:hover{border-color:var(--amber);color:var(--amber)}
+@media(max-width:760px){.secbtn{font-size:12px;padding:6px 12px;margin-right:0}}
 .helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
 .helpbtn:hover{filter:brightness(1.1)}
 .mktstr{font-size:20px;font-weight:800;color:var(--dim);border:2px solid var(--line);border-radius:26px;padding:11px 24px;white-space:nowrap;background:var(--panel2)}
@@ -472,7 +475,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V136</span>
+    <h1>盤後篩選台</h1><span class="ver">V137</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -481,6 +484,7 @@ tbody tr{cursor:pointer}
     <button class="simbtn" id="btnSim">模擬下單</button>
   </div>
   <div class="hbtnbar">
+    <button class="secbtn" id="btnSector" title="今天哪些族群最強（依上市各類股指數漲跌排序）">🏭 今日產業</button>
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
@@ -3715,6 +3719,7 @@ $('#simX').onclick=()=>$('#simMask').classList.remove('on');
 $('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
 $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
 $('#easyTabSec').onclick=()=>switchEasyTab('sec');
+$('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('sec'); };
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#testSync').onclick=async()=>{
