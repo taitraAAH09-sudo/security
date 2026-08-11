@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V144</title>
+<title>盤後篩選台 V147</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -106,7 +106,12 @@ a{color:var(--amber)}
 .secrow{display:grid;grid-template-columns:30px 116px 1fr 72px 66px 72px 96px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
 .secrow:nth-child(odd){background:var(--panel2)}
 .secrow.secpick:hover{background:rgba(242,181,68,.12)}
-.secdhd{display:flex;align-items:center;gap:10px;padding:6px 8px;font-size:13px}
+.secdhd{display:flex;align-items:center;gap:10px;padding:6px 8px;font-size:15px}
+.secdhd b{font-size:18px}
+.secdetail .secrow{grid-template-columns:26px 190px 1fr 100px 110px;gap:12px;padding:10px 10px;font-size:15px}
+.secdetail .secnm{font-size:15px;font-weight:700}
+.secdetail .secpc{font-size:16px}
+@media(max-width:760px){.secdetail .secrow{grid-template-columns:0 1fr 0 84px 88px;gap:8px}}
 .secrk{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right}
 .secnm{font-weight:700;font-size:13px}
 .secbar{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
@@ -116,7 +121,7 @@ a{color:var(--amber)}
 .secma{display:flex;gap:4px;justify-content:flex-end}
 .secma em{font-style:normal;font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
 .secma em.on{border-color:var(--up);color:var(--up);font-weight:800}
-.secflag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.secflag{font-size:13px;font-weight:800;padding:4px 12px;border-radius:20px;white-space:nowrap;letter-spacing:.3px}
 .secflag.today{background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5)}
 .secflag.hold{background:rgba(242,181,68,.14);color:var(--amber);border:1px solid rgba(242,181,68,.45)}
 .secflag.past{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--line)}
@@ -493,7 +498,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V144</span>
+    <h1>盤後篩選台</h1><span class="ver">V147</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3321,28 +3326,32 @@ async function buildSectorCodes(force){
     + ((()=>{const u=[...new Set(unmatched.filter(Boolean))]; return u.length?`（沒對上：${u.slice(0,6).join('、')}）`:'';})());
   return DB.secCode;
 }
+const SEC_Q={};   // 當日各類股成分股行情的暫存（同一天同一類股只抓一次）
 // 點某個類股 → 抓那一類的成分股當日行情，依漲跌排序
 async function openSectorStocks(name){
   const box=$('#secDetail'); if(!box)return;
   const d=(DB.dates||[]).slice(-1)[0];
-  box.style.display='block';
+  box.style.display='block'; box.className='';
   box.innerHTML=`<div class="ihint">讀取 ${name} 成分股…</div>`;
-  let rows=[];
-  // 先用自己存的成分股名單＋主資料的收盤價（不連網）
+  // ① 本機能給多少先給多少：成分股名單（掃描時存的）＋主資料裡有的收盤價
+  let local=[];
   const mem=(DB.secMembers||{})[name];
   if(mem&&mem.length){
     for(const m of mem){
       const st=DB.stocks&&DB.stocks[m.code];
       let c=null,chg=null;
       if(st&&st.c){ const lp=latestPx(m.code); if(lp){ c=lp.px; chg=lp.chg; } }
-      rows.push({code:m.code, name:m.name||((st&&st.n)||''), c, chg});
+      local.push({code:m.code, name:m.name||((st&&st.n)||''), c, chg});
     }
   }
   let code=(DB.secCode||{})[name];
-  if(!code && !rows.length){ await buildSectorCodes(); code=(DB.secCode||{})[name]; }
-  if(!code && !rows.length){ box.innerHTML=`<div class="ihint">找不到 ${name} 的成分股，稍後按「↻ 補抓過去 25 天」旁的對照表重建再試。</div>`; return; }
-  if(code && rows.filter(r=>r.c!=null).length < Math.max(3, rows.length*0.5)) rows=[];   // 自己的價格太少就改連網抓
-  if(!rows.length)try{
+  if(!code && !local.length){ await buildSectorCodes(); code=(DB.secCode||{})[name]; }
+
+  // ② 有代碼就去抓當日完整行情；抓到就用，抓不到就退回本機那份（不再直接報錯）
+  let net=[];
+  const ck=`${d}|${name}`;
+  if(SEC_Q[ck]) net=SEC_Q[ck];
+  else if(code)try{
     const j=await get(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${d}&type=${code}&response=json`);
     let F=null,D=null;
     if(Array.isArray(j.tables))for(const t of j.tables)
@@ -3355,13 +3364,19 @@ async function openSectorStocks(name){
         const c=num(r[iP]); if(c==null)continue;
         let diff=iD>=0?num(r[iD]):null;
         if(diff!=null && iS>=0 && /-/.test(String(r[iS])))diff=-Math.abs(diff);
-        rows.push({code:String(r[iC]).trim(), name:String(r[iN]).trim(), c,
+        net.push({code:String(r[iC]).trim(), name:String(r[iN]).trim(), c,
           chg: (diff!=null && c-diff!==0) ? diff/(c-diff)*100 : null});
       }
+      if(net.length)SEC_Q[ck]=net;      // 同一天同一類股只抓一次，之後點都是秒開
     }
   }catch(e){}
-  if(!rows.length){ box.innerHTML=`<div class="ihint">抓不到 ${name} 的成分股行情，稍後再試。</div>`; return; }
-  rows=rows.filter(r=>r.c!=null||r.name);
+
+  let rows = net.length ? net : local;
+  const partial = !net.length && local.length;     // 只有本機名單、沒有完整行情
+  if(!rows.length){
+    box.innerHTML=`<div class="ihint">還沒有 ${name} 的成分股名單。按上面的 <b>⟳</b> 重建一次對照表就會有。</div>`;
+    return;
+  }
   rows.sort((a,b)=>(b.chg==null?-99:b.chg)-(a.chg==null?-99:a.chg));
   // 今天推薦清單裡有的標出來
   // 系統推薦過的標出來：今天推薦 / 追蹤中（還沒出場）/ 之前推薦過
@@ -3377,6 +3392,7 @@ async function openSectorStocks(name){
   const mark=c=> todayPicks.has(c) ? '<span class="secflag today">⭐ 今日推薦</span>'
               : holding[c]        ? `<span class="secflag hold">追蹤中 ${fmtD(holding[c])}</span>`
               : everPick[c]       ? `<span class="secflag past">曾推薦 ${fmtD(everPick[c])}</span>` : '';
+  box.className='secdetail';
   box.innerHTML=`<div class="secdhd"><b>${name}</b>　${rows.length} 檔　·　依當日漲跌排序
       <button class="calnav" id="secClose" style="margin-left:auto">關閉</button></div>
     <div class="sectbl">${rows.map(r=>`
@@ -3387,6 +3403,7 @@ async function openSectorStocks(name){
         <span class="secpc">${r.c==null?'—':r.c.toFixed(2)}</span>
         <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg==null?'—':(r.chg>0?'+':'')+r.chg.toFixed(2)+'%'}</span>
       </div>`).join('')}</div>
+    ${partial?'<div class="ihint" style="margin-top:6px">⚠️ 這次沒連上證交所，只顯示成分股名單；價格是用你已抓過的主資料填的，沒抓過的顯示「—」。再點一次通常就有完整行情。</div>':''}
     <div class="ihint" style="margin-top:6px">⭐今日推薦＝今天的推薦清單有這一檔；追蹤中＝之前推薦過、兩張單還沒出場；曾推薦＝推過但已結案．點股票名看 K 線</div>`;
   const cl=$('#secClose'); if(cl)cl.onclick=()=>{ box.style.display='none'; box.innerHTML=''; };
   box.querySelectorAll('.secgo').forEach(el=>el.onclick=()=>{ $('#easyMask').classList.remove('on'); drawChart(el.dataset.code); });
