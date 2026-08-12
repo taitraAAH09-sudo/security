@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V168</title>
+<title>盤後篩選台 V171</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -101,7 +101,7 @@ a{color:var(--amber)}
 .tmcell:hover{border-color:var(--amber)}
 .tmcell b{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tmcell i{font-style:normal;font-family:var(--mono);font-size:15px;font-weight:800}
-.tmcell s{text-decoration:none;font-size:10px;color:var(--dim)}
+.tmcell s{text-decoration:none;font-size:11px;font-weight:700;color:rgba(255,255,255,.92);background:rgba(0,0,0,.30);border-radius:4px;padding:1px 6px;align-self:flex-start}
 @media(max-width:760px){.tmcell{min-height:62px;flex-basis:30%!important}.tmcell b{font-size:12px}.tmcell i{font-size:13px}}
 .secdiv{height:1px;background:var(--line);margin:18px 0 14px}
 .sectop{display:flex;flex-direction:column;gap:5px;margin-bottom:4px}
@@ -164,6 +164,13 @@ a{color:var(--amber)}
 .rpttag i{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;font-weight:400}
 .whyq{display:inline-block;margin-left:5px;width:14px;height:14px;line-height:13px;text-align:center;border:1px solid var(--line);border-radius:50%;font-style:normal;font-size:10px;color:var(--dim);cursor:help}
 .eg.stop{cursor:help}
+.creload{margin-left:10px;background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:4px 11px;font-size:15px;line-height:1;cursor:pointer}
+.creload:hover{border-color:var(--amber);color:var(--amber)}
+.creload:disabled{opacity:.5;cursor:wait}
+.creload.spin{animation:crspin 1s linear infinite}
+@keyframes crspin{to{transform:rotate(360deg)}}
+.gapnote{background:rgba(242,181,68,.10);border:1px solid rgba(242,181,68,.4);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:var(--amber);line-height:1.7}
+.gapfix{margin-left:8px;background:var(--amber);color:var(--ink);border:0;border-radius:6px;padding:3px 12px;font-weight:800;cursor:pointer}
 .epnl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px}
 .epnl .epl{font-size:14px;font-weight:800}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
@@ -536,7 +543,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V168</span>
+    <h1>盤後篩選台</h1><span class="ver">V171</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -545,7 +552,7 @@ tbody tr{cursor:pointer}
     <button class="simbtn" id="btnSim">模擬下單</button>
   </div>
   <div class="hbtnbar">
-    <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋近期持續強勢的產業">🏭 近期產業</button>
+    <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋產業全景樹狀圖">🏭 近期產業</button>
     <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
@@ -2548,6 +2555,12 @@ window.drawChart=function drawChart(code){
       o.push(s.o?s.o[i]:null); d.push(DB.dates[i]);
     }
     if(c.length<3){big.innerHTML=noChartMsg(code);return;}
+    // 缺哪幾天：DB.dates 有、這檔卻沒收盤價（名單外個股靠代理補抓，代理失敗那天就會缺）
+    const missing=[];
+    for(let i=0;i<len;i++)if(s.c[i]==null)missing.push(DB.dates[i]);
+    const gapNote = missing.length
+      ? `<div class="gapnote">⚠️ 這檔有 <b>${missing.length}</b> 天沒抓到收盤價，K 線直接跳過那幾天（${missing.slice(-4).map(fmtD).join('、')}${missing.length>4?' …':''}）。
+         均線與回測會少算這幾天。<button class="gapfix" data-code="${code}">補抓這檔</button></div>` : '';
     const ser={c,q,h,l,o,d};
     const px=c[c.length-1],prev=c.length>=2?c[c.length-2]:px;
     const chg=prev?(px-prev)/prev*100:0;
@@ -2555,11 +2568,12 @@ window.drawChart=function drawChart(code){
     INSPECTED=code; CHART_SER=ser; CHART_META={code,name:s.n,mkt:s.m};
 
     // 直接寫入（跟手動指令同一條路，不經過 paintBig）
-    const head=`<div class="ctitle"><span class="c">${code}</span><span class="n">${s.n||''}</span>`
+    const head=`${gapNote}<div class="ctitle"><span class="c">${code}</span><span class="n">${s.n||''}</span>`
       +`<span class="mkt">${s.m||''}</span><span class="p">${px.toFixed(2)}</span>`
       +`<span class="p ${chg>0?'up':chg<0?'dn':''}" style="font-size:14px">${sgn(chg)}%</span>`
       +`<span style="flex:1"></span>`
-      +`<span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span></div>`;
+      +`<span class="cseg">${[30,60,120,240].map(n=>`<b data-n="${n}" class="${n===CHARTN?'on':''}">${n}</b>`).join('')}</span>`
+      +`<button class="creload" data-code="${code}" title="重新抓這一檔的歷史資料（日期對不上、K 線缺天數時按這裡）">⟳</button></div>`;
     let wpat=null; try{ wpat=detectW(ser.c,ser.q,Math.max(1,+$('#wDays').value||5),$('#wVol').checked); }catch(_){}
     let plan=null; try{ plan=tradePlan(ser,wpat); }catch(_){}
     let banner=''; try{ banner=planBanner(ser,wpat); }catch(_){}
@@ -2569,6 +2583,12 @@ window.drawChart=function drawChart(code){
     big.innerHTML=`${head}${banner}<div id="cbig-kline">${kline}</div><div id="cbig-extra"></div>`;
 
     big.querySelectorAll('.cseg b').forEach(b=>b.onclick=()=>{CHARTN=+b.dataset.n;drawChart(code);});
+    const gf=big.querySelector('.gapfix');
+    if(gf)gf.onclick=async()=>{ gf.disabled=true; gf.textContent='補抓中…'; try{ await fetchOne(gf.dataset.code); }catch(e){} drawChart(gf.dataset.code); };
+    const rl=big.querySelector('.creload');
+    if(rl)rl.onclick=async()=>{ rl.disabled=true; rl.classList.add('spin');
+      try{ await fetchOne(rl.dataset.code); }catch(e){}
+      drawChart(rl.dataset.code); try{ paintInspect(rl.dataset.code); }catch(e){} };
 
     // 附加區塊之後補，壞了不影響 K 線
     let extra='';
@@ -3533,13 +3553,12 @@ async function renderSectors(auto){
   const strong=rows.filter(r=>r.chg>0).length;
   const maBadge=r=>`${r.up5==null?'':`<em class="${r.up5?'on':''}">5日</em>`}${r.up20==null?'':`<em class="${r.up20?'on':''}">20日</em>`}`;
   const top5=rows.slice(0,5);
-  // 下半部＝近期持續強勢的（站上自己的 5 日或 20 日均線），資料不足就先列全部
+  // 樹狀圖只放「站上自己 5 日或 20 日均線」的類股，資料不足就先列全部
   const hasMA=rows.some(r=>r.up5!=null||r.up20!=null);
-  // 下半部＝近期強度榜：站上均線的，依「近 20 日（沒有就近 5 日）累積漲幅」排序，跟今日漲幅榜刻意不同
+  // 依「近 20 日（沒有就近 5 日）累積漲幅」排序，跟上面的今日漲幅榜刻意不同
   const key=r=>(r.r20!=null?r.r20:(r.r5!=null?r.r5:r.chg));
   const steady=(hasMA ? rows.filter(r=>r.up5||r.up20) : rows.slice())
     .sort((a,b)=>key(b)-key(a));
-  const maxR=Math.max(...steady.map(r=>Math.abs(key(r)||0)))||1;
 
   box.innerHTML=`<div class="secctl">
       <button class="testbtn" id="secFill">↻ 補抓過去 25 天</button>
@@ -3560,7 +3579,8 @@ async function renderSectors(auto){
 
     <div class="secdiv"></div>
 
-    <div class="sechd">🗺️ 產業全景（方塊大小＝成分股家數，顏色＝近 20 日漲跌）</div>
+    <div class="sechd">🗺️ 產業全景（方塊大小＝成分股家數，顏色＝近 20 日漲跌，紅漲綠跌越深越強）</div>
+    <div class="ihint" style="margin-bottom:8px">依<b>近 20 日累積漲幅</b>由強到弱排，看的是這段時間走多遠。<b>點方塊看成分股</b>。這是族群強弱，不是個股建議。</div>
     <div class="treemap">${(()=>{
       const items=steady.map(r=>({name:r.name, n:((DB.secMembers||{})[r.name]||[]).length||6, v:key(r)}));
       const maxV=Math.max(...items.map(x=>Math.abs(x.v)||0))||1;
@@ -3574,22 +3594,6 @@ async function renderSectors(auto){
           <b>${x.name}</b><i>${x.v>0?'+':''}${x.v.toFixed(1)}%</i><s>${x.n} 檔</s></div>`;
       }).join('');
     })()}</div>
-    <div class="secdiv"></div>
-    <div class="sechd">📈 近期持續強勢的產業</div>
-    <div class="ihint" style="margin-bottom:8px">${hasMA
-      ? `站上自己 5 日或 20 日均線的類股（共 ${steady.length} 個），依<b>近 20 日累積漲幅</b>排序——看的是這段時間走多遠，跟上面的今日漲幅榜是兩回事。`
-      : `類股歷史還不夠算均線與近期漲幅，先依今日漲幅列全部。按上面「補抓過去 25 天」就會有。`}</div>
-    <div class="secrow" style="font-size:11px;color:var(--dim)"><span></span><span>類股</span><span></span><span>近20日</span><span>近5日</span><span>今日</span><span></span></div>
-    <div class="sectbl">${steady.map((r,i)=>{const k=key(r);return `
-      <div class="secrow secpick" data-sec="${r.name}" style="cursor:pointer">
-        <span class="secrk">${i+1}</span>
-        <span class="secnm">${r.name}</span>
-        <span class="secbar"><i class="${k>0?'up':'dn'}" style="width:${Math.abs(k)/maxR*100}%"></i></span>
-        <span class="secpc ${r.r20>0?'up':r.r20<0?'dn':''}">${r.r20==null?'—':(r.r20>0?'+':'')+r.r20.toFixed(1)+'%'}</span>
-        <span class="secpc ${r.r5>0?'up':r.r5<0?'dn':''}">${r.r5==null?'—':(r.r5>0?'+':'')+r.r5.toFixed(1)+'%'}</span>
-        <span class="secpc ${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}%</span>
-        <span class="secma">${maBadge(r)}</span>
-      </div>`;}).join('')}</div>
     <div class="ihint" style="margin-top:8px">這是族群強弱，不是個股建議。</div>`;
   const b=$('#secFill');
   if(b)b.onclick=async()=>{ await backfillSectors(25); renderSectors(false); };
