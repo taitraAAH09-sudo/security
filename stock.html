@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V173</title>
+<title>盤後篩選台 V174</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -141,16 +141,16 @@ a{color:var(--amber)}
 .calhd b{font-family:var(--mono);font-size:17px}
 .calnav{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:13px}
 .calnav:disabled{opacity:.35;cursor:not-allowed}
-.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .calwk{text-align:center;font-size:11px;color:var(--dim);font-weight:700;padding:2px 0}
-.calcell{min-height:62px;border:1px solid var(--line);border-radius:7px;padding:5px 6px;background:var(--panel2);display:flex;flex-direction:column;gap:2px}
+.calcell{min-height:44px;border:1px solid var(--line);border-radius:6px;padding:3px 5px;background:var(--panel2);display:flex;flex-direction:column;gap:1px}
 .calcell.blank{background:transparent;border-color:transparent}
 .calcell.has{cursor:pointer}
 .calcell.has:hover{border-color:var(--amber)}
 .calcell.arch{opacity:.7;border-style:dashed}
-.calcell .cd{font-family:var(--mono);font-size:11px;color:var(--dim)}
-.calcell .cv{font-family:var(--mono);font-size:13px;font-weight:800;margin-top:auto}
-.calcell .cn{font-size:10px;color:var(--dim)}
+.calcell .cd{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
+.calcell .cn{font-size:9px;color:var(--dim)}
 .calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
 .rptbox{border:1px dashed var(--line);border-radius:9px;padding:8px 12px;margin:4px 0 10px;font-size:12px;color:var(--dim)}
 .rptbox>summary{cursor:pointer;list-style:none;line-height:1.7}
@@ -543,7 +543,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V173</span>
+    <h1>盤後篩選台</h1><span class="ver">V174</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1138,7 +1138,15 @@ async function doFetch(){
   );
   let simAdded=0;
   for(const c of simCodes){ if(!uni.has(c)){ uni.add(c); simAdded++; } }
-  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）${simAdded?`，含模擬下單 ${simAdded} 檔`:''}`,'ok');
+  // 追蹤成績裡「還沒結案」的也要併入，否則它一旦掉出法人排行就抓不到新價、現價會凍在那天
+  try{ await testLoad(); }catch(e){}
+  let trkAdded=0;
+  for(const en of (TEST_TRACK.entries||[])){
+    const closed=(en.lotA&&en.lotA.done)&&(en.lotB&&en.lotB.done);
+    if(closed)continue;
+    if(/^[1-9]\d{3}$/.test(en.code)&&!uni.has(en.code)){ uni.add(en.code); trkAdded++; }
+  }
+  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）${simAdded?`，含模擬下單 ${simAdded} 檔`:''}${trkAdded?`，含追蹤中 ${trkAdded} 檔`:''}`,'ok');
 
   // 2. 缺的交易日 → 全市場（只留名單）
   // 判斷某天是否「已完整」：該天有收盤價的檔數需達名單的一定比例，否則視為不完整要重抓
@@ -3766,8 +3774,6 @@ function testRender(){
           let aTxt,aCls;
           if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
           else {aTxt='等漲到 '+(r.entryPx!=null?(r.entryPx*1.05).toFixed(2):'+5%');aCls='hold';}
-          const why = (r.mvWhy||'依系統規則推算')
-            + '（依據順序：近5根爆量的最低價 → 近10根未封閉缺口的下緣 → 守住率最高的均線；若與 20MA 相差 1.5% 內就統一看 20MA）';
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
           else {bTxt=`續抱中${r.mvStop!=null?`　停損 ${(+r.mvStop).toFixed(2)}`:''}`;bCls='hold';}
@@ -3782,6 +3788,7 @@ function testRender(){
                         : '<span class="tflag even">— 打平</span>')
               : a.done ? '<span class="tflag half">剩②續抱</span>' : '';
           // 盈虧：已實現與未實現各自一格、並排顯示（一張賣掉、另一張還抱著時看得出誰是誰）
+          const stale = !(DB.stocks&&DB.stocks[r.code]);    // 已不在更新名單 → 現價是舊的
           const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
           let plHTML='—';
           if(pl){
@@ -3794,9 +3801,9 @@ function testRender(){
           return `<div class="testrow${bothOut?' exited':''}">
             <span class="tnm" data-px="${r.entryPx!=null?r.entryPx.toFixed(2):'—'} → ${px!=null?(+px).toFixed(2):'—'}"><b class="testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</b>${flag}</span>
             <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
-            <span>${px!=null?(+px).toFixed(2):'—'}</span>
+            <span${stale?' title="這檔已掉出更新名單，價格停在最後一次抓到的那天" style="color:var(--dim)"':''}>${px!=null?(+px).toFixed(2):'—'}${stale?' <em style="font-style:normal;font-size:9px">舊價</em>':''}</span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
-            <span class="tstat ${bCls}" title="${why.replace(/"/g,'')}" style="cursor:help">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
+            <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
             ${plHTML}
           </div>`;
         }).join('')}
@@ -3895,10 +3902,23 @@ function latestPx(code){
 // 把一檔 evaluate() 結果凍結成「推薦當天的卡片快照」（買區／停損／停利／標籤都鎖住，之後只有價格會用最新的來判斷是否出場）
 function buildEntrySnapshot(e){
   const ra=e._risk||{}; const p=ra.plan||{}; const ser=e.ser, N=ser.c.length;
-  const buy = p.buyLo!=null ? `${p.buyLo.toFixed(2)}–${p.buyHi.toFixed(2)}` : e.px.toFixed(2);
   let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(err){}
   const mvStop = mv?mv.price:p.stop;
   const mvWhy = mv?mv.why:(p.stopType||'');
+  // 建議買區以「同一個停損」為錨：一定在停損上方一點點，且不高於現價。
+  // 舊版直接拿「守住率最高的均線」當買區，那條線可能遠低於停損（例：緯創買區168、停損190），
+  // 等於叫人買在停損下方，一進場就該砍。
+  let buy;
+  {
+    const px=e.px;
+    if(mvStop!=null && px!=null && mvStop<px){
+      const lo=Math.max(mvStop*1.002, Math.min(px, mvStop*1.01));
+      const hi=Math.min(px, Math.max(lo*1.01, mvStop*1.04));
+      buy = `${lo.toFixed(2)}–${hi.toFixed(2)}`;
+    } else if(px!=null){
+      buy = `${(px*0.99).toFixed(2)}–${px.toFixed(2)}`;    // 停損算不出來就抓現價下方 1%
+    } else buy='—';
+  }
   // 停利目標必須「高於進場價」才合理；前高壓力若在現價之下不能當停利
   let target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
   if(target!=null && target<=e.px) target=null;     // 目標低於或等於現價 → 無效，不設停利（B 單續抱移動停損）
@@ -3987,9 +4007,6 @@ function easyCardHTML(entry, firstDate){
   const pnlTxt = st.pl==null?'' : `${money(st.pl)} 元`;
   // 停損顯示追蹤那邊已經上移到的值（快照裡的 mvStop 是推薦當天的初始值，會跟追蹤成績對不起來）
   const curStop = (L&&L.stop!=null)?L.stop:entry.mvStop;
-  // 停損依據：優先用追蹤那筆記下的 mvWhy，沒有才用快照的
-  const stopWhy = ((L&&L.mvWhy)||entry.mvWhy||'依系統規則推算')
-    .replace(/"/g,'')+'（依據順序：近5根爆量的最低價 → 近10根未封閉缺口的下緣 → 守住率最高的均線；若與 20MA 相差 1.5% 內就統一看 20MA）';
   // 兩張合計損益，擺在四個方塊的正上方
   const lotLine = L ? `<div class="epnl">
       <span class="epl ${st.pl>0?'up':st.pl<0?'dn':''}">兩張合計 <b>${money(st.pl)}</b> 元</span>
@@ -4015,7 +4032,7 @@ function easyCardHTML(entry, firstDate){
     ${lotLine}
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
-      <div class="eg stop" title="${stopWhy}"><s>移動停損（會往上移）<em class="whyq">?</em></s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
+      <div class="eg stop"><s>移動停損（會往上移）</s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
       <div class="eg tp"><s>停利目標（賣一半）</s><b>${tp5!=null?tp5.toFixed(2):'—'}</b></div>
       <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
     </div>
@@ -4025,13 +4042,18 @@ function easyCardHTML(entry, firstDate){
 // 畫上方日期分頁＋目前選到那天的卡片清單
 function renderEasyTabsAndList(){
   const body=$('#easyBody');
-  const days=Object.keys(RECO_HIST).sort().reverse();     // 新→舊，最新的排最左邊
+  // 只列最近 4 個推薦日（今天＋前 3 天）；更早的去「追蹤成績」看
+  const allDays=Object.keys(RECO_HIST).sort().reverse();
+  const days=allDays.slice(0,4);
   if(!days.length){
     body.innerHTML=`<div class="easyempty">今天沒有「站上4均線＋多頭排列」的強勢股，也還沒有任何推薦歷史。<br>這很正常——強勢股不是每天都有。可以改天再看，或用左邊的一般篩選放寬條件。</div>`;
     return;
   }
-  if(!EASY_SEL_DATE||!RECO_HIST[EASY_SEL_DATE])EASY_SEL_DATE=days[0];
-  const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}</div>`;
+  if(!EASY_SEL_DATE||days.indexOf(EASY_SEL_DATE)<0)EASY_SEL_DATE=days[0];
+  const olderN=allDays.length-days.length;
+  const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}`
+    + (olderN>0?`<span class="ihint" style="align-self:center;margin-left:6px">更早的 ${olderN} 天請到「🧪 追蹤成績」看</span>`:'')
+    + `</div>`;
   const allEntries=RECO_HIST[EASY_SEL_DATE]||[];
   // 同一檔已經有「更早開、還沒結案」的那一筆在追蹤中 → 今天不重複列卡片（例：8/10 推過萬海，8/11 就不再出現）
   const repeats=[], entries=[];
