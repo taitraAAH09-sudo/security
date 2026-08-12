@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V186</title>
+<title>盤後篩選台 V187</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -559,7 +559,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V186</span>
+    <h1>盤後篩選台</h1><span class="ver">V187</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3351,9 +3351,13 @@ function testRefreshStatus(){
       }
       // 進場當天（i===startIdx）只鎖定初始停損、不判斷賣出（當天不可能被停損/停利出場）
       if(i===startIdx) continue;
-      // A 單（賣一半）：基準固定是「推薦那天的收盤價」，之後任何一天收盤比推薦價高 ≥5% 就賣掉入袋
-      // （不是拿每天的前一日收盤重算，基準不會隨著日子往上跑）
-      if(!A.done && base!=null && base>0 && (c-base)/base>=0.05){ A.done=true; A.date=DB.dates[i]; A.px=c; A.why='比推薦價漲≥5%'; }
+      // ①先賣：掛在推薦價 +5% 的停利單，盤中最高價碰到就成交（成交價就是 +5% 那個價），
+      // 不必等收盤站上。基準固定是推薦當天收盤，不隨日子往上跑。
+      if(!A.done && base!=null && base>0){
+        const tgt=base*1.05;
+        const hi=(s.h&&s.h[i]!=null)?s.h[i]:c;
+        if(hi>=tgt){ A.done=true; A.date=DB.dates[i]; A.px=+tgt.toFixed(2); A.why='盤中觸及 +5%'; }
+      }
       // ②續抱：照移動停損，當天收盤跌破就賣；沒觸及就一直抱
       // 跌破移動停損＝趨勢壞了 → 兩張一起出場，①若還沒到 +5% 也用同一天收盤認賠
       if(!B.done && curStop!=null && c<curStop){
@@ -3840,7 +3844,7 @@ function testRender(){
       + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
       + `　<span class="rptmore">（點開看每一天）</span></summary>
       <div class="diagtbl">
-        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="①真的漲到推薦價+5%而入袋的筆數">觸及+5%</span><span title="②跌破移動停損被掃出的筆數">停損出場</span><span title="連+5%都沒碰到就被②連帶認賠的筆數">沒碰到+5%</span><span title="推薦當天的停損離推薦價多遠。前3天用20MA（帶量進場用5MA），第4天起才換成大量低點／缺口下緣／短期均線">初始停損距離</span><span>平均天數</span><span>損益</span></div>
+        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="①盤中觸及推薦價+5%、停利單成交的筆數">觸及+5%</span><span title="②跌破移動停損被掃出的筆數">停損出場</span><span title="連+5%都沒碰到就被②連帶認賠的筆數">沒碰到+5%</span><span title="推薦當天的停損離推薦價多遠。前3天用20MA（帶量進場用5MA），第4天起才換成大量低點／缺口下緣／短期均線">初始停損距離</span><span>平均天數</span><span>損益</span></div>
         ${rs.map(x=>`<div class="diagrow">
           <span>${fmtD(x.d)}</span><span>${x.n}</span><span>${x.closed}</span>
           <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
@@ -3852,7 +3856,7 @@ function testRender(){
           <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
       </div>
       <div class="ihint" style="margin-top:6px">
-        <b>觸及+5%</b>＝①真的漲到推薦價 +5% 入袋；<b>停損出場</b>＝②跌破移動停損被掃出；<b>沒碰到+5%</b>＝連 +5% 都沒碰到就被連帶認賠。<br>
+        <b>觸及+5%</b>＝①盤中最高價碰到推薦價 +5%、停利單成交；<b>停損出場</b>＝②跌破移動停損被掃出；<b>沒碰到+5%</b>＝從進場到出場，盤中最高價從沒碰到 +5% 就被停損。<br>
         <b>停損機制</b>：進場前 3 天用 <b>20MA</b>（帶量進場改用 5MA，最少留 3% 空間），第 4 天起才換成大量低點／缺口下緣／短期均線。<br>
         判讀：「初始停損距離」普遍小於 4% 代表停損太貼；「觸及+5%」遠少於「停損出場」代表停利門檻相對太遠。
       </div>
@@ -3897,7 +3901,7 @@ function testRender(){
     html+=`<div class="testday">
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①先賣·到+5%</span><span>②續抱·移動停損</span><span>盈虧</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①先賣·盤中觸及+5%</span><span>②續抱·移動停損</span><span>盈虧</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
@@ -4129,7 +4133,8 @@ function easyLots(entry, firstDate){
       if(mv&&mv.price!=null&&mv.price<c&&(cur==null||mv.price>cur))cur=mv.price;  // 停損不得高於當天收盤
     }
     if(i===i0)continue;
-    if(!A && base>0 && (c-base)/base>=0.05)A={px:c,date:DB.dates[i]};
+    if(!A && base>0){ const tgt=base*1.05, hi=(s.h&&s.h[i]!=null)?s.h[i]:c;
+      if(hi>=tgt)A={px:+tgt.toFixed(2),date:DB.dates[i]}; }
     if(!B && cur!=null && c<cur){ B={px:c,date:DB.dates[i]}; if(!A)A={px:c,date:DB.dates[i]}; }   // 跌破就兩張一起出
     if(A&&B)break;
   }
