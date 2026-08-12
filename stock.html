@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V183</title>
+<title>盤後篩選台 V184</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -558,7 +558,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V183</span>
+    <h1>盤後篩選台</h1><span class="ver">V184</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3270,7 +3270,7 @@ function testDedupeExisting(){
       const la=prev.lotA||{}, lb=prev.lotB||{};
       const closed=la.done&&lb.done;
       const closeDate=closed?[la.date,lb.date].filter(Boolean).sort().pop():null;
-      if(!closed || !closeDate || closeDate>e.firstDate){ removed++; continue; }   // 前一筆那時還在場上 → 這筆不該存在
+      if(!closed || !closeDate || closeDate>=e.firstDate){ removed++; continue; }  // 前一筆那時還在場上／當天才出場 → 這筆不該存在
     }
     keep.push(e); last[e.code]=e;
   }
@@ -3282,15 +3282,19 @@ function testIngestDay(date, snapshots){
   if(!date||!Array.isArray(snapshots))return 0;
   let added=0;
   // 同一檔同時只留一筆在追蹤。既有那筆若「A、B 兩張都已出場」才算結案，之後再被推薦就重新開一筆。
-  const openCode=new Set(), sameDay=new Set();
+  const blocked=new Set(), sameDay=new Set();
   for(const x of TEST_TRACK.entries){
     sameDay.add(x.code+'|'+x.firstDate);
-    const closed=(x.lotA&&x.lotA.done)&&(x.lotB&&x.lotB.done);
-    if(!closed)openCode.add(x.code);
+    const a=x.lotA||{}, b=x.lotB||{};
+    const closed=a.done&&b.done;
+    const cd=closed?[a.date,b.date].filter(Boolean).sort().pop():null;
+    // 還沒結案 → 不能再開；已結案但「出場日 ≥ 這個推薦日」也不能開，
+    // 否則今天被掃出、今天又立刻被推一次，看起來像重複推薦（例：2103）
+    if(!closed || !cd || cd>=date) blocked.add(x.code);
   }
   for(const s of snapshots){
     if(sameDay.has(s.code+'|'+date))continue;   // 同一天同一檔
-    if(openCode.has(s.code))continue;           // 之前推過、還在追蹤中 → 不重複開單
+    if(blocked.has(s.code))continue;            // 還在追蹤中，或今天才剛出場 → 不重複開單
     TEST_TRACK.entries.push({
       code:s.code, name:s.name||'', firstDate:date,
       entryPx:s.entryPx, mvStop:s.mvStop, mvWhy:s.mvWhy||'',
@@ -3301,7 +3305,7 @@ function testIngestDay(date, snapshots){
       // B 單（移動單）：一直照移動停損續抱，跌破才賣；沒觸及就一直抱（飛天）
       lotB:{done:false, date:null, px:null, why:''}
     });
-    sameDay.add(s.code+'|'+date); openCode.add(s.code); added++;
+    sameDay.add(s.code+'|'+date); blocked.add(s.code); added++;
   }
   return added;
 }
@@ -4184,7 +4188,7 @@ function renderEasyTabsAndList(){
       .sort((x,y)=>x.firstDate<y.firstDate?1:-1)
       .find(x=>{ const a=x.lotA||{},b=x.lotB||{}; const closed=a.done&&b.done;
         const cd=closed?[a.date,b.date].filter(Boolean).sort().pop():null;
-        return !closed || !cd || cd>EASY_SEL_DATE; });      // 那天還在場上
+        return !closed || !cd || cd>=EASY_SEL_DATE; });     // 那天還在場上，或當天才剛出場
     if(prev) repeats.push({e,prev}); else entries.push(e);
   }
   const repeatHTML = repeats.length ? `<details class="rptbox"><summary>🔁 另有 <b>${repeats.length}</b> 檔今天也符合條件，但<b>已經在追蹤中</b>、不重複列出<span class="rptmore">（點開看是哪幾檔）</span></summary>
