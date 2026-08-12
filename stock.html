@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V174</title>
+<title>盤後篩選台 V181</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -176,8 +176,8 @@ a{color:var(--amber)}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
 .epnl .eplsub{font-size:11px;color:var(--dim)}
 .failstamp::before{content:'';position:absolute;inset:3px;border:1px solid var(--up);border-radius:4px;opacity:.7}
-.rdtabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:3px;scrollbar-width:thin}
-.rdtab{flex:0 0 auto;padding:8px 18px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono)}
+.rdtabs{display:flex;align-items:center;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:3px;scrollbar-width:thin}
+.rdtab{flex:0 0 auto;align-self:center;height:34px;line-height:1;padding:0 16px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono);white-space:nowrap}
 .rdtab:hover{border-color:var(--amber-d);color:var(--paper)}
 .rdtab.on{background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border-color:transparent}
 .estatus{font-size:12px;font-weight:800;padding:3px 11px;border-radius:20px;margin-left:4px}
@@ -211,7 +211,8 @@ a{color:var(--amber)}
 .simsub{color:var(--dim);font-size:12px;flex:1}
 .simx{background:var(--panel2);border:1px solid var(--line);border-radius:5px;width:30px;height:30px;color:var(--muted);cursor:pointer;font-size:14px}
 .simbody{padding:16px 18px}
-.simtabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 18px}
+.simtabs{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--line);padding:0 18px}
+.tabsync{margin-left:auto;padding:6px 14px;font-size:13px;white-space:nowrap}
 .simtab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font-size:14px;font-weight:700;padding:12px 18px;cursor:pointer}
 .simtab.on{color:var(--amber);border-bottom-color:var(--amber)}
 .simtab:hover{color:var(--paper)}
@@ -251,6 +252,20 @@ a{color:var(--amber)}
 .plpart b{font-family:var(--mono);font-weight:800;font-size:16px}
 .plpart s{text-decoration:none;font-size:10px;opacity:.65;font-weight:400}
 .tflag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle;white-space:nowrap}
+.diagbox{border:1px dashed var(--line);border-radius:9px;padding:9px 12px;margin:0 0 12px;font-size:12px;color:var(--dim)}
+.diagbox>summary{cursor:pointer;list-style:none;line-height:1.8}
+.diagbox>summary::-webkit-details-marker{display:none}
+.diagbox>summary::before{content:'▸ ';color:var(--amber)}
+.diagbox[open]>summary::before{content:'▾ '}
+.diagbox b{color:var(--paper)}
+.diagtbl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.diagrow{display:grid;grid-template-columns:1.1fr .6fr .6fr .8fr .9fr 1.1fr .8fr 1fr;gap:6px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
+.diagrow.hd{color:var(--dim);font-family:var(--sans);font-size:11px;border-bottom:1px solid var(--line)}
+.diagrow:not(.hd):nth-child(odd){background:var(--panel2)}
+.diagrow>span:last-child{text-align:right;font-weight:800}
+@media(max-width:760px){.diagrow{grid-template-columns:1fr .6fr .8fr 1fr;gap:4px}.diagrow>span:nth-child(3),.diagrow>span:nth-child(5),.diagrow>span:nth-child(7){display:none}}
+.tdiag{font-size:11px;color:var(--dim);margin-left:auto;text-align:right;line-height:1.6}
+.tdiag b{color:var(--amber)}
 .tflag.win{background:var(--amber);color:#1a1408;border:1px solid var(--amber);letter-spacing:.5px}
 .tflag.lose{background:transparent;color:var(--up);border:1px dashed var(--up);letter-spacing:.5px}
 .tflag.even{background:rgba(255,255,255,.08);color:var(--dim);border:1px solid var(--line)}
@@ -543,7 +558,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V174</span>
+    <h1>盤後篩選台</h1><span class="ver">V181</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -582,13 +597,13 @@ tbody tr{cursor:pointer}
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
       <button class="simtab" id="easyTabSec">🏭 近期產業</button>
+      <button class="testbtn tabsync" id="testSync">↻ 立即同步今天推薦</button>
     </div>
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
     <div class="easybody" id="easyPaneTest" style="display:none">
       <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每筆買 2 張：<b>①先賣</b>漲到推薦價 +5% 就入袋、<b>②續抱</b>照移動停損抱到跌破為止。</div>
       <div class="testctl">
-        <button id="testSync" class="testbtn">↻ 立即同步今天推薦</button>
         <button id="testViewList" class="testbtn on">📋 清單</button>
         <button id="testViewCal" class="testbtn">📅 月曆</button>
         <span class="testnote" id="testNote"></span>
@@ -2109,6 +2124,37 @@ function backtest(ser){
    核心邏輯：百日內最常在某條均線反彈 → 那條均線=接的位置=停損參考 */
 // ── 移動式停損：規則＝有爆量看爆量低點、有缺口看缺口下緣、否則沿 5MA/10MA ──
 // 回傳到第 i 根為止「當下該用的停損價」與依據
+// 進場後的「呼吸期」：前 3 個交易日不啟用移動停損（5MA/10MA 太貼，強勢股正常回檔就被掃出）。
+// 這段期間改用 20MA 當退場機制；20MA 若還在進場價上方或抓不到，就退成進場價下方 8% 保底。
+const GRACE_DAYS=3;
+// 進場那幾天是否帶爆量（量 ≥ 前 60 日均量 2.5 倍）——判斷呼吸期要看哪條線
+function hadBurstAt(ser, idx){
+  const q=ser.q||[];
+  for(let k=idx;k>=Math.max(0,idx-2);k--){
+    const base=q.slice(Math.max(0,k-60),k);
+    const avg=base.length?base.reduce((a,b)=>a+b,0)/base.length:0;
+    if(avg>0&&q[k]>=avg*2.5)return true;
+  }
+  return false;
+}
+function graceStop(ser, i0, i){
+  const c=ser.c;
+  const maAt=n=>{ let t=0,k=0; for(let j=Math.max(0,i-n+1);j<=i;j++){ if(c[j]==null)continue; t+=c[j]; k++; } return k>=n?t/k:null; };
+  const entry=c[i0];
+  const floor = entry!=null ? entry*0.92 : null;            // 保底：進場價下方 8%
+  // 帶量進場 → 呼吸期看 5MA（爆量拉抬後理應貼著 5MA 走，守不住就是假突破）；
+  // 沒帶量 → 看 20MA，給更寬的空間。第 4 天起才交棒給大量低點／缺口那套。
+  const burst = hadBurstAt(ser, i0);
+  const line = burst ? maAt(5) : maAt(20);
+  const nm = burst ? '5MA' : '20MA';
+  let px=null, why='';
+  if(line!=null && c[i]!=null && line<c[i]){ px=line; why=`${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
+  if(px==null || (floor!=null && px<floor && !burst)) { }   // 沒帶量時仍以均線為準，不硬拉到保底
+  if(px==null){ px=floor; why='進場價下方 8%（進場前 3 天的保護）'; }
+  // 帶量進場用 5MA 會比較貼，補一道下限：至少要有進場價下方 3% 的空間
+  if(burst && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
+  return px!=null ? {price:px, why} : null;
+}
 function movingStopAt(ser,i){
   const c=ser.c, l=ser.l||c, h=ser.h||c, q=ser.q||[];
   const lo=n=>{let t=0,cnt=0;for(let k=Math.max(0,i-n+1);k<=i;k++){t+=c[k];cnt++;}return cnt?t/cnt:null;};
@@ -3288,9 +3334,15 @@ function testRefreshStatus(){
     const base = en.entryPx!=null?en.entryPx:s.c[startIdx];   // A 單的固定基準＝推薦價
     for(let i=startIdx; i<s.c.length; i++){
       const c=s.c[i]; if(c==null)continue;
-      // 當天的移動停損（只升不降）
-      let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
-      if(mv&&mv.price!=null && (curStop==null||mv.price>curStop)){ curStop=mv.price; curWhy=mv.why; }
+      // 進場後前 3 天：先用 20MA（或進場價下方 8%）當保護，不啟用會愈收愈緊的移動停損
+      if(i-startIdx<=GRACE_DAYS){
+        let g=null; try{ g=graceStop(ser,startIdx,i); }catch(e){}
+        if(g&&g.price!=null&&g.price<c){ curStop=g.price; curWhy=g.why; }
+      }else{
+        // 移動停損（只升不降），且必須在當天收盤下方
+        let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
+        if(mv&&mv.price!=null && mv.price<c && (curStop==null||mv.price>curStop)){ curStop=mv.price; curWhy=mv.why; }
+      }
       // 進場當天（i===startIdx）只鎖定初始停損、不判斷賣出（當天不可能被停損/停利出場）
       if(i===startIdx) continue;
       // A 單（賣一半）：基準固定是「推薦那天的收盤價」，之後任何一天收盤比推薦價高 ≥5% 就賣掉入袋
@@ -3748,15 +3800,76 @@ function testRender(){
     + `<button class="rdtab${TEST_SEL_DATE==='ALL'?' on':''}" data-date="ALL">全部 <span style="opacity:.6">${ents.length}</span></button>`
     + (older>0?`<span class="ihint" style="align-self:center;margin-left:4px">還有 ${older} 天更早的，用「📅 月曆」點進去看</span>`:'')
     + `</div>`;
+  // 全部推薦日的體檢表：一次看每一天的結案／勝負／停損距離，用來判斷規則要不要再調
+  const dayStat=(d)=>{
+    const rows=byDate[d]||[];
+    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0;
+    for(const en of rows){
+      const a=en.lotA||{}, b=en.lotB||{};
+      if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
+      const p=testPnL(en); if(p)pl+=p.total;
+      if(!(a.done&&b.done))continue;
+      closed++; if(p&&p.total>0)win++; else if(p&&p.total<0)lose++;
+      if(a.why&&a.why.indexOf('跟著')>=0)noTouch++;
+      const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
+      if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
+    }
+    return {n:rows.length,closed,win,lose,noTouch,
+            dist:distN?dist/distN:null, days:daysN?days/daysN:null, pl};
+  };
+  const allStat=(()=>{
+    const rs=dates.map(d=>({d,...dayStat(d)})).filter(x=>x.n);
+    if(!rs.length)return '';
+    const T=rs.reduce((a,x)=>({closed:a.closed+x.closed,win:a.win+x.win,lose:a.lose+x.lose,
+      noTouch:a.noTouch+x.noTouch,pl:a.pl+x.pl}),{closed:0,win:0,lose:0,noTouch:0,pl:0});
+    const wr=T.closed?(T.win/T.closed*100).toFixed(0):'—';
+    const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
+    const cls=v=>v>0?'up':v<0?'dn':'';
+    return `<details class="diagbox"><summary>🩺 全部推薦日體檢：已結案 <b>${T.closed}</b> 筆，賺 <b>${T.win}</b>／賠 <b>${T.lose}</b>，勝率 <b>${wr}%</b>`
+      + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
+      + `　<span class="rptmore">（點開看每一天）</span></summary>
+      <div class="diagtbl">
+        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span>沒碰到+5%</span><span>初始停損距離</span><span>平均天數</span><span>損益</span></div>
+        ${rs.map(x=>`<div class="diagrow">
+          <span>${fmtD(x.d)}</span><span>${x.n}</span><span>${x.closed}</span>
+          <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
+          <span>${x.noTouch||'—'}</span>
+          <span>${x.dist!=null?x.dist.toFixed(1)+'%':'—'}</span>
+          <span>${x.days!=null?x.days.toFixed(1)+' 天':'—'}</span>
+          <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
+      </div>
+      <div class="ihint" style="margin-top:6px">「初始停損距離」若普遍小於 4%，代表停損太貼、正常回檔就被掃出；「沒碰到+5%」多代表停利門檻相對太遠。</div>
+    </details>`;
+  })();
   const show = TEST_SEL_DATE==='ALL' ? dates : [TEST_SEL_DATE];
-  let html=tabs;
+  let html=tabs+allStat;
   for(const d of show){
     if(!byDate[d]){
       // 這天有推薦，但推的都是已經在追蹤中的股票 → 沒開新單，講清楚是哪幾檔、在追哪一筆
       const picks=(RH[d]||[]);
       const lines=picks.map(pk=>{ const prev=ents.filter(e=>e.code===pk.code).sort((x,y)=>x.firstDate<y.firstDate?1:-1)[0];
         return `<div class="testrow"><span class="tnm">${pk.code} ${pk.name||''}</span><span style="grid-column:2/-1;color:var(--dim);font-size:12px">${prev?`已在追蹤中（${fmtD(prev.firstDate)} 那筆還沒結束）`:'—'}</span></div>`; }).join('');
-      html+=`<div class="testday"><div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${picks.length} 檔　·　沒有新開單</span></div>
+      // 這天的出場診斷：幾筆結案、其中幾筆是「連 +5% 都沒碰到就被停損」、初始停損平均離進場多遠、平均活幾天
+      const diag=(()=>{
+        const rows=byDate[d]||[]; if(!rows.length)return '';
+        let closed=0,fail=0,noTouch=0,dist=0,distN=0,days=0,daysN=0;
+        for(const en of rows){
+          const a=en.lotA||{}, b=en.lotB||{};
+          if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
+          if(!(a.done&&b.done))continue;
+          closed++;
+          const pl=testPnL(en); if(pl&&pl.total<0)fail++;
+          if(a.why&&a.why.indexOf('跟著')>=0)noTouch++;      // ① 沒到 +5%、被②連帶出場
+          const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
+          if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
+        }
+        if(!closed)return '';
+        return `<span class="tdiag">已結案 ${closed} 筆·賠錢 ${fail} 筆`
+          + (noTouch?`　·　其中 <b>${noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
+          + (distN?`　·　初始停損平均離進場 <b>${(dist/distN).toFixed(1)}%</b>`:'')
+          + (daysN?`　·　平均 ${(days/daysN).toFixed(1)} 天出場`:'') + `</span>`;
+      })();
+      html+=`<div class="testday"><div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span>${diag}<span class="tcount">推薦 ${picks.length} 檔　·　沒有新開單</span></div>
         <div class="testdbody"><div class="ihint" style="padding:10px 14px">這天推薦的股票<b>全部都已經在追蹤中</b>（同一檔同時只追一筆），所以沒有新開單。</div>${lines}</div></div>`;
       continue;
     }
@@ -3902,8 +4015,11 @@ function latestPx(code){
 // 把一檔 evaluate() 結果凍結成「推薦當天的卡片快照」（買區／停損／停利／標籤都鎖住，之後只有價格會用最新的來判斷是否出場）
 function buildEntrySnapshot(e){
   const ra=e._risk||{}; const p=ra.plan||{}; const ser=e.ser, N=ser.c.length;
-  let mv=null; try{ mv=movingStopAt(ser,N-1); }catch(err){}
-  const mvStop = mv?mv.price:p.stop;
+  let mv=null; try{ mv=graceStop(ser,N-1,N-1); }catch(err){}
+  if(!mv||mv.price==null){ try{ mv=movingStopAt(ser,N-1); }catch(err){} }
+  let mvStop = mv?mv.price:p.stop;
+  // 停損必須低於推薦當天收盤，否則一推薦就處在停損之下
+  if(mvStop!=null && e.px!=null && mvStop>=e.px) mvStop = +(e.px*0.95).toFixed(2);
   const mvWhy = mv?mv.why:(p.stopType||'');
   // 建議買區以「同一個停損」為錨：一定在停損上方一點點，且不高於現價。
   // 舊版直接拿「守住率最高的均線」當買區，那條線可能遠低於停損（例：緯創買區168、停損190），
@@ -3974,8 +4090,13 @@ function easyLots(entry, firstDate){
   let A=null,B=null,cur=stop;
   for(let i=i0;i<s.c.length;i++){
     const c=s.c[i]; if(c==null)continue;
-    let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
-    if(mv&&mv.price!=null&&(cur==null||mv.price>cur))cur=mv.price;
+    if(i-i0<=GRACE_DAYS){
+      let g=null; try{ g=graceStop(ser,i0,i); }catch(e){}
+      if(g&&g.price!=null&&g.price<c)cur=g.price;                                // 前 3 天用 20MA／保底
+    }else{
+      let mv=null; try{ mv=movingStopAt(ser,i); }catch(e){}
+      if(mv&&mv.price!=null&&mv.price<c&&(cur==null||mv.price>cur))cur=mv.price;  // 停損不得高於當天收盤
+    }
     if(i===i0)continue;
     if(!A && base>0 && (c-base)/base>=0.05)A={px:c,date:DB.dates[i]};
     if(!B && cur!=null && c<cur){ B={px:c,date:DB.dates[i]}; if(!A)A={px:c,date:DB.dates[i]}; }   // 跌破就兩張一起出
