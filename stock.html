@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V171</title>
+<title>盤後篩選台 V173</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -543,7 +543,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V171</span>
+    <h1>盤後篩選台</h1><span class="ver">V173</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3311,6 +3311,7 @@ async function testAutoSync(){
   if(recoDate && !snap){ await buildEasyView(); snap=RECO_HIST[recoDate]; }
   let added=0;
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
+  try{ await backfillRecoDays(10); }catch(e){}   // 先把漏掉的推薦日補出來，再一起併入追蹤
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -3408,10 +3409,19 @@ async function buildSectorCodes(force){
       const title=titles.join(' ');
       // 先用官網那份官方產業名認出這一頁是哪個產業，再把它對到我們的指數名
       const official=TWSE_SECTORS.filter(o=>title.includes(o)).sort((a,b)=>b.length-a.length)[0];
+      // 名稱相互包含時要先挑「正規化後完全相等」的，否則「生技醫療業」會被更長的「化學生技醫療」搶走，
+      // 真正的生技醫療就永遠配不到代碼與成分股
+      const pick=(cands)=>{
+        if(!cands.length)return null;
+        const exact=cands.filter(n=>secNorm(n)===secNorm(official||title));
+        const pool=exact.length?exact:cands;
+        const free=pool.filter(n=>!DB.secCode[n]);            // 已經配過的不要再搶
+        return (free.length?free:pool).sort((a,b)=>a.length-b.length)[0];
+      };
       let hit=null;
-      if(official) hit=names.filter(n=>secSame(n,official)).sort((a,b)=>b.length-a.length)[0];
-      if(!hit) hit=names.filter(n=>title.includes(n)).sort((a,b)=>b.length-a.length)[0];
-      if(!hit) hit=names.filter(n=>secSame(n,title)).sort((a,b)=>b.length-a.length)[0];
+      if(official) hit=pick(names.filter(n=>secSame(n,official)));
+      if(!hit) hit=pick(names.filter(n=>title.includes(n)));
+      if(!hit) hit=pick(names.filter(n=>secSame(n,title)));
       // 順便把成分股收下來（有名單就算標題認不出也還能用）
       let F=null,D=null;
       if(Array.isArray(j.tables))for(const tb of j.tables)
@@ -3448,7 +3458,7 @@ async function openSectorStocks(name){
     }
   }
   let code=(DB.secCode||{})[name];
-  if(!code && !local.length){ await buildSectorCodes(); code=(DB.secCode||{})[name]; }
+  if(!code && !local.length){ box.innerHTML=`<div class="ihint">正在建立 ${name} 的類股對照表…</div>`; await buildSectorCodes(); code=(DB.secCode||{})[name]; }
 
   // ② 有代碼就去抓當日完整行情；抓到就用，抓不到就退回本機那份（不再直接報錯）
   let net=[];
@@ -4049,6 +4059,44 @@ function renderEasyTabsAndList(){
     $('#ipCode').value=c; paintInspect(c); drawChart(c);
   });
 }
+// 掃出「某個基準日」的推薦清單（off=0 是最新一天，1 是前一天…）。現在與補建過去共用同一套規則。
+function scanEasyPicks(off){
+  const saved=OFFSET; OFFSET=off;
+  const picks=[];
+  try{
+    for(const code of Object.keys(DB.stocks||{})){
+      let e; try{ e=evaluate(code); }catch(err){ continue; }
+      if(!e||!e.enough)continue;
+      const allMA=e.lamps&&e.lamps.every(Boolean);
+      if(!(allMA&&e.ord))continue;             // 核心：站上4均線＋季線在最下
+      let gp=null;
+      try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
+      if(gp&&!gp.closed)e._easyGap=gp;
+      e._easyVol=(e.ratio5>=1.3 || e.ratio>=e.vx);
+      picks.push(e);
+    }
+    picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
+    picks.sort((a,b)=>(b._risk.score||0)-(a._risk.score||0)||(b.chg||0)-(a.chg||0));
+  } finally { OFFSET=saved; }
+  return picks;
+}
+// 補建漏掉的推薦日：只要行情資料裡有那天，就算沒人開過工具也能事後補出當天的推薦清單
+async function backfillRecoDays(n){
+  await loadRecoHistory();
+  if(!DB.dates||!DB.dates.length)return 0;
+  const last=Math.min(n,DB.dates.length);
+  let added=0;
+  for(let off=0;off<last;off++){
+    const d=DB.dates[DB.dates.length-1-off];
+    if(RECO_HIST[d])continue;                        // 已經有就不覆蓋
+    const picks=scanEasyPicks(off);
+    if(!picks.length)continue;
+    RECO_HIST[d]=picks.map(buildEntrySnapshot);
+    added++;
+  }
+  if(added){ await saveRecoHistory(); }
+  return added;
+}
 async function buildEasyView(){
   await loadRecoHistory();
   try{ await testLoad(); }catch(e){}    // 卡片要拿追蹤成績那一筆的結果，先確保載入
@@ -4058,26 +4106,8 @@ async function buildEasyView(){
     body.innerHTML=`<div class="easyempty">目前還沒有任何行情資料。<br>請先關掉這個視窗，按左上角<b>「更新並篩選」</b>，跑完再回來看。</div>`;
     return;
   }
-  // 獨立掃描整個名單（不受左邊篩選開關影響）：站上4均線＋多頭排列的強勢股
-  // 缺口或爆量任一有就標記（有缺口看缺口、有爆量看爆量，都用高低點當壓力/支撐/停損）
-  const picks=[];
-  for(const code of codes){
-    let e; try{ e=evaluate(code); }catch(err){ continue; }
-    if(!e||!e.enough)continue;
-    const allMA=e.lamps&&e.lamps.every(Boolean);
-    const ord=e.ord;
-    if(!(allMA&&ord))continue;               // 核心：站上4均線＋多頭排列
-    // 近 10 日內未封閉的向上跳空缺口（有就記）
-    let gp=null;
-    try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
-    if(gp&&!gp.closed)e._easyGap=gp;
-    // 今日是否放量（爆量）
-    e._easyVol = (e.ratio5>=1.3 || e.ratio>=e.vx);
-    picks.push(e);
-  }
-  // 依「進場風險評分」由高到低排序（風險低的排前面），同分再看漲幅
-  picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
-  picks.sort((a,b)=>(b._risk.score||0)-(a._risk.score||0)||(b.chg||0)-(a.chg||0));
+  try{ await backfillRecoDays(10); }catch(e){}   // 有幾天沒開工具？用行情資料把那幾天的推薦補回來
+  const picks=scanEasyPicks(OFFSET);
   // 推薦日期＝目前資料的基準日（收盤日）。把今天的完整卡片快照存進歷史，只保留近 7 個推薦日，第 8 天洗掉最舊（第1天）
   const recoDate = (DB.dates && DB.dates.length) ? DB.dates[DB.dates.length-1-OFFSET] : null;
   if(recoDate){
