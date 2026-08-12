@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V187</title>
+<title>盤後篩選台 V189</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -559,7 +559,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V187</span>
+    <h1>盤後篩選台</h1><span class="ver">V189</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3815,21 +3815,21 @@ function testRender(){
   // 全部推薦日的體檢表：一次看每一天的結案／勝負／停損距離，用來判斷規則要不要再調
   const dayStat=(d)=>{
     const rows=byDate[d]||[];
-    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,stopped=0;
+    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,holding=0;
     for(const en of rows){
       const a=en.lotA||{}, b=en.lotB||{};
       if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
       const p=testPnL(en); if(p)pl+=p.total;
       // ①真的漲到推薦價 +5% 而成交（不含被②連帶出場的那種）
       if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))hit5++;
-      if(b.done)stopped++;                                   // ②被移動停損掃出
+      if(!(a.done&&b.done))holding++;                        // 還沒結案＝還在手上
       if(!(a.done&&b.done))continue;
       closed++; if(p&&p.total>0)win++; else if(p&&p.total<0)lose++;
       if(a.why&&a.why.indexOf('跟著')>=0)noTouch++;
       const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
       if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
     }
-    return {n:rows.length,closed,win,lose,noTouch,hit5,stopped,
+    return {n:rows.length,closed,win,lose,noTouch,hit5,holding,
             dist:distN?dist/distN:null, days:daysN?days/daysN:null, pl};
   };
   const allStat=(()=>{
@@ -3841,24 +3841,26 @@ function testRender(){
     const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
     const cls=v=>v>0?'up':v<0?'dn':'';
     return `<details class="diagbox"><summary>🩺 全部推薦日體檢：已結案 <b>${T.closed}</b> 筆，賺 <b>${T.win}</b>／賠 <b>${T.lose}</b>，勝率 <b>${wr}%</b>`
-      + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
+      + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆全程沒摸到 +5% 就整筆認賠`:'')
       + `　<span class="rptmore">（點開看每一天）</span></summary>
       <div class="diagtbl">
-        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="①盤中觸及推薦價+5%、停利單成交的筆數">觸及+5%</span><span title="②跌破移動停損被掃出的筆數">停損出場</span><span title="連+5%都沒碰到就被②連帶認賠的筆數">沒碰到+5%</span><span title="推薦當天的停損離推薦價多遠。前3天用20MA（帶量進場用5MA），第4天起才換成大量低點／缺口下緣／短期均線">初始停損距離</span><span>平均天數</span><span>損益</span></div>
+        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="這幾筆之中，①那張有成交（盤中摸到推薦價+5%）的筆數">①停利成交</span><span title="從進場到出場，盤中最高價從沒摸到 +5%、兩張一起認賠的筆數">全程沒摸到</span><span title="兩張還沒都出場、目前仍在追蹤中的筆數">還在手上</span><span title="推薦當天的停損離推薦價多遠。前3天用20MA（帶量進場用5MA），第4天起才換成大量低點／缺口下緣／短期均線">初始停損距離</span><span>平均天數</span><span>損益</span></div>
         ${rs.map(x=>`<div class="diagrow">
           <span>${fmtD(x.d)}</span><span>${x.n}</span><span>${x.closed}</span>
           <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
           <span class="${x.hit5?'up':''}">${x.hit5||'—'}</span>
-          <span class="${x.stopped?'dn':''}">${x.stopped||'—'}</span>
-          <span>${x.noTouch||'—'}</span>
+          <span class="${x.noTouch?'dn':''}">${x.noTouch||'—'}</span>
+          <span>${x.holding||'—'}</span>
           <span>${x.dist!=null?x.dist.toFixed(1)+'%':'—'}</span>
           <span>${x.days!=null?x.days.toFixed(1)+' 天':'—'}</span>
           <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
       </div>
       <div class="ihint" style="margin-top:6px">
-        <b>觸及+5%</b>＝①盤中最高價碰到推薦價 +5%、停利單成交；<b>停損出場</b>＝②跌破移動停損被掃出；<b>沒碰到+5%</b>＝從進場到出場，盤中最高價從沒碰到 +5% 就被停損。<br>
+        <b>①停利成交</b>＝盤中摸到推薦價 +5%、先賣一半入袋的筆數（另一半可能還抱著，也可能後來被停損）。<br>
+        <b>全程沒摸到</b>＝從頭到尾連 +5% 都沒摸到就被停損，兩張一起認賠——這才是真正失敗的那種。<br>
+        <b>還在手上</b>＝兩張還沒都出場、仍在追蹤中的筆數。<br>
         <b>停損機制</b>：進場前 3 天用 <b>20MA</b>（帶量進場改用 5MA，最少留 3% 空間），第 4 天起才換成大量低點／缺口下緣／短期均線。<br>
-        判讀：「初始停損距離」普遍小於 4% 代表停損太貼；「觸及+5%」遠少於「停損出場」代表停利門檻相對太遠。
+        判讀：「初始停損距離」普遍小於 4% 代表停損太貼；「全程沒摸到」佔多數代表停利門檻相對太遠。
       </div>
     </details>`;
   })();
@@ -3886,7 +3888,7 @@ function testRender(){
         }
         if(!closed)return '';
         return `<span class="tdiag">已結案 ${closed} 筆·賠錢 ${fail} 筆`
-          + (noTouch?`　·　其中 <b>${noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
+          + (noTouch?`　·　其中 <b>${noTouch}</b> 筆全程沒摸到 +5%`:'')
           + (distN?`　·　初始停損平均離進場 <b>${(dist/distN).toFixed(1)}%</b>`:'')
           + (daysN?`　·　平均 ${(days/daysN).toFixed(1)} 天出場`:'') + `</span>`;
       })();
@@ -3954,7 +3956,7 @@ function testRender(){
 const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 // 這個系統正式開始記錄的日子。更早的推薦是事後用歷史行情補算出來的，不是當時真的推過，
 // 放進統計會混淆勝率，所以一律不建立也不保留。
-const RECO_START='20260801';
+const RECO_START='20260803';
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
