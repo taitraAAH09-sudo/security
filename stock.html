@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V181</title>
+<title>盤後篩選台 V183</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -558,7 +558,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V181</span>
+    <h1>盤後篩選台</h1><span class="ver">V183</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3372,6 +3372,7 @@ async function testAutoSync(){
   let added=0;
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
   try{ await backfillRecoDays(10); }catch(e){}   // 先把漏掉的推薦日補出來，再一起併入追蹤
+  reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -4206,8 +4207,13 @@ function renderEasyTabsAndList(){
 function scanEasyPicks(off){
   const saved=OFFSET; OFFSET=off;
   const picks=[];
+  const baseIdx=(DB.dates?DB.dates.length:0)-1-off;
   try{
     for(const code of Object.keys(DB.stocks||{})){
+      // 這檔在「基準日」沒有收盤價就跳過。否則 evaluate 會拿更早那天的價格來算，
+      // 於是用昨天的數字掛在今天的推薦日底下（今天跳空大跌卻照樣入選）
+      const st=DB.stocks[code];
+      if(!st||!st.c||baseIdx<0||st.c[baseIdx]==null)continue;
       let e; try{ e=evaluate(code); }catch(err){ continue; }
       if(!e||!e.enough)continue;
       const allMA=e.lamps&&e.lamps.every(Boolean);
@@ -4224,21 +4230,53 @@ function scanEasyPicks(off){
   return picks;
 }
 // 補建漏掉的推薦日：只要行情資料裡有那天，就算沒人開過工具也能事後補出當天的推薦清單
+// 推薦價對帳：快照當時可能抓到的是尚未定案的價（盤中／資料還沒補齊），
+// 之後那天的收盤被更新，推薦價就跟實際收盤對不起來 → 剛推薦當天就冒出盈虧。
+// 這裡把 RECO_HIST 與追蹤紀錄的 entryPx 校正回「那一天真正的收盤價」。
+function reconcileEntryPx(){
+  if(!DB.dates||!DB.dates.length)return 0;
+  const closeOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.c)return null;
+    const i=DB.dates.indexOf(d); return i>=0?st.c[i]:null; };
+  let fixed=0;
+  for(const d in (RECO_HIST||{})){
+    for(const en of (RECO_HIST[d]||[])){
+      const real=closeOn(en.code,d);
+      if(real!=null && en.entryPx!=null && Math.abs(real-en.entryPx)>0.001){ en.entryPx=real; fixed++; }
+    }
+  }
+  for(const en of ((TEST_TRACK&&TEST_TRACK.entries)||[])){
+    const real=closeOn(en.code,en.firstDate);
+    if(real!=null && en.entryPx!=null && Math.abs(real-en.entryPx)>0.001){ en.entryPx=real; fixed++; }
+  }
+  return fixed;
+}
 async function backfillRecoDays(n){
   await loadRecoHistory();
   if(!DB.dates||!DB.dates.length)return 0;
   const last=Math.min(n,DB.dates.length);
+  const lastDate=DB.dates[DB.dates.length-1];
   let added=0;
   for(let off=0;off<last;off++){
     const d=DB.dates[DB.dates.length-1-off];
     if(RECO_HIST[d])continue;                        // 已經有就不覆蓋
+    // 當天的收盤資料還沒定案就先不要建立推薦日（例：盤中或法人未出時開了工具）
+    if(d===lastDate && !dayLooksFinal(d))continue;
     const picks=scanEasyPicks(off);
     if(!picks.length)continue;
     RECO_HIST[d]=picks.map(buildEntrySnapshot);
     added++;
   }
-  if(added){ await saveRecoHistory(); }
+  const fixed=reconcileEntryPx();
+  if(added||fixed){ await saveRecoHistory(); }
   return added;
+}
+// 那天的收盤資料看起來完整嗎：名單裡至少八成的股票都有那天的收盤價
+function dayLooksFinal(d){
+  const i=DB.dates.indexOf(d); if(i<0)return false;
+  const codes=Object.keys(DB.stocks||{}); if(codes.length<20)return true;
+  let have=0;
+  for(const c of codes){ const st=DB.stocks[c]; if(st&&st.c&&st.c[i]!=null)have++; }
+  return have/codes.length>=0.8;
 }
 async function buildEasyView(){
   await loadRecoHistory();
