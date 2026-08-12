@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V184</title>
+<title>盤後篩選台 V186</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -259,11 +259,12 @@ a{color:var(--amber)}
 .diagbox[open]>summary::before{content:'▾ '}
 .diagbox b{color:var(--paper)}
 .diagtbl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
-.diagrow{display:grid;grid-template-columns:1.1fr .6fr .6fr .8fr .9fr 1.1fr .8fr 1fr;gap:6px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
+.diagrow{display:grid;grid-template-columns:1.05fr .5fr .5fr .75fr .7fr .7fr .8fr 1fr .7fr .95fr;gap:5px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
 .diagrow.hd{color:var(--dim);font-family:var(--sans);font-size:11px;border-bottom:1px solid var(--line)}
 .diagrow:not(.hd):nth-child(odd){background:var(--panel2)}
 .diagrow>span:last-child{text-align:right;font-weight:800}
-@media(max-width:760px){.diagrow{grid-template-columns:1fr .6fr .8fr 1fr;gap:4px}.diagrow>span:nth-child(3),.diagrow>span:nth-child(5),.diagrow>span:nth-child(7){display:none}}
+@media(max-width:760px){.diagrow{grid-template-columns:1fr .6fr .7fr .7fr 1fr;gap:4px}
+  .diagrow>span:nth-child(3),.diagrow>span:nth-child(7),.diagrow>span:nth-child(8),.diagrow>span:nth-child(9){display:none}}
 .tdiag{font-size:11px;color:var(--dim);margin-left:auto;text-align:right;line-height:1.6}
 .tdiag b{color:var(--amber)}
 .tflag.win{background:var(--amber);color:#1a1408;border:1px solid var(--amber);letter-spacing:.5px}
@@ -558,7 +559,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V184</span>
+    <h1>盤後篩選台</h1><span class="ver">V186</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3209,6 +3210,7 @@ async function testLoad(){
   try{ cloud=await testFbPull(); }catch(e){}
   if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; testDedupeExisting(); try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){} return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
+  purgeBeforeStart();
   testDedupeExisting();
 }
 async function testSave(){
@@ -3377,6 +3379,7 @@ async function testAutoSync(){
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
   try{ await backfillRecoDays(10); }catch(e){}   // 先把漏掉的推薦日補出來，再一起併入追蹤
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
+  purgeBeforeStart();     // 清掉系統開始記錄之前的資料
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -3808,18 +3811,21 @@ function testRender(){
   // 全部推薦日的體檢表：一次看每一天的結案／勝負／停損距離，用來判斷規則要不要再調
   const dayStat=(d)=>{
     const rows=byDate[d]||[];
-    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0;
+    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,stopped=0;
     for(const en of rows){
       const a=en.lotA||{}, b=en.lotB||{};
       if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
       const p=testPnL(en); if(p)pl+=p.total;
+      // ①真的漲到推薦價 +5% 而成交（不含被②連帶出場的那種）
+      if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))hit5++;
+      if(b.done)stopped++;                                   // ②被移動停損掃出
       if(!(a.done&&b.done))continue;
       closed++; if(p&&p.total>0)win++; else if(p&&p.total<0)lose++;
       if(a.why&&a.why.indexOf('跟著')>=0)noTouch++;
       const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
       if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
     }
-    return {n:rows.length,closed,win,lose,noTouch,
+    return {n:rows.length,closed,win,lose,noTouch,hit5,stopped,
             dist:distN?dist/distN:null, days:daysN?days/daysN:null, pl};
   };
   const allStat=(()=>{
@@ -3834,16 +3840,22 @@ function testRender(){
       + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆連 +5% 都沒碰到就被停損`:'')
       + `　<span class="rptmore">（點開看每一天）</span></summary>
       <div class="diagtbl">
-        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span>沒碰到+5%</span><span>初始停損距離</span><span>平均天數</span><span>損益</span></div>
+        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="①真的漲到推薦價+5%而入袋的筆數">觸及+5%</span><span title="②跌破移動停損被掃出的筆數">停損出場</span><span title="連+5%都沒碰到就被②連帶認賠的筆數">沒碰到+5%</span><span title="推薦當天的停損離推薦價多遠。前3天用20MA（帶量進場用5MA），第4天起才換成大量低點／缺口下緣／短期均線">初始停損距離</span><span>平均天數</span><span>損益</span></div>
         ${rs.map(x=>`<div class="diagrow">
           <span>${fmtD(x.d)}</span><span>${x.n}</span><span>${x.closed}</span>
           <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
+          <span class="${x.hit5?'up':''}">${x.hit5||'—'}</span>
+          <span class="${x.stopped?'dn':''}">${x.stopped||'—'}</span>
           <span>${x.noTouch||'—'}</span>
           <span>${x.dist!=null?x.dist.toFixed(1)+'%':'—'}</span>
           <span>${x.days!=null?x.days.toFixed(1)+' 天':'—'}</span>
           <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
       </div>
-      <div class="ihint" style="margin-top:6px">「初始停損距離」若普遍小於 4%，代表停損太貼、正常回檔就被掃出；「沒碰到+5%」多代表停利門檻相對太遠。</div>
+      <div class="ihint" style="margin-top:6px">
+        <b>觸及+5%</b>＝①真的漲到推薦價 +5% 入袋；<b>停損出場</b>＝②跌破移動停損被掃出；<b>沒碰到+5%</b>＝連 +5% 都沒碰到就被連帶認賠。<br>
+        <b>停損機制</b>：進場前 3 天用 <b>20MA</b>（帶量進場改用 5MA，最少留 3% 空間），第 4 天起才換成大量低點／缺口下緣／短期均線。<br>
+        判讀：「初始停損距離」普遍小於 4% 代表停損太貼；「觸及+5%」遠少於「停損出場」代表停利門檻相對太遠。
+      </div>
     </details>`;
   })();
   const show = TEST_SEL_DATE==='ALL' ? dates : [TEST_SEL_DATE];
@@ -3936,6 +3948,20 @@ function testRender(){
 // ── 🔰 看不懂按這裡：只列「收盤站上4均線＋多頭排列＋有多方缺口」的股票，附白話買賣點 ──
 // 推薦歷史：以「推薦日期」為單位存整份卡片快照，只保留近 7 個交易日，第 8 天洗掉最舊（第1天）
 const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
+// 這個系統正式開始記錄的日子。更早的推薦是事後用歷史行情補算出來的，不是當時真的推過，
+// 放進統計會混淆勝率，所以一律不建立也不保留。
+const RECO_START='20260801';
+function purgeBeforeStart(){
+  let n=0;
+  for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
+  if(TEST_TRACK&&Array.isArray(TEST_TRACK.entries)){
+    const before=TEST_TRACK.entries.length;
+    TEST_TRACK.entries=TEST_TRACK.entries.filter(e=>!(e.firstDate<RECO_START));
+    n+=before-TEST_TRACK.entries.length;
+  }
+  if(TEST_TRACK&&TEST_TRACK.arch) for(const d in TEST_TRACK.arch) if(d<RECO_START){ delete TEST_TRACK.arch[d]; n++; }
+  return n;
+}
 let RECO_SETTLED=null;   // { 推薦日: 那天整批結案時的交易日 }
 async function loadSettled(){ if(RECO_SETTLED)return RECO_SETTLED;
   try{ const r=await store.get(SETTLED_KEY); RECO_SETTLED=(r&&typeof r==='object')?r:{}; }catch(e){ RECO_SETTLED={}; }
@@ -4262,6 +4288,7 @@ async function backfillRecoDays(n){
   let added=0;
   for(let off=0;off<last;off++){
     const d=DB.dates[DB.dates.length-1-off];
+    if(d<RECO_START)continue;                        // 系統開始記錄之前的不補
     if(RECO_HIST[d])continue;                        // 已經有就不覆蓋
     // 當天的收盤資料還沒定案就先不要建立推薦日（例：盤中或法人未出時開了工具）
     if(d===lastDate && !dayLooksFinal(d))continue;
@@ -4271,7 +4298,8 @@ async function backfillRecoDays(n){
     added++;
   }
   const fixed=reconcileEntryPx();
-  if(added||fixed){ await saveRecoHistory(); }
+  const purged=purgeBeforeStart();
+  if(added||fixed||purged){ await saveRecoHistory(); }
   return added;
 }
 // 那天的收盤資料看起來完整嗎：名單裡至少八成的股票都有那天的收盤價
