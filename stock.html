@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V193</title>
+<title>盤後篩選台 V197</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -152,6 +152,11 @@ a{color:var(--amber)}
 .calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:9px;color:var(--dim)}
 .calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.whybox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:12px;color:var(--dim)}
+.whybox input{width:150px;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--paper);font-family:var(--mono)}
+.whybox .testbtn{padding:5px 14px;font-size:12px}
+.whyout{flex-basis:100%;font-size:12px;color:var(--paper);line-height:1.8}
+.whyout b{color:var(--amber)}
 .rptbox{border:1px dashed var(--line);border-radius:9px;padding:8px 12px;margin:4px 0 10px;font-size:12px;color:var(--dim)}
 .rptbox>summary{cursor:pointer;list-style:none;line-height:1.7}
 .rptbox>summary::-webkit-details-marker{display:none}
@@ -559,7 +564,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V193</span>
+    <h1>盤後篩選台</h1><span class="ver">V197</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -598,8 +603,7 @@ tbody tr{cursor:pointer}
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
       <button class="simtab" id="easyTabSec">🏭 近期產業</button>
-      <button class="testbtn tabsync" id="testRecalc" title="用目前的規則把所有推薦日與追蹤紀錄整批重新計算一次">⟳ 全部重跑</button>
-      <button class="testbtn tabsync" id="testSync" style="margin-left:8px">↻ 立即同步今天推薦</button>
+      <button class="testbtn tabsync" id="testSync" title="併入今天的推薦並重算狀態；規則有更新時會自動整批重跑">↻ 同步／重算</button>
     </div>
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
@@ -2148,14 +2152,20 @@ function graceStop(ser, i0, i){
   // 帶量進場 → 呼吸期看 5MA（爆量拉抬後理應貼著 5MA 走，守不住就是假突破）；
   // 沒帶量 → 看 20MA，給更寬的空間。第 4 天起才交棒給大量低點／缺口那套。
   const burst = hadBurstAt(ser, i0);
-  const line = burst ? maAt(5) : maAt(20);
-  const nm = burst ? '5MA' : '20MA';
+  // 糾結規則在呼吸期也適用：20MA 與 60MA 相差不到 4% 就直接看季線，
+  // 兩條幾乎重疊時停在 20MA 沒有意義（例：2484 希華 20MA 70.66、60MA 67.95，差 3.8%）
+  const m20=maAt(20), m60=maAt(60);
+  const tangled = (m20!=null && m60!=null && Math.abs(m20-m60)/m20<0.04);
+  const line = tangled ? m60 : (burst ? maAt(5) : m20);
+  const nm = tangled ? '60MA' : (burst ? '5MA' : '20MA');
   let px=null, why='';
-  if(line!=null && c[i]!=null && line<c[i]){ px=line; why=`${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
+  if(line!=null && c[i]!=null && line<c[i]){ px=line;
+    why = tangled ? `60MA（20MA 與 60MA 只差 ${(Math.abs(m20-m60)/m20*100).toFixed(1)}%，糾結時看季線）`
+                  : `${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
   if(px==null || (floor!=null && px<floor && !burst)) { }   // 沒帶量時仍以均線為準，不硬拉到保底
   if(px==null){ px=floor; why='進場價下方 8%（進場前 3 天的保護）'; }
   // 帶量進場用 5MA 會比較貼，補一道下限：至少要有進場價下方 3% 的空間
-  if(burst && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
+  if(burst && !tangled && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
   return px!=null ? {price:px, why} : null;
 }
 function movingStopAt(ser,i){
@@ -2179,7 +2189,7 @@ function movingStopAt(ser,i){
   // 四條均線糾結時：20MA 與 60MA 相差不到 2% → 改用 60MA 當停損（例：2484 希華）。
   // 兩條線幾乎重疊時，破 20MA 常只是雜訊，真正的關卡是季線。
   const ma60Now=(()=>{ if(i<59)return null; let t=0,n=0; for(let k=i-59;k<=i;k++){ if(c[k]==null)continue; t+=c[k]; n++; } return n>=60?t/n:null; })();
-  const tangled = (ma20Now!=null && ma60Now!=null && Math.abs(ma20Now-ma60Now)/ma20Now<0.02);
+  const tangled = (ma20Now!=null && ma60Now!=null && Math.abs(ma20Now-ma60Now)/ma20Now<0.04);
   if(tangled && ma60Now<c[i]) return {price:ma60Now, why:`60MA（20MA 與 60MA 只差 ${(Math.abs(ma20Now-ma60Now)/ma20Now*100).toFixed(1)}%，糾結時看季線）`, idx:i};
   if(burstStop)return mergeMA20(burstStop);
   // 2) 近 10 根內有未封閉向上缺口 → 用缺口下緣（跳空前一天最高）
@@ -3384,6 +3394,18 @@ function testRefreshStatus(){
   }
 }
 // 每次更新並篩選後自動呼叫：把今天推薦併入、重算狀態、存檔（含雲端）
+// 用現在的規則把推薦日快照與追蹤紀錄整批重算（規則改版時自動觸發）
+async function recalcAll(){
+  purgeBeforeStart();
+  for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];   // 快照丟掉重建，買區與初始停損才會套新規則
+  await backfillRecoDays(30);
+  for(const en of (TEST_TRACK.entries||[])){                        // 成交狀態歸零，讓回放重判
+    en.lotA={done:false,date:null,px:null,why:''};
+    en.lotB={done:false,date:null,px:null,why:''};
+    en.entryMvStop=null;
+  }
+  reconcileEntryPx();
+}
 async function testAutoSync(){
   await loadRecoHistory();
   await testLoad();
@@ -3394,6 +3416,12 @@ async function testAutoSync(){
   let added=0;
   // 把 RECO_HIST 裡「每一個推薦日」都併進來（含之前因舊版全域去重而漏掉的日子，會自動補回）
   try{ await backfillRecoDays(10); }catch(e){}   // 先把漏掉的推薦日補出來，再一起併入追蹤
+  // 規則改版了就先整批重算一次（一顆按鈕搞定，不必另外按重跑）
+  if(TEST_TRACK.rulesVer!==RULES_VER){
+    const note=$('#testNote'); if(note)note.textContent='規則有更新，正在整批重算…';
+    await recalcAll();
+    TEST_TRACK.rulesVer=RULES_VER;
+  }
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   purgeBeforeStart();     // 清掉系統開始記錄之前的資料
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
@@ -3862,7 +3890,7 @@ function testRender(){
           <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
           <span class="${x.hit5?'up':''}">${x.hit5||'—'}</span>
           <span class="${x.noTouch?'dn':''}">${x.noTouch||'—'}</span>
-          <span>${x.holding?`${x.holding} 筆<em style="font-style:normal;color:var(--dim);font-size:10px"> / ${x.holding*2} 張</em>`:'—'}</span>
+          <span>${x.holding||'—'}</span>
           <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
       </div>
       <div class="ihint" style="margin-top:6px">
@@ -3967,6 +3995,9 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 // 這個系統正式開始記錄的日子。更早的推薦是事後用歷史行情補算出來的，不是當時真的推過，
 // 放進統計會混淆勝率，所以一律不建立也不保留。
 const RECO_START='20260803';
+// 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
+// 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
+const RULES_VER='r196';
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
@@ -4219,6 +4250,12 @@ function renderEasyTabsAndList(){
     return;
   }
   if(!EASY_SEL_DATE||days.indexOf(EASY_SEL_DATE)<0)EASY_SEL_DATE=days[0];
+  const whyBox=`<div class="whybox">
+      <span>🔎 某檔為什麼沒被推薦？</span>
+      <input id="whyCode" placeholder="輸入代號，如 5351" maxlength="6" inputmode="numeric">
+      <button id="whyGo" class="testbtn">查</button>
+      <div class="whyout" id="whyOut"></div>
+    </div>`;
   const olderN=allDays.length-days.length;
   const tabsHTML=`<div class="rdtabs">${days.map(d=>`<button class="rdtab${d===EASY_SEL_DATE?' on':''}" data-date="${d}">${fmtD(d)}</button>`).join('')}`
     + (olderN>0?`<span class="ihint" style="align-self:center;margin-left:6px">更早的 ${olderN} 天請到「🧪 追蹤成績」看</span>`:'')
@@ -4238,17 +4275,67 @@ function renderEasyTabsAndList(){
       <div class="rptlist">${repeats.map(r=>`<span class="rpttag">${r.e.code} ${r.e.name||''}<i>${fmtD(r.prev.firstDate)} 開的</i></span>`).join('')}</div></details>` : '';
   const dateHdr=`<div class="ecohdr"><span class="ecohdmain">📅 推薦日期　<b>${fmtD(EASY_SEL_DATE)}</b><span class="ecohint">（依這天收盤資料推薦；還有股票在跑的日子不會被清掉，整批 DONE/FAIL 後再留一天才洗掉）</span></span></div>`;
   if(!entries.length){
-    body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="easyempty">${allEntries.length?'這天符合條件的都已經在追蹤中，沒有新的可以買。':'這天沒有「站上4均線＋多頭排列」的強勢股。'}</div>`;
+    body.innerHTML=tabsHTML+dateHdr+whyBox+repeatHTML+`<div class="easyempty">${allEntries.length?'這天符合條件的都已經在追蹤中，沒有新的可以買。':'這天沒有「站上4均線＋多頭排列」的強勢股。'}</div>`;
   }else{
     const cards=entries.map(e=>easyCardHTML(e,EASY_SEL_DATE)).join('');
-    body.innerHTML=tabsHTML+dateHdr+repeatHTML+`<div class="ihint" style="margin:2px 0 12px">新的推薦共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
+    body.innerHTML=tabsHTML+dateHdr+whyBox+repeatHTML+`<div class="ihint" style="margin:2px 0 12px">新的推薦共 <b style="color:var(--amber)">${entries.length}</b> 檔，<b>進場風險低的排前面</b>：</div><div class="easylist">${cards}</div>`;
   }
 
+  const wg=$('#whyGo'), wi=$('#whyCode');
+  if(wg&&wi){ const run=()=>{ const o=$('#whyOut'); if(!o)return;
+      const v=wi.value.trim(); if(!v){o.innerHTML='';return;}
+      try{ o.innerHTML=whyNotPicked(v, EASY_SEL_DATE); }catch(err){ o.textContent='查詢失敗：'+err.message; } };
+    wg.onclick=run; wi.onkeydown=ev=>{ if(ev.key==='Enter')run(); }; }
   body.querySelectorAll('.rdtab').forEach(b=>b.onclick=()=>{ EASY_SEL_DATE=b.dataset.date; renderEasyTabsAndList(); });
   body.querySelectorAll('.ekchart').forEach(b=>b.onclick=()=>{
     const c=b.dataset.code; $('#easyMask').classList.remove('on');
     $('#ipCode').value=c; paintInspect(c); drawChart(c);
   });
+}
+// 金融、銀行、保險、證券類不列入推薦（使用者指定）。優先用類股成分股名單判斷，
+// 沒有名單時退回用代號區間（2801-2899 金融保險、5820-5876 上櫃金融）與名稱關鍵字。
+function isFinancial(code, name){
+  const M=DB.secMembers||{};
+  for(const sec of Object.keys(M)){
+    if(!/金融|保險|銀行|證券/.test(sec))continue;
+    if((M[sec]||[]).some(x=>x.code===code))return true;
+  }
+  const n=+code;
+  if(n>=2801&&n<=2899)return true;
+  if(code==='5871')return false;        // 中租-KY 是租賃業，不算金融股（使用者指定留著）
+  if(n>=5820&&n<=5899)return true;      // 上櫃金融（含 5880 合庫金）
+  return /金控|銀行|保險|證券|金融|人壽|產險|票券/.test(String(name||''));
+}
+// 為什麼這檔沒被推薦：把該日的每一關逐一檢查，直接指出卡在哪
+function whyNotPicked(code, dstr){
+  code=String(code||'').trim();
+  const st=DB.stocks&&DB.stocks[code];
+  const nm=st&&st.n?`${code} ${st.n}`:code;
+  if(!st)return `<b>${nm}</b>：不在追蹤名單裡。名單只收外資／投信買超排行前 ${$('#nRank').value||200} 名，法人有買不代表擠得進排行。`;
+  const idx=DB.dates?DB.dates.indexOf(dstr):-1;
+  if(idx<0)return `<b>${nm}</b>：資料裡沒有 ${fmtD(dstr)} 這個交易日。`;
+  if(st.c[idx]==null)return `<b>${nm}</b>：${fmtD(dstr)} 沒抓到收盤價（名單外個股常缺），當天不列入掃描。`;
+  if(isFinancial(code, st.n))return `<b>${nm}</b>：金融／銀行類已排除，不列入推薦。`;
+  const off=DB.dates.length-1-idx;
+  const saved=OFFSET; OFFSET=off;
+  let e=null; try{ e=evaluate(code); }catch(err){}
+  OFFSET=saved;
+  if(!e)return `<b>${nm}</b>：${fmtD(dstr)} 無法評估（資料不足）。`;
+  if(!e.enough)return `<b>${nm}</b>：歷史天數不足 60 天，算不出季線。`;
+  const names=['MA5','MA10','MA20','MA60'];
+  const bad=[]; (e.lamps||[]).forEach((ok,i)=>{ if(!ok)bad.push(names[i]); });
+  const rows=[];
+  rows.push(bad.length?`✕ 收盤沒站上 <b>${bad.join('、')}</b>`:'✓ 站上四條均線');
+  rows.push(e.ord?'✓ 季線在最下（MA5/10/20 都高於 MA60）':'✕ 季線不在最下，還有均線壓在 MA60 之下');
+  if(bad.length||!e.ord)
+    return `<b>${nm}</b>　${fmtD(dstr)} 沒入選：<br>${rows.join('<br>')}`;
+  // 兩關都過 → 是被去重擋掉
+  const prev=(TEST_TRACK.entries||[]).filter(x=>x.code===code&&x.firstDate<dstr)
+    .sort((a,b)=>a.firstDate<b.firstDate?1:-1)
+    .find(x=>{ const a=x.lotA||{},b=x.lotB||{}; const cl=a.done&&b.done;
+      const cd=cl?[a.date,b.date].filter(Boolean).sort().pop():null; return !cl||!cd||cd>=dstr; });
+  if(prev)return `<b>${nm}</b>　${fmtD(dstr)} 條件其實都符合，但 ${fmtD(prev.firstDate)} 開的那筆還沒結案，同一檔同時只追一筆，所以不重複列出。`;
+  return `<b>${nm}</b>　${fmtD(dstr)} 兩關都通過，照理應該在清單裡——若清單沒有，按一次「同步／重算」重建那天的推薦。`;
 }
 // 掃出「某個基準日」的推薦清單（off=0 是最新一天，1 是前一天…）。現在與補建過去共用同一套規則。
 function scanEasyPicks(off){
@@ -4261,6 +4348,7 @@ function scanEasyPicks(off){
       // 於是用昨天的數字掛在今天的推薦日底下（今天跳空大跌卻照樣入選）
       const st=DB.stocks[code];
       if(!st||!st.c||baseIdx<0||st.c[baseIdx]==null)continue;
+      if(isFinancial(code, st.n))continue;                 // 金融／銀行股不推薦
       let e; try{ e=evaluate(code); }catch(err){ continue; }
       if(!e||!e.enough)continue;
       const allMA=e.lamps&&e.lamps.every(Boolean);
@@ -4364,30 +4452,7 @@ $('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab(
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#easyTabSec').onclick=()=>switchEasyTab('sec');
-// 全部重跑：清掉所有推薦日快照與追蹤紀錄的成交狀態，用現在的規則從頭算一次
-$('#testRecalc').onclick=async()=>{
-  const b=$('#testRecalc'); if(!b)return;
-  if(!confirm('用目前的規則重新計算所有推薦日與追蹤紀錄？\n（推薦價、停損、①②成交狀態都會重算，模擬下單不受影響）'))return;
-  b.disabled=true; const t0=b.textContent; b.textContent='重跑中…';
-  try{
-    await loadRecoHistory(); await testLoad();
-    purgeBeforeStart();
-    // 推薦日快照全部丟掉重建（買區、停損會套用新規則）
-    for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];
-    await backfillRecoDays(30);
-    // 追蹤紀錄：成交狀態歸零，讓 testRefreshStatus 依新規則重新回放
-    for(const en of (TEST_TRACK.entries||[])){
-      en.lotA={done:false,date:null,px:null,why:''};
-      en.lotB={done:false,date:null,px:null,why:''};
-      en.entryMvStop=null;
-    }
-    reconcileEntryPx();
-    await testAutoSync();
-    testRender();
-    b.textContent='✓ 已重跑';
-    setTimeout(()=>{ b.textContent=t0; b.disabled=false; },2500);
-  }catch(err){ alert('重跑失敗：'+err.message); b.textContent=t0; b.disabled=false; }
-};
+
 $('#testSync').onclick=async()=>{
   const note=$('#testNote'); note.textContent='同步中…';
   const url=await ensureFbUrl();
