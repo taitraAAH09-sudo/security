@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V202</title>
+<title>盤後篩選台 V203</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -355,8 +355,8 @@ a{color:var(--amber)}
 .guard.locked{display:none}
 .locknote{display:none;font-size:12px;color:var(--dim);line-height:1.6;padding:6px 0}
 .locknote.show{display:block}
-.modeseg{display:flex;gap:6px;margin:0 0 12px}
-.modeseg button{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:8px 6px;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
+.modeseg{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+.modeseg button{flex:1 1 30%;min-width:96px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:8px 4px;color:var(--muted);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .modeseg button.on{background:var(--amber);color:var(--ink);border-color:var(--amber)}
 .locknote b{color:var(--muted)}
 
@@ -590,7 +590,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V202</span>
+    <h1>盤後篩選台</h1><span class="ver">V203</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -691,6 +691,7 @@ tbody tr{cursor:pointer}
     <div class="modeseg" id="modeseg">
       <button data-m="normal" class="on">一般正常篩選</button>
       <button data-m="gap">多缺口篩選</button>
+      <button data-m="cont">法人連買篩選</button>
     </div>
     <div class="fld asof"><span>基準日</span>
       <div class="seg" id="segAsOf">
@@ -819,7 +820,7 @@ const store={
 
 /* ═══ state ═══ */
 let DB={v:4,dates:[],stocks:{},nodata:[],inst:{date:'',f:{},i:{}},insts:{}};
-let RESULT=[],FUNNEL=[],SORT={k:'vol',d:-1},LOGIC='and',ABORT=false,OFFSET=0,VOLBASE=100,TAB='all';
+let RESULT=[],FUNNEL=[],SORT={k:'vol',d:-1},LOGIC='and',ABORT=false,OFFSET=0,VOLBASE=100,TAB='all',CONTONLY=false;
 
 const $=s=>document.querySelector(s);
 const num=s=>{if(s==null)return null;const t=String(s).replace(/,/g,'').trim();
@@ -1677,7 +1678,8 @@ function run(){
     const lamps=[px>m5,px>m10,px>m20,px>m60];
     if(useMA&&!lamps.every(Boolean))continue; st.ma++;
     if(useOrd&&!(m5>m60&&m10>m60&&m20>m60))continue; st.ord++;
-    const contD=contBothDays(code);          // 只標記、不過濾（加分題）
+    const contD=contBothDays(code);          // 平常只標記、不過濾（加分題）
+    if(CONTONLY&&contD<CONT_DAYS)continue;   // 「法人連買篩選」模式才當成硬條件
     if(contD>=CONT_DAYS)st.cont=(st.cont||0)+1;
     const inF=topF.has(code),inI=topI.has(code);
     if(useF&&useI){if(LOGIC==='and'?!(inF&&inI):!(inF||inI))continue;}
@@ -1711,6 +1713,7 @@ function run(){
     ['量 ≥ '+mv+' 張',st.vol,mv>0],
     ['站上四均線',st.ma,useMA],
     ['季線在最下',st.ord,useOrd],
+    [`外資投信連買 ${CONT_DAYS} 日`,st.cont,CONTONLY],
     ['法人排行',st.inst,useF||useI]
   ];
   const warn=[];
@@ -2889,6 +2892,11 @@ $('#modeseg').onclick=e=>{
     GAPONLY=false;
     set('cMA',true);set('cMAorder',true);set('cFor',true);set('cIt',true);
     set('cCont',true);set('cGap',true);set('cHHLL',false);set('cW',false);
+  }else if(m==='cont'){
+    // 法人連買篩選：只看「外資與投信同步連買 N 天」，其他條件全關
+    GAPONLY=false; CONTONLY=true;
+    set('cMA',false);set('cMAorder',false);set('cFor',false);set('cIt',false);
+    set('cCont',true);set('cGap',false);set('cHHLL',false);set('cW',false);
   }else{
     // 多缺口篩選：只留「真的有缺口」的股票
     GAPONLY=true;
@@ -2896,6 +2904,7 @@ $('#modeseg').onclick=e=>{
     set('cGap',true);set('cHHLL',false);set('cW',false);
     set('gapUnf',false);
   }
+  if(m!=='cont')CONTONLY=false;
   run();
 };
 $('#lock').onclick=e=>{
