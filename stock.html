@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V197</title>
+<title>盤後篩選台 V198</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -564,7 +564,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V197</span>
+    <h1>盤後篩選台</h1><span class="ver">V198</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -947,10 +947,37 @@ function contBuy(code,which){
   }
   return cnt;
 }
+// 連續買超天數（不看張數多寡，只看連幾天為正）
+function contBuyN(code,which,days){
+  let cnt=0;
+  for(let i=days.length-1;i>=0;i--){
+    const r=DB.insts[days[i]]; const v=r&&r[which]&&r[which][code];
+    if(v!=null&&v>0)cnt++; else break;
+  }
+  return cnt;
+}
+// 外資與投信「同步連買 N 天」的名單（不管買多少張）。
+// 用途：像 5351 鈺創這種天天被買、但單日張數擠不進買超排行前 200 的，也要收進來。
+const CONT_DAYS=3;
+function contBuyUniverse(){
+  const days=Object.keys(DB.insts||{}).sort();
+  const out=new Set();
+  if(days.length<CONT_DAYS)return out;
+  const last=DB.insts[days[days.length-1]]||{};
+  const codes=new Set([...Object.keys(last.f||{}),...Object.keys(last.i||{})]);
+  for(const c of codes){
+    if(!/^[1-9]\d{3}$/.test(c))continue;
+    if(contBuyN(c,'f',days)>=CONT_DAYS && contBuyN(c,'i',days)>=CONT_DAYS)out.add(c);
+  }
+  return out;
+}
 function makeUniverse(n,dates){
   const u=new Set();
   for(const d of dates){const r=DB.insts[d];if(!r)continue;
     topN(r.f,n).forEach(c=>u.add(c));topN(r.i,n).forEach(c=>u.add(c));}
+  let added=0;
+  for(const c of contBuyUniverse()){ if(!u.has(c)){ u.add(c); added++; } }
+  if(added)log(`另收 ${added} 檔「外資＋投信同步連買 ${CONT_DAYS} 日」（張數不拘）`,'ok');
   return u;
 }
 
@@ -3997,7 +4024,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r196';
+const RULES_VER='r197';
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
@@ -4119,6 +4146,7 @@ function buildEntrySnapshot(e){
   const tags=[`站上4均線`,`多頭排列`];
   if(e._easyGap)tags.push('向上缺口');
   if(e._easyVol)tags.push('今日爆量');
+  if(e._contBoth>=CONT_DAYS)tags.push(`外資投信連買${e._contBoth}日`);
   if(p.rideName)tags.push(`沿${p.rideName}走`);
   return {
     code:e.code, name:e.name||'',
@@ -4357,6 +4385,9 @@ function scanEasyPicks(off){
       try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
       if(gp&&!gp.closed)e._easyGap=gp;
       e._easyVol=(e.ratio5>=1.3 || e.ratio>=e.vx);
+      // 外資＋投信同步連買（不管張數）——強化訊號，標在卡片上
+      try{ const dd=Object.keys(DB.insts||{}).sort();
+        e._contBoth = Math.min(contBuyN(code,'f',dd), contBuyN(code,'i',dd)); }catch(err){ e._contBoth=0; }
       picks.push(e);
     }
     picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
