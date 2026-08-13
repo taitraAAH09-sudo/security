@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V189</title>
+<title>盤後篩選台 V191</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -559,7 +559,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V189</span>
+    <h1>盤後篩選台</h1><span class="ver">V191</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -598,12 +598,13 @@ tbody tr{cursor:pointer}
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
       <button class="simtab" id="easyTabSec">🏭 近期產業</button>
-      <button class="testbtn tabsync" id="testSync">↻ 立即同步今天推薦</button>
+      <button class="testbtn tabsync" id="testRecalc" title="用目前的規則把所有推薦日與追蹤紀錄整批重新計算一次">⟳ 全部重跑</button>
+      <button class="testbtn tabsync" id="testSync" style="margin-left:8px">↻ 立即同步今天推薦</button>
     </div>
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
     <div class="easybody" id="easyPaneTest" style="display:none">
-      <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每筆買 2 張：<b>①先賣</b>漲到推薦價 +5% 就入袋、<b>②續抱</b>照移動停損抱到跌破為止。</div>
+      <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每一筆<b>買 2 張</b>：<b>①</b>盤中摸到推薦價 <b>+5%</b> 就<b>賣掉第一張</b>入袋；<b>②</b>剩下那張續抱，<b>跌破移動停損才賣掉最後一張</b>（此時①若還沒成交，兩張一起認賠出場）。</div>
       <div class="testctl">
         <button id="testViewList" class="testbtn on">📋 清單</button>
         <button id="testViewCal" class="testbtn">📅 月曆</button>
@@ -1756,7 +1757,8 @@ function patCell(r){
 function gapCell(g){
   if(!g||!$('#cGap').checked)return'—';
   const ago=g.ago;   // 幾根前出現這個缺口
-  const agoTxt = ago<=0?'今天':`${ago} 天前`;
+  // 1~4 日前照實寫；第 5 天以上一律寫「N 日前」，不再細分
+  const agoTxt = ago<=0?'今天':(ago<5?`${ago} 日前`:`N 日前`);
   return`<span class="chip ${g.unf?'g2':'g1'}">▲${g.pct.toFixed(2)}%</span>`+
     `<span class="ago" title="這個跳空缺口出現在幾個交易日前，以及是否已被回補">${agoTxt}·${g.unf?'未補':'已補'}</span>`;
 }
@@ -2174,6 +2176,11 @@ function movingStopAt(ser,i){
       return {price:ma20Now, why:`20MA（與${cand.why}僅差 ${(Math.abs(cand.price-ma20Now)/cand.price*100).toFixed(1)}%，統一看 20MA）`, idx:cand.idx};
     return cand;
   };
+  // 四條均線糾結時：20MA 與 60MA 相差不到 2% → 改用 60MA 當停損（例：2484 希華）。
+  // 兩條線幾乎重疊時，破 20MA 常只是雜訊，真正的關卡是季線。
+  const ma60Now=(()=>{ if(i<59)return null; let t=0,n=0; for(let k=i-59;k<=i;k++){ if(c[k]==null)continue; t+=c[k]; n++; } return n>=60?t/n:null; })();
+  const tangled = (ma20Now!=null && ma60Now!=null && Math.abs(ma20Now-ma60Now)/ma20Now<0.02);
+  if(tangled && ma60Now<c[i]) return {price:ma60Now, why:`60MA（20MA 與 60MA 只差 ${(Math.abs(ma20Now-ma60Now)/ma20Now*100).toFixed(1)}%，糾結時看季線）`, idx:i};
   if(burstStop)return mergeMA20(burstStop);
   // 2) 近 10 根內有未封閉向上缺口 → 用缺口下緣（跳空前一天最高）
   try{
@@ -2581,10 +2588,10 @@ function paintInspect(code){
     row(e.hhll,on.hh,'型態1（波段型態）',e.hhll?'成立':'未成立')+
     row(!!e.wpat,on.w,'型態2（符合型態）',
       e.wpat?`頸線 ${e.wpat.neck.toFixed(2)}　${e.wpat.ago?e.wpat.ago+' 日前突破':'今日突破'}${e.wpat.volOK?'（帶量）':''}　滿足 ${e.wpat.target.toFixed(2)}`:'未成立')+
-    `<div class="chk"><span class="m ${e.contF>=5?'y':'n'}">${e.contF>=5?'✓':'✕'}</span>
-      <span class="t">外資連續買超 5 日<em>${e.instDays<5?`目前僅存 ${e.instDays} 天法人資料，需累積至 5 天`:`目前連續 ${e.contF} 日`}</em></span></div>`+
-    `<div class="chk"><span class="m ${e.contI>=5?'y':'n'}">${e.contI>=5?'✓':'✕'}</span>
-      <span class="t">投信連續買超 5 日<em>${e.instDays<5?`目前僅存 ${e.instDays} 天法人資料，需累積至 5 天`:`目前連續 ${e.contI} 日`}</em></span></div>`+
+    `<div class="chk"><span class="m ${e.contF>=3?'y':'n'}">${e.contF>=3?'✓':'✕'}</span>
+      <span class="t">外資連續買超 3 日<em>${e.instDays<3?`目前僅存 ${e.instDays} 天法人資料，需累積至 3 天`:`目前連續 ${e.contF} 日`}</em></span></div>`+
+    `<div class="chk"><span class="m ${e.contI>=3?'y':'n'}">${e.contI>=3?'✓':'✕'}</span>
+      <span class="t">投信連續買超 3 日<em>${e.instDays<3?`目前僅存 ${e.instDays} 天法人資料，需累積至 3 天`:`目前連續 ${e.contI} 日`}</em></span></div>`+
     `<div class="chk"><span class="m ${e.ratio>=e.vx?'y':'n'}">${e.ratio>=e.vx?'✓':'✕'}</span>
       <span class="t">爆量（不列入條件）<em>${e.vb}日均量比 ${e.ratio.toFixed(2)}x（5日 ${e.ratio5.toFixed(2)}x／60日 ${e.ratio60.toFixed(2)}x）<br>成交 ${e.vol.toLocaleString()} 張</em></span></div>`+
     `<div class="iscore"><s>符合已啟用條件</s><b class="${hits===total&&total?'up':''}">${hits} / ${total}</b></div>`+
@@ -3778,11 +3785,11 @@ function testRender(){
   const sumTot=sumReal+sumUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤筆數（每筆買2張）</s><b>${ents.length}</b></div>
+    <div class="sc"><s>追蹤筆數（每筆 2 張）</s><b>${ents.length}</b></div>
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
-    <div class="sc"><s>①已入袋／②已停損／②續抱中</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
+    <div class="sc"><s>①已賣出／②已賣出／②續抱中</s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
   // 依「推薦日」分組，上方做日期分頁（預設看最新一天）
   const byDate={};
   for(const e of ents){ (byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e); }
@@ -3903,7 +3910,7 @@ function testRender(){
     html+=`<div class="testday">
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①先賣·盤中觸及+5%</span><span>②續抱·移動停損</span><span>盈虧</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①第一張·觸及+5%賣</span><span>②最後一張·移動停損</span><span>盈虧</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
@@ -4354,6 +4361,30 @@ $('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab(
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 $('#easyTabSec').onclick=()=>switchEasyTab('sec');
+// 全部重跑：清掉所有推薦日快照與追蹤紀錄的成交狀態，用現在的規則從頭算一次
+$('#testRecalc').onclick=async()=>{
+  const b=$('#testRecalc'); if(!b)return;
+  if(!confirm('用目前的規則重新計算所有推薦日與追蹤紀錄？\n（推薦價、停損、①②成交狀態都會重算，模擬下單不受影響）'))return;
+  b.disabled=true; const t0=b.textContent; b.textContent='重跑中…';
+  try{
+    await loadRecoHistory(); await testLoad();
+    purgeBeforeStart();
+    // 推薦日快照全部丟掉重建（買區、停損會套用新規則）
+    for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];
+    await backfillRecoDays(30);
+    // 追蹤紀錄：成交狀態歸零，讓 testRefreshStatus 依新規則重新回放
+    for(const en of (TEST_TRACK.entries||[])){
+      en.lotA={done:false,date:null,px:null,why:''};
+      en.lotB={done:false,date:null,px:null,why:''};
+      en.entryMvStop=null;
+    }
+    reconcileEntryPx();
+    await testAutoSync();
+    testRender();
+    b.textContent='✓ 已重跑';
+    setTimeout(()=>{ b.textContent=t0; b.disabled=false; },2500);
+  }catch(err){ alert('重跑失敗：'+err.message); b.textContent=t0; b.disabled=false; }
+};
 $('#testSync').onclick=async()=>{
   const note=$('#testNote'); note.textContent='同步中…';
   const url=await ensureFbUrl();
