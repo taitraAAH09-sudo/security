@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V203</title>
+<title>盤後篩選台 V204</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -590,7 +590,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V203</span>
+    <h1>盤後篩選台</h1><span class="ver">V204</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3300,12 +3300,13 @@ async function testLoad(){
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
-  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); testDedupeExisting();
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); testDedupeExisting();
     try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
     try{await testFbPush(true);}catch(e){}      // 把清乾淨的版本推回雲端，否則下次又被塞回來
     return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
   purgeBeforeStart();
+  purgeFinancials();
   testDedupeExisting();
 }
 async function testSave(){
@@ -3472,6 +3473,7 @@ function testRefreshStatus(){
 // 用現在的規則把推薦日快照與追蹤紀錄整批重算（規則改版時自動觸發）
 async function recalcAll(){
   purgeBeforeStart();
+  purgeFinancials();
   for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];   // 快照丟掉重建，買區與初始停損才會套新規則
   await backfillRecoDays(30);
   for(const en of (TEST_TRACK.entries||[])){                        // 成交狀態歸零，讓回放重判
@@ -3499,6 +3501,7 @@ async function testAutoSync(){
   }
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   purgeBeforeStart();     // 清掉系統開始記錄之前的資料
+  purgeFinancials();      // 清掉金融／銀行股的舊紀錄
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -4072,7 +4075,23 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r201';
+const RULES_VER='r204';
+// 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
+function purgeFinancials(){
+  let n=0;
+  for(const d in (RECO_HIST||{})){
+    const arr=RECO_HIST[d]||[];
+    const keep=arr.filter(x=>!isFinancial(x.code, x.name));
+    if(keep.length!==arr.length){ n+=arr.length-keep.length; RECO_HIST[d]=keep; }
+    if(!keep.length)delete RECO_HIST[d];
+  }
+  if(TEST_TRACK&&Array.isArray(TEST_TRACK.entries)){
+    const before=TEST_TRACK.entries.length;
+    TEST_TRACK.entries=TEST_TRACK.entries.filter(e=>!isFinancial(e.code, e.name));
+    n+=before-TEST_TRACK.entries.length;
+  }
+  return n;
+}
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
