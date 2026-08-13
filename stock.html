@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V207</title>
+<title>盤後篩選台 V209</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -609,7 +609,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V207</span>
+    <h1>盤後篩選台</h1><span class="ver">V209</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -750,7 +750,7 @@ tbody tr{cursor:pointer}
       </div>
       <div class="fld adv"><span>爆量倍數</span><input type="number" id="volX" value="2" min="1.2" step="0.1"></div>
       <div class="fld adv"><span>名單取前幾名</span><input type="number" id="nRank" value="200" min="20" max="300" step="10"></div>
-      <div class="fld adv"><span>排除量低於 (張)</span><input type="number" id="minVol" value="300" min="0" step="100"></div>
+      <div class="fld adv"><span>排除量低於 (張)</span><input type="number" id="minVol" value="1000" min="0" step="100"></div>
       <div class="fld adv"><span>回補交易日</span><input type="number" id="days" value="130" min="65" max="140" step="5"></div>
       <div class="note adv" style="margin-top:0">K 線預設看最近 60 天，要讓 MA60（60日均線）在這 60 天裡完整畫出來，回補天數至少要 120 天以上，這裡設 130 較保險；設越少，60MA 線會從中間才開始出現，甚至看不到。爆量的均量基準期也跟著變短。</div>
       <div class="fld adv"><span>請求間隔 (ms)</span><input type="number" id="gap" value="1600" min="600" step="100"></div>
@@ -1007,6 +1007,8 @@ function contBuyN(code,which,days){
 // 外資與投信「同步連買 N 天」的名單（不管買多少張）。
 // 用途：像 5351 鈺創這種天天被買、但單日張數擠不進買超排行前 200 的，也要收進來。
 let CONT_DAYS=3;
+// 推薦清單的最低成交量門檻（張）。量沒破千的不考慮。
+const MIN_VOL=1000;
 function contBuyUniverse(){
   const days=Object.keys(DB.insts||{}).sort();
   const out=new Set();
@@ -3319,13 +3321,14 @@ async function testLoad(){
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
-  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); testDedupeExisting();
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); purgeLowVolume(); testDedupeExisting();
     try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
     try{await testFbPush(true);}catch(e){}      // 把清乾淨的版本推回雲端，否則下次又被塞回來
     return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
   purgeBeforeStart();
   purgeFinancials();
+  purgeLowVolume();
   testDedupeExisting();
 }
 async function testSave(){
@@ -3493,6 +3496,7 @@ function testRefreshStatus(){
 async function recalcAll(){
   purgeBeforeStart();
   purgeFinancials();
+  purgeLowVolume();
   for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];   // 快照丟掉重建，買區與初始停損才會套新規則
   await backfillRecoDays(30);
   for(const en of (TEST_TRACK.entries||[])){                        // 成交狀態歸零，讓回放重判
@@ -3521,6 +3525,7 @@ async function testAutoSync(){
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   purgeBeforeStart();     // 清掉系統開始記錄之前的資料
   purgeFinancials();      // 清掉金融／銀行股的舊紀錄
+  purgeLowVolume();       // 清掉當天量沒破千的舊紀錄
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -4145,7 +4150,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r204';
+const RULES_VER='r209';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4158,6 +4163,26 @@ function purgeFinancials(){
   if(TEST_TRACK&&Array.isArray(TEST_TRACK.entries)){
     const before=TEST_TRACK.entries.length;
     TEST_TRACK.entries=TEST_TRACK.entries.filter(e=>!isFinancial(e.code, e.name));
+    n+=before-TEST_TRACK.entries.length;
+  }
+  return n;
+}
+// 量太小的舊紀錄一併清掉：V209 之後不再推薦，但更早開的追蹤紀錄還留著
+function purgeLowVolume(){
+  if(!DB.dates||!DB.dates.length)return 0;
+  const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
+    const i=DB.dates.indexOf(d); return i>=0?st.q[i]:null; };
+  const low=(code,d)=>{ const v=volOn(code,d); return v!=null && v<MIN_VOL; };   // 查不到量的保留，不誤刪
+  let n=0;
+  for(const d in (RECO_HIST||{})){
+    const arr=RECO_HIST[d]||[];
+    const keep=arr.filter(x=>!low(x.code,d));
+    if(keep.length!==arr.length){ n+=arr.length-keep.length; RECO_HIST[d]=keep; }
+    if(!keep.length)delete RECO_HIST[d];
+  }
+  if(TEST_TRACK&&Array.isArray(TEST_TRACK.entries)){
+    const before=TEST_TRACK.entries.length;
+    TEST_TRACK.entries=TEST_TRACK.entries.filter(e=>!low(e.code,e.firstDate));
     n+=before-TEST_TRACK.entries.length;
   }
   return n;
@@ -4481,6 +4506,8 @@ function whyNotPicked(code, dstr){
   if(idx<0)return `<b>${nm}</b>：資料裡沒有 ${fmtD(dstr)} 這個交易日。`;
   if(st.c[idx]==null)return `<b>${nm}</b>：${fmtD(dstr)} 沒抓到收盤價（名單外個股常缺），當天不列入掃描。`;
   if(isFinancial(code, st.n))return `<b>${nm}</b>：金融／銀行類已排除，不列入推薦。`;
+  const vq0=st.q&&st.q[idx];
+  if(vq0==null||vq0<MIN_VOL)return `<b>${nm}</b>：${fmtD(dstr)} 成交量只有 ${vq0==null?'—':vq0.toLocaleString()} 張，未達 ${MIN_VOL.toLocaleString()} 張門檻，不列入推薦。`;
   const off=DB.dates.length-1-idx;
   const saved=OFFSET; OFFSET=off;
   let e=null; try{ e=evaluate(code); }catch(err){}
@@ -4514,6 +4541,8 @@ function scanEasyPicks(off){
       const st=DB.stocks[code];
       if(!st||!st.c||baseIdx<0||st.c[baseIdx]==null)continue;
       if(isFinancial(code, st.n))continue;                 // 金融／銀行股不推薦
+      // 成交量沒破千張的不列入：量太小滑價大、也難進出
+      const vq=st.q&&st.q[baseIdx]; if(vq==null||vq<MIN_VOL)continue;
       let e; try{ e=evaluate(code); }catch(err){ continue; }
       if(!e||!e.enough)continue;
       const allMA=e.lamps&&e.lamps.every(Boolean);
