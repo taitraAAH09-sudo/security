@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V201</title>
+<title>盤後篩選台 V202</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -456,6 +456,10 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .pbar i.g{background:var(--up)} .pbar i.r{background:var(--down)}
 .plabel{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:5px}
 .gapt{color:var(--up);font-weight:700}
+#tblwrap{overflow-x:visible}
+#tblwrap table{width:100%;table-layout:auto}
+#tblwrap th,#tblwrap td{white-space:nowrap}
+@media(max-width:1100px){#tblwrap th,#tblwrap td{padding-left:6px;padding-right:6px;font-size:12px}}
 .contchip{display:inline-block;background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
@@ -586,7 +590,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V201</span>
+    <h1>盤後篩選台</h1><span class="ver">V202</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -706,7 +710,7 @@ tbody tr{cursor:pointer}
           <button data-v="or" aria-pressed="false">任一</button>
         </div>
       </div>
-      <label class="row"><input type="checkbox" id="cCont" checked><span class="tx">外資投信同步連買 <span id="contDLbl">3</span> 日<small>不看張數多寡，只看連幾天都是買超</small></span></label>
+      <label class="row"><input type="checkbox" id="cCont" checked><span class="tx">標記外資投信同步連買 <span id="contDLbl">3</span> 日<small>加分題：只在表格標記 ✔，不會篩掉其他股票</small></span></label>
       <div class="fld sub2 adv"><span>連買幾日</span><input type="number" id="contDays" value="3" min="2" max="10"></div>
       <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口<small>市場真空帶：今日最低＞昨日最高，中間無成交</small></span></label>
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
@@ -1673,8 +1677,8 @@ function run(){
     const lamps=[px>m5,px>m10,px>m20,px>m60];
     if(useMA&&!lamps.every(Boolean))continue; st.ma++;
     if(useOrd&&!(m5>m60&&m10>m60&&m20>m60))continue; st.ord++;
-    const contD=useCont?contBothDays(code):0;
-    if(useCont&&contD<CONT_DAYS)continue; st.cont=(st.cont||0)+1;
+    const contD=contBothDays(code);          // 只標記、不過濾（加分題）
+    if(contD>=CONT_DAYS)st.cont=(st.cont||0)+1;
     const inF=topF.has(code),inI=topI.has(code);
     if(useF&&useI){if(LOGIC==='and'?!(inF&&inI):!(inF||inI))continue;}
     else if(useF&&!inF)continue; else if(useI&&!inI)continue;
@@ -1699,14 +1703,14 @@ function run(){
     const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
     cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
       r30:p30?(px-p30)/p30*100:null,volTrend,near20High,hhll,wpat,
-      f:IN.f?.[code]??null,i:IN.i?.[code]??null,contD:(useCont?contD:contBothDays(code)),days:c.length});
+      f:IN.f?.[code]??null,i:IN.i?.[code]??null,contD,days:c.length});
   }
   RESULT=cand;
   FUNNEL=[
     ['歷史足 60 日',st.base,true],
     ['量 ≥ '+mv+' 張',st.vol,mv>0],
     ['站上四均線',st.ma,useMA],
-    ['季線在最下',st.ord,useOrd],['外資投信連買',st.cont,useCont],
+    ['季線在最下',st.ord,useOrd],
     ['法人排行',st.inst,useF||useI]
   ];
   const warn=[];
@@ -1806,7 +1810,7 @@ function paintPerf(){
 }
 
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['cont','法人']];
+  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['cont','法人(連買3天)']];
 function patCell(r){
   const dots=[];
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
@@ -1836,7 +1840,7 @@ function paintTable(){
     return;}
   const R=sorted();
   let h='<table><thead><tr>'+COLS.map(([k,t])=>
-    `<th data-k="${k}" class="${SORT.k===k?'on':''}">${k==='ratio'?`量比 (${VOLBASE}日)`:k==='gap'?`多缺口 (近${$('#gapDays').value}日)`:t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
+    `<th data-k="${k}" class="${SORT.k===k?'on':''}">${k==='ratio'?`量比 (${VOLBASE}日)`:k==='gap'?`多缺口 (近${$('#gapDays').value}日)`:k==='cont'?`法人(連買${CONT_DAYS}天)`:t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
   for(const r of R)h+=`<tr data-code="${r.code}">`+
     `<td class="code" onclick="drawChart('${r.code}')" style="cursor:pointer;text-decoration:underline">${r.code}</td>`+
     `<td class="nm">${r.name}<span class="mkt">${r.mkt}</span></td>`+
@@ -1850,7 +1854,7 @@ function paintTable(){
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
     `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
-    `<td>${r.contD>=CONT_DAYS?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>'}</td></tr>`;
+    `<td>${($('#cCont').checked&&r.contD>=CONT_DAYS)?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>'}</td></tr>`;
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
