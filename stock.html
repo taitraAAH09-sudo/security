@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V199</title>
+<title>盤後篩選台 V201</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -52,9 +52,12 @@ a{color:var(--amber)}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
 .hbtnbar{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
 .mktstr{position:absolute;right:16px}
-@media(max-width:900px){.secbtn,.mktstr{position:static}}
 .secbtn{position:absolute;left:16px;background:var(--panel2);color:var(--paper);border:1px solid var(--line);border-radius:22px;padding:9px 18px;font-size:14px;font-weight:800;cursor:pointer}
 .secbtn:hover{border-color:var(--amber);color:var(--amber)}
+@media(max-width:900px){
+  .hbtnbar .secbtn,.hbtnbar .mktstr{position:static!important;left:auto;right:auto}
+  .hbtnbar{flex-wrap:wrap;gap:8px}
+}
 @media(max-width:760px){.secbtn{font-size:12px;padding:6px 12px;margin-right:0}}
 .helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
 .helpbtn:hover{filter:brightness(1.1)}
@@ -144,6 +147,13 @@ a{color:var(--amber)}
 .calnav{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:13px}
 .calnav:disabled{opacity:.35;cursor:not-allowed}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+@media(max-width:760px){
+  .calwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .calgrid{min-width:520px}
+  .calcell{min-height:40px;padding:2px 3px}
+  .calcell .cd{font-size:9px}.calcell .cv{font-size:10px}.calcell .cn{font-size:8px}
+  .calsum{gap:8px}.calsum .sc{min-width:104px;padding:8px 10px}
+}
 .calwk{text-align:center;font-size:11px;color:var(--dim);font-weight:700;padding:2px 0}
 .calcell{min-height:44px;border:1px solid var(--line);border-radius:6px;padding:3px 5px;background:var(--panel2);display:flex;flex-direction:column;gap:1px}
 .calcell.blank{background:transparent;border-color:transparent}
@@ -446,6 +456,7 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .pbar i.g{background:var(--up)} .pbar i.r{background:var(--down)}
 .plabel{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:5px}
 .gapt{color:var(--up);font-weight:700}
+.contchip{display:inline-block;background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
 .patdot.t2{background:var(--up)}
@@ -511,6 +522,15 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .bt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .bt h4{margin:0 0 9px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
 .btrow{display:grid;grid-template-columns:64px 1fr 76px 84px 62px;align-items:center;gap:10px;padding:4px 0;font-size:12.5px}
+@media(max-width:760px){
+  .btrow{grid-template-columns:56px 1fr 54px;grid-template-areas:'nm bar pct' 'x1 x2 x2';gap:6px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .btrow>span:nth-child(1){grid-area:nm}
+  .btrow>.btbar{grid-area:bar}
+  .btrow>b{grid-area:pct;font-size:13px}
+  .btrow>em:nth-of-type(1){grid-area:x1;text-align:left}
+  .btrow>em:nth-of-type(2){grid-area:x2;text-align:right}
+  .btrow em{font-size:11px;white-space:nowrap}
+}
 .btrow span:first-child{color:var(--muted)}
 .btbar{height:13px;background:var(--panel2);border-radius:2px;overflow:hidden}
 .btbar i{display:block;height:100%;background:var(--up)}
@@ -566,7 +586,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V199</span>
+    <h1>盤後篩選台</h1><span class="ver">V201</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -686,7 +706,7 @@ tbody tr{cursor:pointer}
           <button data-v="or" aria-pressed="false">任一</button>
         </div>
       </div>
-      <label class="row"><input type="checkbox" id="cCont"><span class="tx">外資投信同步連買 <span id="contDLbl">3</span> 日<small>不看張數多寡，只看連幾天都是買超</small></span></label>
+      <label class="row"><input type="checkbox" id="cCont" checked><span class="tx">外資投信同步連買 <span id="contDLbl">3</span> 日<small>不看張數多寡，只看連幾天都是買超</small></span></label>
       <div class="fld sub2 adv"><span>連買幾日</span><input type="number" id="contDays" value="3" min="2" max="10"></div>
       <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口<small>市場真空帶：今日最低＞昨日最高，中間無成交</small></span></label>
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
@@ -1679,7 +1699,7 @@ function run(){
     const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
     cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
       r30:p30?(px-p30)/p30*100:null,volTrend,near20High,hhll,wpat,
-      f:IN.f?.[code]??null,i:IN.i?.[code]??null,days:c.length});
+      f:IN.f?.[code]??null,i:IN.i?.[code]??null,contD:(useCont?contD:contBothDays(code)),days:c.length});
   }
   RESULT=cand;
   FUNNEL=[
@@ -1786,7 +1806,7 @@ function paintPerf(){
 }
 
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)']];
+  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['f','外資(張)'],['i','投信(張)'],['cont','法人']];
 function patCell(r){
   const dots=[];
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
@@ -1829,7 +1849,8 @@ function paintTable(){
     `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
-    `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td></tr>`;
+    `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
+    `<td>${r.contD>=CONT_DAYS?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>'}</td></tr>`;
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
@@ -2863,7 +2884,7 @@ $('#modeseg').onclick=e=>{
   if(m==='normal'){
     GAPONLY=false;
     set('cMA',true);set('cMAorder',true);set('cFor',true);set('cIt',true);
-    set('cGap',true);set('cHHLL',false);set('cW',false);
+    set('cCont',true);set('cGap',true);set('cHHLL',false);set('cW',false);
   }else{
     // 多缺口篩選：只留「真的有缺口」的股票
     GAPONLY=true;
@@ -3829,7 +3850,7 @@ function testCalendarHTML(){
       <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
       <span class="ihint" style="margin-left:auto">每日盈虧永久保留．明細只留兩個月，更早的標 🔒 點不進去</span>
     </div>
-    <div class="calgrid">${wk}${cells}</div>
+    <div class="calwrap"><div class="calgrid">${wk}${cells}</div></div>
     <div class="calsum">
       <div class="sc"><s>本月有推薦的天數</s><b>${mDays}</b></div>
       <div class="sc"><s>本月推薦檔數</s><b>${mStocks}</b></div>
@@ -4038,7 +4059,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r199';
+const RULES_VER='r201';
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
