@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V204</title>
+<title>盤後篩選台 V207</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -275,13 +275,32 @@ a{color:var(--amber)}
 .diagbox>summary::before{content:'▸ ';color:var(--amber)}
 .diagbox[open]>summary::before{content:'▾ '}
 .diagbox b{color:var(--paper)}
+.racewrap{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.racettl{font-size:12px;color:var(--paper);font-weight:700;margin-bottom:6px}
+.racebar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--panel2)}
+.racebar i{display:block;height:100%}
+.racebar i.a{background:var(--up)} .racebar i.b{background:var(--dn,#1F9E6E)} .racebar i.c{background:rgba(255,255,255,.14)}
+.racelg{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:var(--dim)}
+.racelg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.racelg em.a{background:var(--up)} .racelg em.b{background:var(--dn,#1F9E6E)} .racelg em.c{background:rgba(255,255,255,.2)}
+.racelg b{font-family:var(--mono)}
 .diagtbl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
-.diagrow{display:grid;grid-template-columns:1.15fr .55fr .55fr .8fr .8fr .8fr 1.1fr 1fr;gap:6px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
+.diagrow{display:grid;grid-template-columns:1.05fr .5fr .5fr .72fr .72fr .72fr .9fr .8fr .95fr;gap:5px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
+.diagrow>span:nth-child(8) b{font-size:13px}
 .diagrow.hd{color:var(--dim);font-family:var(--sans);font-size:11px;border-bottom:1px solid var(--line)}
 .diagrow:not(.hd):nth-child(odd){background:var(--panel2)}
 .diagrow>span:last-child{text-align:right;font-weight:800}
-@media(max-width:760px){.diagrow{grid-template-columns:1fr .6fr .7fr .7fr 1fr;gap:4px}
-  .diagrow>span:nth-child(3),.diagrow>span:nth-child(4),.diagrow>span:nth-child(7){display:none}}
+@media(max-width:760px){.diagrow{grid-template-columns:1fr .6fr .7fr .8fr 1fr;gap:4px}
+  .diagrow>span:nth-child(3),.diagrow>span:nth-child(4),.diagrow>span:nth-child(6),.diagrow>span:nth-child(7){display:none}}
+.daysum{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:8px 14px;border-top:1px solid var(--line);background:var(--panel2);font-size:12px}
+.daysum .ds{display:flex;align-items:baseline;gap:6px;color:var(--dim)}
+.daysum .ds b{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--paper)}
+.daysum .ds i{font-style:normal;font-family:var(--mono);font-size:12px}
+.daysum .ds.win b{color:var(--amber)} .daysum .ds.win i{color:var(--up)}
+.daysum .ds.lose b{color:var(--up)} .daysum .ds.lose i{color:var(--dn,#1F9E6E)}
+.daysum .ds.net{margin-left:auto}
+.daysum .ds.net b{font-size:17px}
+@media(max-width:760px){.daysum{gap:10px;font-size:11px}.daysum .ds.net{margin-left:0;width:100%}}
 .tdiag{font-size:11px;color:var(--dim);margin-left:auto;text-align:right;line-height:1.6}
 .tdiag b{color:var(--amber)}
 .tflag.win{background:var(--amber);color:#1a1408;border:1px solid var(--amber);letter-spacing:.5px}
@@ -590,7 +609,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V204</span>
+    <h1>盤後篩選台</h1><span class="ver">V207</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3933,42 +3952,73 @@ function testRender(){
   // 全部推薦日的體檢表：一次看每一天的結案／勝負／停損距離，用來判斷規則要不要再調
   const dayStat=(d)=>{
     const rows=byDate[d]||[];
-    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,holding=0;
+    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,holding=0,provWin=0,provLose=0,lockedIn=0;
     for(const en of rows){
       const a=en.lotA||{}, b=en.lotB||{};
       if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
       const p=testPnL(en); if(p)pl+=p.total;
       // ①真的漲到推薦價 +5% 而成交（不含被②連帶出場的那種）
       if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))hit5++;
-      if(!(a.done&&b.done))holding++;                        // 還沒結案＝還在手上
+      if(!(a.done&&b.done)){ holding++;                      // 還沒結案＝還在手上
+        if(p){ if(p.total>0)provWin++; else if(p.total<0)provLose++; }
+        if(a.done)lockedIn++;                                 // ①已入袋，這筆至少賺回一半
+      }
       if(!(a.done&&b.done))continue;
       closed++; if(p&&p.total>0)win++; else if(p&&p.total<0)lose++;
       if(a.why&&a.why.indexOf('跟著')>=0)noTouch++;
       const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
       if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
     }
-    return {n:rows.length,closed,win,lose,noTouch,hit5,holding,
+    return {n:rows.length,closed,win,lose,noTouch,hit5,holding,provWin,provLose,lockedIn,
             dist:distN?dist/distN:null, days:daysN?days/daysN:null, pl};
   };
   const allStat=(()=>{
     const rs=dates.map(d=>({d,...dayStat(d)})).filter(x=>x.n);
     if(!rs.length)return '';
     const T=rs.reduce((a,x)=>({closed:a.closed+x.closed,win:a.win+x.win,lose:a.lose+x.lose,
-      noTouch:a.noTouch+x.noTouch,pl:a.pl+x.pl}),{closed:0,win:0,lose:0,noTouch:0,pl:0});
+      noTouch:a.noTouch+x.noTouch,hit5:a.hit5+x.hit5,holding:a.holding+x.holding,n:a.n+x.n,pl:a.pl+x.pl}),
+      {closed:0,win:0,lose:0,noTouch:0,hit5:0,holding:0,n:0,pl:0});
     const wr=T.closed?(T.win/T.closed*100).toFixed(0):'—';
+    // 停利先 vs 停損先：每一筆只會是其中一種，未分曉＝還在跑、①也還沒摸到
+    const undec=Math.max(0, T.n-T.hit5-T.noTouch);
+    const pct=v=>T.n?Math.round(v/T.n*100):0;
+    const raceBar=`<div class="racewrap">
+      <div class="racettl">先摸到 +5% ｜ 先被停損　<span style="color:var(--dim)">（每一筆只會算進其中一邊，共 ${T.n} 筆）</span></div>
+      <div class="racebar">
+        <i class="a" style="width:${pct(T.hit5)}%"></i>
+        <i class="b" style="width:${pct(T.noTouch)}%"></i>
+        <i class="c" style="width:${pct(undec)}%"></i>
+      </div>
+      <div class="racelg">
+        <span><em class="a"></em>先摸到 +5%（①入袋）　<b class="up">${T.hit5} 筆・${pct(T.hit5)}%</b></span>
+        <span><em class="b"></em>全程沒摸到就停損　<b class="dn">${T.noTouch} 筆・${pct(T.noTouch)}%</b></span>
+        <span><em class="c"></em>還沒分曉　<b>${undec} 筆・${pct(undec)}%</b></span>
+      </div>
+      <div class="ihint" style="margin-top:6px">這才是「推得準不準」的直接指標：先摸到 +5% 的比例越高越好。
+        已分曉的裡面，先摸到佔 <b>${(T.hit5+T.noTouch)?Math.round(T.hit5/(T.hit5+T.noTouch)*100):'—'}%</b>。</div>
+    </div>`;
     const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
     const cls=v=>v>0?'up':v<0?'dn':'';
     return `<details class="diagbox"><summary>🩺 全部推薦日體檢：已結案 <b>${T.closed}</b> 筆，賺 <b>${T.win}</b>／賠 <b>${T.lose}</b>，勝率 <b>${wr}%</b>`
       + (T.noTouch?`，其中 <b>${T.noTouch}</b> 筆全程沒摸到 +5% 就整筆認賠`:'')
       + `　<span class="rptmore">（點開看每一天）</span></summary>
+      ${raceBar}
       <div class="diagtbl">
-        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="這幾筆之中，①那張有成交（盤中摸到推薦價+5%）的筆數">①停利成交</span><span title="從進場到出場，盤中最高價從沒摸到 +5%、兩張一起認賠的筆數">全程沒摸到</span><span title="②那張還沒出場、目前仍在追蹤中的筆數">②還在手上</span><span>損益</span></div>
+        <div class="diagrow hd"><span>推薦日</span><span>推薦</span><span>結案</span><span>賺／賠</span><span title="這幾筆之中，①那張有成交（盤中摸到推薦價+5%）的筆數">①停利成交</span><span title="從進場到出場，盤中最高價從沒摸到 +5%、兩張一起認賠的筆數">全程沒摸到</span><span title="②那張還沒出場、目前仍在追蹤中的筆數">②還在手上</span><span title="上：已結案的勝率（賺÷結案）。下：把還在手上的用現價暫估後的勝率">勝率</span><span>損益</span></div>
         ${rs.map(x=>`<div class="diagrow">
           <span>${fmtD(x.d)}</span><span>${x.n}</span><span>${x.closed}</span>
           <span><b class="up">${x.win}</b> / <b class="dn">${x.lose}</b></span>
           <span class="${x.hit5?'up':''}">${x.hit5||'—'}</span>
           <span class="${x.noTouch?'dn':''}">${x.noTouch||'—'}</span>
           <span>${x.holding||'—'}</span>
+          <span>${(()=>{
+            const wr = x.closed?Math.round(x.win/x.closed*100):null;
+            const tn = x.closed+x.holding, tw = x.win+x.provWin;
+            const pr = tn?Math.round(tw/tn*100):null;
+            const cls=v=>v==null?'':(v>=50?'up':'dn');
+            return `<b class="${cls(wr)}">${wr==null?'—':wr+'%'}</b>`
+              + `<em style="font-style:normal;display:block;font-size:10px;color:var(--dim)">暫估 ${pr==null?'—':pr+'%'}</em>`;
+          })()}</span>
           <span class="${cls(x.pl)}">${money(x.pl)}</span></div>`).join('')}
       </div>
       <div class="ihint" style="margin-top:6px">
@@ -3976,7 +4026,8 @@ function testRender(){
         <b>全程沒摸到</b>＝從頭到尾連 +5% 都沒摸到就被停損，兩張一起認賠——這才是真正失敗的那種。<br>
         <b>②還在手上</b>＝②那張還沒出場、仍在追蹤中的筆數。<br>
         <b>停損機制</b>：進場前 3 天用 <b>20MA</b>（帶量進場改用 5MA，最少留 3% 空間），第 4 天起才換成大量低點／缺口下緣／短期均線。<br>
-        判讀：「全程沒摸到」佔多數代表停利門檻相對太遠、或停損太貼。
+        <b>勝率</b>上面那個只算<b>已結案</b>（兩張都出場）的：賺÷結案。下面「暫估」把還在手上的也用現價當作已出場一起算，會隨行情跳動、只能參考。<br>
+        判讀：「全程沒摸到」佔多數代表停利門檻相對太遠、或停損太貼。剛推薦幾天的日子結案數少，勝率沒有意義，要看「暫估」或等它跑完。
       </div>
     </details>`;
   })();
@@ -4016,8 +4067,27 @@ function testRender(){
     const held=testDaysHeld(d);
     let dReal=0,dUnreal=0; for(const r of rows){const pl=testPnL(r);if(pl){dReal+=pl.realized;dUnreal+=pl.unreal;}}
     const dTot=dReal+dUnreal;
+    // 今日總結：結案的幾檔賺、幾檔賠、各自金額與淨額
+    const daySum=(()=>{
+      let done=0,fail=0,even=0,donePl=0,failPl=0,open=0,openPl=0;
+      for(const en of rows){
+        const a=en.lotA||{}, b=en.lotB||{}, p=testPnL(en);
+        if(a.done&&b.done){ if(p&&p.total>0){done++;donePl+=p.total;} else if(p&&p.total<0){fail++;failPl+=p.total;} else even++; }
+        else { open++; if(p)openPl+=p.total; }
+      }
+      const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
+      const net=donePl+failPl;
+      return `<div class="daysum">
+        <span class="ds win">✓ DONE <b>${done}</b> 檔<i>${money(donePl)}</i></span>
+        <span class="ds lose">✕ FAIL <b>${fail}</b> 檔<i>${money(failPl)}</i></span>
+        ${even?`<span class="ds">— 打平 <b>${even}</b> 檔</span>`:''}
+        <span class="ds net">結案淨額 <b class="${cls(net)}">${money(net)}</b></span>
+        ${open?`<span class="ds hold">還在手上 <b>${open}</b> 檔<i class="${cls(openPl)}">${money(openPl)} 未實現</i></span>`:''}
+      </div>`;
+    })();
     html+=`<div class="testday">
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
+      ${daySum}
       <div class="testdbody">
         <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①第一張·觸及+5%賣</span><span>②最後一張·移動停損</span><span>盈虧</span></div>
         ${rows.map(r=>{
