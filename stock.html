@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V198</title>
+<title>盤後篩選台 V199</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -50,8 +50,10 @@ a{color:var(--amber)}
 .tour-panel .tnav button:disabled{opacity:.35;cursor:default}
 .strip{display:flex;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .simbtn{position:absolute;top:12px;right:16px;display:inline-block;width:auto;padding:5px 12px;font-size:12px;background:var(--panel2);color:var(--amber);border:1px solid var(--amber);font-weight:600;border-radius:5px;cursor:pointer;letter-spacing:normal;margin:0}
-.hbtnbar{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
-.secbtn{margin-right:auto;background:var(--panel2);color:var(--paper);border:1px solid var(--line);border-radius:22px;padding:9px 18px;font-size:14px;font-weight:800;cursor:pointer}
+.hbtnbar{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.mktstr{position:absolute;right:16px}
+@media(max-width:900px){.secbtn,.mktstr{position:static}}
+.secbtn{position:absolute;left:16px;background:var(--panel2);color:var(--paper);border:1px solid var(--line);border-radius:22px;padding:9px 18px;font-size:14px;font-weight:800;cursor:pointer}
 .secbtn:hover{border-color:var(--amber);color:var(--amber)}
 @media(max-width:760px){.secbtn{font-size:12px;padding:6px 12px;margin-right:0}}
 .helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
@@ -564,7 +566,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V198</span>
+    <h1>盤後篩選台</h1><span class="ver">V199</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -684,6 +686,8 @@ tbody tr{cursor:pointer}
           <button data-v="or" aria-pressed="false">任一</button>
         </div>
       </div>
+      <label class="row"><input type="checkbox" id="cCont"><span class="tx">外資投信同步連買 <span id="contDLbl">3</span> 日<small>不看張數多寡，只看連幾天都是買超</small></span></label>
+      <div class="fld sub2 adv"><span>連買幾日</span><input type="number" id="contDays" value="3" min="2" max="10"></div>
       <label class="row"><input type="checkbox" id="cGap" checked><span class="tx">多缺口<small>市場真空帶：今日最低＞昨日最高，中間無成交</small></span></label>
       <div class="fld sub2 adv"><span>近幾日內</span><input type="number" id="gapDays" value="5" min="1" max="20"></div>
       <div class="fld sub2 adv"><span>最小幅度 %</span><input type="number" id="gapPct" value="0.3" min="0" step="0.1"></div>
@@ -958,7 +962,7 @@ function contBuyN(code,which,days){
 }
 // 外資與投信「同步連買 N 天」的名單（不管買多少張）。
 // 用途：像 5351 鈺創這種天天被買、但單日張數擠不進買超排行前 200 的，也要收進來。
-const CONT_DAYS=3;
+let CONT_DAYS=3;
 function contBuyUniverse(){
   const days=Object.keys(DB.insts||{}).sort();
   const out=new Set();
@@ -1636,7 +1640,9 @@ function run(){
   const topF=new Set(topN(IN.f,nR)),topI=new Set(topN(IN.i,nR));
 
 
-  let cand=[],st={base:0,vol:0,ma:0,ord:0,inst:0,hhll:0,w:0};let noHL=0;
+  const useCont=$('#cCont').checked;
+  CONT_DAYS=+$('#contDays').value||3;
+  let cand=[],st={base:0,vol:0,ma:0,ord:0,cont:0,inst:0,hhll:0,w:0};let noHL=0;
   for(const code in DB.stocks){
     const s=DB.stocks[code],{c,q,h,l}=series(s,cut);
     if(c.length<61)continue;
@@ -1646,7 +1652,9 @@ function run(){
     const m5=ma(c,5),m10=ma(c,10),m20=ma(c,20),m60=ma(c,60);
     const lamps=[px>m5,px>m10,px>m20,px>m60];
     if(useMA&&!lamps.every(Boolean))continue; st.ma++;
-    if(useOrd&&!(m5>m10&&m10>m20&&m20>m60))continue; st.ord++;
+    if(useOrd&&!(m5>m60&&m10>m60&&m20>m60))continue; st.ord++;
+    const contD=useCont?contBothDays(code):0;
+    if(useCont&&contD<CONT_DAYS)continue; st.cont=(st.cont||0)+1;
     const inF=topF.has(code),inI=topI.has(code);
     if(useF&&useI){if(LOGIC==='and'?!(inF&&inI):!(inF||inI))continue;}
     else if(useF&&!inF)continue; else if(useI&&!inI)continue;
@@ -1678,7 +1686,7 @@ function run(){
     ['歷史足 60 日',st.base,true],
     ['量 ≥ '+mv+' 張',st.vol,mv>0],
     ['站上四均線',st.ma,useMA],
-    ['季線在最下',st.ord,useOrd],
+    ['季線在最下',st.ord,useOrd],['外資投信連買',st.cont,useCont],
     ['法人排行',st.inst,useF||useI]
   ];
   const warn=[];
@@ -1898,6 +1906,11 @@ async function backfillOneOtc(code,months){
 }
 
 /* ═══ 個股檢查 ═══ */
+// 這檔目前外資與投信同步連買幾天（取兩者較小值）
+function contBothDays(code){
+  try{ const dd=Object.keys(DB.insts||{}).sort();
+    return Math.min(contBuyN(code,'f',dd), contBuyN(code,'i',dd)); }catch(e){ return 0; }
+}
 function evaluate(code){
   const s=DB.stocks[code];
   if(!s)return null;
@@ -2489,6 +2502,7 @@ function riskAssess(e){
   if(e.rf!=null&&e.rf<=e.nR){score+=6;pros.push(`外資買超排行第 ${e.rf}`);}
   if(e.ri!=null&&e.ri<=e.nR){score+=6;pros.push(`投信買超排行第 ${e.ri}`);}
   if(e.contF>=3){score+=4;pros.push(`外資連續買超 ${e.contF} 日`);}
+  if(e._contBoth>=CONT_DAYS){score+=8;pros.push(`外資與投信同步連買 ${e._contBoth} 日（張數不拘）`);}
   if((e.f!=null&&e.f<0)&&(e.i!=null&&e.i<0)){score-=8;cons.push('外資、投信同步賣超，籌碼偏空');}
 
   // 5 動能與量
@@ -2615,7 +2629,7 @@ function paintInspect(code){
     (e.enough?'':`<div class="ihint" style="margin-bottom:9px;color:var(--up)">歷史只有 ${e.days} 根，不足 61 根，均線判斷不準。</div>`)+
     row(maOK,on.ma,'站上 5/10/20/60 均線',
       `MA5 ${e.m[5]?e.m[5].toFixed(2):'—'}　MA10 ${e.m[10]?e.m[10].toFixed(2):'—'}　MA20 ${e.m[20]?e.m[20].toFixed(2):'—'}　MA60 ${e.m[60]?e.m[60].toFixed(2):'—'}`)+
-    row(e.ord,on.ord,'季線在最下','MA5 > MA10 > MA20 > MA60')+
+    row(e.ord,on.ord,'季線在最下','MA5／MA10／MA20 都高於 MA60')+
     row(e.rf!=null&&e.rf<=e.nR,on.f,`外資買超前 ${e.nR}`,
       e.f==null?'當日無資料':`${e.f>0?'買超':'賣超'} ${Math.abs(e.f).toLocaleString()} 張${e.rf?`　排名 ${e.rf}`:'　未進買超榜'}`)+
     row(e.ri!=null&&e.ri<=e.nR,on.i,`投信買超前 ${e.nR}`,
@@ -4024,7 +4038,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r197';
+const RULES_VER='r199';
 function purgeBeforeStart(){
   let n=0;
   for(const d in (RECO_HIST||{})) if(d<RECO_START){ delete RECO_HIST[d]; n++; }
@@ -4386,8 +4400,7 @@ function scanEasyPicks(off){
       if(gp&&!gp.closed)e._easyGap=gp;
       e._easyVol=(e.ratio5>=1.3 || e.ratio>=e.vx);
       // 外資＋投信同步連買（不管張數）——強化訊號，標在卡片上
-      try{ const dd=Object.keys(DB.insts||{}).sort();
-        e._contBoth = Math.min(contBuyN(code,'f',dd), contBuyN(code,'i',dd)); }catch(err){ e._contBoth=0; }
+      e._contBoth = contBothDays(code);
       picks.push(e);
     }
     picks.forEach(e=>{ try{ e._risk=riskAssess(e); }catch(err){ e._risk={score:0}; } });
@@ -4482,6 +4495,8 @@ $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add
 $('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('sec'); };
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
+(()=>{ const cd=$('#contDays');
+  if(cd)cd.oninput=()=>{ const v=+cd.value||3; CONT_DAYS=v; const l=$('#contDLbl'); if(l)l.textContent=v; }; })();
 $('#easyTabSec').onclick=()=>switchEasyTab('sec');
 
 $('#testSync').onclick=async()=>{
