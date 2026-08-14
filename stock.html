@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V218</title>
+<title>盤後篩選台 V221</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -186,8 +186,13 @@ a{color:var(--amber)}
 .creload:disabled{opacity:.5;cursor:wait}
 .creload.spin{animation:crspin 1s linear infinite}
 @keyframes crspin{to{transform:rotate(360deg)}}
+.gaplist{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--dim);line-height:2}
+.gaplist b{color:var(--paper)}
+.gitem{display:inline-block;margin-left:10px;font-family:var(--mono)}
+.gitem.up{color:var(--up)} .gitem.down{color:var(--dn,#1F9E6E)}
 .gapnote{background:rgba(242,181,68,.10);border:1px solid rgba(242,181,68,.4);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:var(--amber);line-height:1.7}
 .gapfix{margin-left:8px;background:var(--amber);color:var(--ink);border:0;border-radius:6px;padding:3px 12px;font-weight:800;cursor:pointer}
+.egrid .eg .stopwhy{display:block;font-style:normal;font-size:10px;color:var(--dim);margin-top:3px;line-height:1.4}
 .epnl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px}
 .epnl .epl{font-size:14px;font-weight:800}
 .epnl .epl b{font-family:var(--mono);font-size:17px}
@@ -610,7 +615,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V218</span>
+    <h1>盤後篩選台</h1><span class="ver">V221</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1663,8 +1668,11 @@ function isRealGap(lowerPx, upperPx){
   return (upperPx-lowerPx) >= t*GAP_TICKS - 1e-9;   // 差滿兩檔就算（170.5→171.5 剛好兩檔，算）
 }
 // dir: 'up' 只找向上跳空、'down' 只找向下跳空、'any' 兩種都找（回傳 dir 欄位）
-function findGap(h,l,within,minPct,unfOnly,c,dir){
+function findGap(h,l,within,minPct,unfOnly,c,dir,dts){
   const n=l.length;
+  // 日期一律用與 h/l 同索引的陣列；沒給就退回 DB.dates 的尾端對齊
+  const dateAt=k=>{ if(dts&&dts[k])return dts[k];
+    return (DB.dates&&DB.dates.length>=n)?DB.dates[DB.dates.length-n+k]:null; };
   const mp=Math.max(minPct,0.3);   // 至少 0.3%，過濾微幅假缺口
   const want=dir||'up';
   for(let i=n-1;i>=Math.max(1,n-within);i--){
@@ -1679,7 +1687,7 @@ function findGap(h,l,within,minPct,unfOnly,c,dir){
           let dclosed=false;
           if(c)for(let k=i;k<n;k++)if(c[k]!=null&&c[k]>=bot){dclosed=true;break;}
           if(!(unfOnly&&!dunf))
-            return{pct:dpct,ago:n-1-i,unf:dunf,gapLow:hi,gapHigh:bot,closed:dclosed,dir:'down',date:(DB.dates&&DB.dates[DB.dates.length-1-(n-1-i)])||null};
+            return{pct:dpct,ago:n-1-i,unf:dunf,gapLow:hi,gapHigh:bot,closed:dclosed,dir:'down',date:dateAt(i)};
         }
       }
     }
@@ -1697,7 +1705,7 @@ function findGap(h,l,within,minPct,unfOnly,c,dir){
     // 是否已被「實體收盤」封閉：之後有收盤價 ≤ 缺口下緣
     let closed=false;
     if(c)for(let k=i;k<n;k++)if(c[k]!=null&&c[k]<=top){closed=true;break;}
-    return{pct,ago:n-1-i,unf,gapLow:top,gapHigh:l[i],closed,dir:'up',date:(DB.dates&&DB.dates[DB.dates.length-1-(n-1-i)])||null};
+    return{pct,ago:n-1-i,unf,gapLow:top,gapHigh:l[i],closed,dir:'up',date:dateAt(i)};
   }
   return null;
 }
@@ -1875,6 +1883,30 @@ function patCell(r){
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
   if(r.wpat)dots.push('<span class="patdot t2" title="型態2 符合型態">2</span>');
   return dots.length?dots.join(''):'<span style="color:var(--dim)">—</span>';
+}
+// 列出區間內所有缺口（檢查用）：Low[0] > High[1] 為多方缺口
+function findAllGaps(h,l,within,c,dts,dir){
+  const n=l.length, out=[];
+  const dateAt=k=>{ if(dts&&dts[k])return dts[k];
+    return (DB.dates&&DB.dates.length>=n)?DB.dates[DB.dates.length-n+k]:null; };
+  const want=dir||'any';
+  for(let i=Math.max(1,n-within);i<n;i++){
+    if(want!=='down'){
+      const top=h[i-1], lo=l[i];
+      if(top!=null&&lo!=null&&top>0&&lo>0&&lo>top&&isRealGap(top,lo)){
+        let unf=true; for(let k=i;k<n;k++)if(l[k]!=null&&l[k]<=top){unf=false;break;}
+        out.push({dir:'up',date:dateAt(i),prevHigh:top,low:lo,pct:(lo-top)/top*100,unf});
+      }
+    }
+    if(want!=='up'){
+      const bot=l[i-1], hi=h[i];
+      if(bot!=null&&hi!=null&&bot>0&&hi>0&&hi<bot&&isRealGap(hi,bot)){
+        let unf=true; for(let k=i;k<n;k++)if(h[k]!=null&&h[k]>=bot){unf=false;break;}
+        out.push({dir:'down',date:dateAt(i),prevLow:bot,high:hi,pct:(bot-hi)/bot*100,unf});
+      }
+    }
+  }
+  return out;
 }
 function gapCell(g){
   if(!g||!$('#cGap').checked)return'—';
@@ -2269,6 +2301,14 @@ function hadBurstAt(ser, idx){
   }
   return false;
 }
+// 近 look 根裡成交量最大的那一根，回傳它的最低價與是第幾根（實務上這根的低點就是最強支撐）
+function maxVolLow(ser, i, look){
+  const q=ser.q||[], l=ser.l||[], n=look||10;
+  let bi=-1, bq=-1;
+  for(let k=Math.max(0,i-n+1);k<=i;k++){ const v=q[k]; if(v==null)continue; if(v>bq){bq=v;bi=k;} }
+  if(bi<0||l[bi]==null)return null;
+  return {price:l[bi], idx:bi, date:(DB.dates&&DB.dates[bi])||null};
+}
 function graceStop(ser, i0, i){
   const c=ser.c;
   const maAt=n=>{ let t=0,k=0; for(let j=Math.max(0,i-n+1);j<=i;j++){ if(c[j]==null)continue; t+=c[j]; k++; } return k>=n?t/k:null; };
@@ -2285,17 +2325,23 @@ function graceStop(ser, i0, i){
   // 兩條幾乎重疊時停在 20MA 沒有意義（例：2484 希華 20MA 70.66、60MA 67.95，差 3.8%）
   const m20=maAt(20), m60=maAt(60);
   const tangled = (m20!=null && m60!=null && Math.abs(m20-m60)/m20<0.04);
-  const line = gapLow!=null ? gapLow : (tangled ? m60 : (burst ? maAt(5) : m20));
-  const nm = gapLow!=null ? '缺口下緣' : (tangled ? '60MA' : (burst ? '5MA' : '20MA'));
+  // 近 10 根量最大那一根的低點（必須在收盤下方才有意義）
+  let volLow=null, volDate=null;
+  try{ const mv=maxVolLow(ser,i,10); if(mv&&mv.price!=null&&mv.price<c[i]){ volLow=mv.price; volDate=mv.date; } }catch(e){}
+  // 優先序：未回補缺口下緣 → 近期最大量那根的低點 → 均線
+  const useVol = volLow!=null && (gapLow==null || volLow>gapLow);
+  const line = gapLow!=null&&!useVol ? gapLow : (useVol ? volLow : (tangled ? m60 : (burst ? maAt(5) : m20)));
+  const nm = gapLow!=null&&!useVol ? '缺口下緣' : (useVol ? '最大量低點' : (tangled ? '60MA' : (burst ? '5MA' : '20MA')));
   let px=null, why='';
   if(line!=null && c[i]!=null && line<c[i]){ px=line;
-    why = gapLow!=null ? '未回補向上缺口的下緣（跌破＝缺口回補）'
+    why = useVol ? `近期最大量那天的最低價${volDate?'（'+fmtD(volDate)+'）':''}`
+        : gapLow!=null ? '未回補向上缺口的下緣（跌破＝缺口回補）'
         : tangled ? `60MA（20MA 與 60MA 只差 ${(Math.abs(m20-m60)/m20*100).toFixed(1)}%，糾結時看季線）`
         : `${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
   if(px==null || (floor!=null && px<floor && !burst)) { }   // 沒帶量時仍以均線為準，不硬拉到保底
   if(px==null){ px=floor; why='進場價下方 8%（進場前 3 天的保護）'; }
   // 帶量進場用 5MA 會比較貼，補一道下限：至少要有進場價下方 3% 的空間
-  if(burst && !tangled && gapLow==null && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
+  if(burst && !tangled && gapLow==null && !useVol && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
   return px!=null ? {price:px, why} : null;
 }
 function movingStopAt(ser,i){
@@ -2325,6 +2371,10 @@ function movingStopAt(ser,i){
   try{ const g2=findGap(h.slice(0,i+1), l.slice(0,i+1), 10, 0, true, c.slice(0,i+1), 'up');
     if(g2&&g2.dir==='up'&&!g2.closed&&g2.gapLow!=null&&g2.gapLow<c[i])
       return mergeMA20({price:g2.gapLow, why:'缺口下緣', idx:i}); }catch(e){}
+  // 沒達到 2.5 倍均量門檻、但確實是近期最大量的那一根，它的低點同樣是支撐
+  try{ const mv=maxVolLow({q,l},i,10);
+    if(mv&&mv.price!=null&&mv.price<c[i]&&(!burstStop||mv.price>burstStop.price))
+      return mergeMA20({price:mv.price, why:`近期最大量那天的最低價${mv.date?'（'+fmtD(mv.date)+'）':''}`, idx:i}); }catch(e){}
   if(burstStop)return mergeMA20(burstStop);
   // 2) 近 10 根內有未封閉向上缺口 → 用缺口下緣（跳空前一天最高）
   try{
@@ -2804,6 +2854,14 @@ window.drawChart=function drawChart(code){
 
     // 附加區塊之後補，壞了不影響 K 線
     let extra='';
+    try{
+      const gs=findAllGaps(ser.h,ser.l,20,ser.c,ser.d,'any');
+      if(gs.length)extra+=`<div class="gaplist"><b>近 20 日缺口</b>（多方＝當日最低 > 前日最高）：`
+        + gs.slice(-6).map(g=>`<span class="gitem ${g.dir}">${g.date?fmtD(g.date):'—'}　${g.dir==='up'?'▲多方':'▼空方'} ${g.pct.toFixed(2)}%　`
+          + (g.dir==='up'?`前日高 ${g.prevHigh.toFixed(2)} → 當日低 ${g.low.toFixed(2)}`:`前日低 ${g.prevLow.toFixed(2)} → 當日高 ${g.high.toFixed(2)}`)
+          + `　${g.unf?'未補':'已補'}</span>`).join('')+`</div>`;
+      else extra+=`<div class="gaplist"><b>近 20 日缺口</b>：沒有（差距未達兩個跳動單位的不算）</div>`;
+    }catch(err){}
     try{ extra+=supportHTML(ser)||''; }catch(err){}
     try{ extra+=backtestHTML(ser)||''; }catch(err){}
     const ex=document.getElementById('cbig-extra'); if(ex)ex.innerHTML=extra;
@@ -3489,7 +3547,7 @@ function testRefreshStatus(){
     if(!en.lotB)en.lotB={done:false,date:null,px:null,why:''};
     const s=DB.stocks&&DB.stocks[en.code];
     if(!s||!s.c||!DB.dates)continue;
-    const ser={c:s.c,h:s.h||s.c,l:s.l||s.c,q:s.q||[],o:s.o||s.c,d:DB.dates};
+    const ser={c:s.c,h:s.h,l:s.l,q:s.q||[],o:s.o||s.c,d:DB.dates};
     const startIdx=DB.dates.indexOf(en.firstDate);
     if(startIdx<0)continue;
     // 每次都從頭重算（狀態不累積錯誤）：重置成未成交，逐日推進
@@ -4213,7 +4271,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r218';
+const RULES_VER='r221';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4230,7 +4288,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V218 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V221 之後不再推薦，但更早開的追蹤紀錄還留著
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
@@ -4415,7 +4473,7 @@ function easyLots(entry, firstDate){
   const s=DB.stocks&&DB.stocks[entry.code];
   if(!s||!s.c||!DB.dates||!DB.dates.length)return null;
   const i0=DB.dates.indexOf(firstDate); if(i0<0)return null;
-  const ser={c:s.c,h:s.h||s.c,l:s.l||s.c,q:s.q||[],o:s.o||s.c,d:DB.dates};
+  const ser={c:s.c,h:s.h,l:s.l,q:s.q||[],o:s.o||s.c,d:DB.dates};
   const base = entry.entryPx!=null?entry.entryPx:s.c[i0];
   if(base==null)return null;
   let stop=entry.mvStop!=null?entry.mvStop:null;
@@ -4488,7 +4546,7 @@ function easyCardHTML(entry, firstDate){
     ${lotLine}
     <div class="egrid">
       <div class="eg buy"><s>建議買區</s><b>${entry.buy}</b></div>
-      <div class="eg stop"><s>移動停損（會往上移）</s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b></div>
+      <div class="eg stop"><s>移動停損（會往上移）</s><b>${curStop!=null?(+curStop).toFixed(2):'—'}</b><em class="stopwhy">${((L&&L.mvWhy)||entry.mvWhy||'—')}</em></div>
       <div class="eg tp"><s>停利目標（賣一半）</s><b>${tp5!=null?tp5.toFixed(2):'—'}</b></div>
       <div class="eg rz"><s>另一半續抱到</s><b>移動停損</b></div>
     </div>
