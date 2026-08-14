@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V209</title>
+<title>盤後篩選台 V213</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -479,6 +479,7 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 #tblwrap table{width:100%;table-layout:auto}
 #tblwrap th,#tblwrap td{white-space:nowrap}
 @media(max-width:1100px){#tblwrap th,#tblwrap td{padding-left:6px;padding-right:6px;font-size:12px}}
+.chip.gd{background:rgba(31,158,110,.18);color:var(--dn,#1F9E6E);border:1px solid rgba(31,158,110,.55)}
 .contchip{display:inline-block;background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
@@ -609,7 +610,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V209</span>
+    <h1>盤後篩選台</h1><span class="ver">V213</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1646,13 +1647,47 @@ function volRatio(q,n){
 }
 /* 多方缺口＝市場真空帶：今日最低 > 昨日最高，中間價位當天完全無成交，
    代表買方短時間壓倒性勝出。封閉停損＝缺口下緣（昨日最高），實體收盤跌破即真空帶被填滿 */
-function findGap(h,l,within,minPct,unfOnly,c){
+// 台股最小跳動單位：相鄰兩檔之間本來就沒有成交價，差一檔不算缺口
+function tickSize(px){
+  if(px<10)return 0.01;
+  if(px<50)return 0.05;
+  if(px<100)return 0.1;
+  if(px<500)return 0.5;
+  if(px<1000)return 1;
+  return 5;
+}
+// 真缺口門檻：價差要大於「兩個跳動單位」（使用者指定，避免只差一兩檔的雜訊也算缺口）
+const GAP_TICKS=2;
+function isRealGap(lowerPx, upperPx){
+  const t=tickSize(lowerPx);
+  return (upperPx-lowerPx) >= t*GAP_TICKS - 1e-9;   // 差滿兩檔就算（170.5→171.5 剛好兩檔，算）
+}
+// dir: 'up' 只找向上跳空、'down' 只找向下跳空、'any' 兩種都找（回傳 dir 欄位）
+function findGap(h,l,within,minPct,unfOnly,c,dir){
   const n=l.length;
   const mp=Math.max(minPct,0.3);   // 至少 0.3%，過濾微幅假缺口
+  const want=dir||'up';
   for(let i=n-1;i>=Math.max(1,n-within);i--){
+    // 向下跳空：今日最高 < 昨日最低
+    if(want!=='up'){
+      const bot=l[i-1], hi=h[i];
+      if(bot!=null&&hi!=null&&bot>0&&hi>0&&hi<bot&&isRealGap(hi,bot)){
+        const dpct=(bot-hi)/bot*100;
+        if(dpct>=mp){
+          let dunf=true;
+          for(let k=i;k<n;k++)if(h[k]!=null&&h[k]>=bot){dunf=false;break;}
+          let dclosed=false;
+          if(c)for(let k=i;k<n;k++)if(c[k]!=null&&c[k]>=bot){dclosed=true;break;}
+          if(!(unfOnly&&!dunf))
+            return{pct:dpct,ago:n-1-i,unf:dunf,gapLow:hi,gapHigh:bot,closed:dclosed,dir:'down',date:(DB.dates&&DB.dates[DB.dates.length-1-(n-1-i)])||null};
+        }
+      }
+    }
+    if(want==='down')continue;
     const top=h[i-1], lo=l[i];
     if(top==null||lo==null||!(top>0)||!(lo>0))continue;   // 資料須有效
     if(!(lo>top))continue;                                 // 今日最低 > 昨日最高
+    if(!isRealGap(top,lo))continue;                        // 只差一檔不算缺口（例：170.5→171.0）
     const pct=(lo-top)/top*100;
     if(pct<mp)continue;
     // 未回補：之後沒有任何一天最低價跌進缺口
@@ -1662,7 +1697,7 @@ function findGap(h,l,within,minPct,unfOnly,c){
     // 是否已被「實體收盤」封閉：之後有收盤價 ≤ 缺口下緣
     let closed=false;
     if(c)for(let k=i;k<n;k++)if(c[k]!=null&&c[k]<=top){closed=true;break;}
-    return{pct,ago:n-1-i,unf,gapLow:top,gapHigh:l[i],closed};
+    return{pct,ago:n-1-i,unf,gapLow:top,gapHigh:l[i],closed,dir:'up',date:(DB.dates&&DB.dates[DB.dates.length-1-(n-1-i)])||null};
   }
   return null;
 }
@@ -1714,7 +1749,7 @@ function run(){
     const r5=volRatio(q,5);               // 近 5 日均量比（短線爆量）
     const hasHL=h.some(x=>x!=null)&&l.some(x=>x!=null);
     if(!hasHL)noHL++;
-    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf,c):null;
+    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf,c,'any'):null;
     if(GAPONLY&&!gp)continue;   // 多缺口篩選模式：只留真的有缺口的
     const p30=c.length>=31?c[c.length-31]:null;
     // 型態判斷用的量價特徵
@@ -1843,11 +1878,12 @@ function patCell(r){
 }
 function gapCell(g){
   if(!g||!$('#cGap').checked)return'—';
-  const ago=g.ago;   // 幾根前出現這個缺口
-  // 1~4 日前照實寫；第 5 天以上一律寫「N 日前」，不再細分
+  const ago=g.ago;
   const agoTxt = ago<=0?'今天':(ago<5?`${ago} 日前`:`N 日前`);
-  return`<span class="chip ${g.unf?'g2':'g1'}">▲${g.pct.toFixed(2)}%</span>`+
-    `<span class="ago" title="這個跳空缺口出現在幾個交易日前，以及是否已被回補">${agoTxt}·${g.unf?'未補':'已補'}</span>`;
+  const dt = g.date?fmtD(g.date):'';
+  const down = g.dir==='down';
+  return`<span class="chip ${down?'gd':(g.unf?'g2':'g1')}" title="${down?'向下跳空（空方缺口）':'向上跳空'}${dt?'，發生於 '+dt:''}">${down?'▼':'▲'}${g.pct.toFixed(2)}%</span>`+
+    `<span class="ago" title="缺口發生日與是否已回補">${dt||agoTxt}·${g.unf?'未補':'已補'}</span>`;
 }
 function burstCell(ratio){
   const vx=+$('#volX').value||3;
@@ -1978,7 +2014,7 @@ function evaluate(code){
   const rf=rankOf(IN.f),ri=rankOf(IN.i);
   const vb=+$('#volBase').value||60;
   const ratio=volRatio(q,vb),ratio5=volRatio(q,5),ratio60=volRatio(q,60);
-  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf,c):null;
+  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf,c,'any'):null;
   const p30=c.length>=31?c[c.length-31]:null;
   return{code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol:q[q.length-1],
     baseDate,enough,days:c.length,m,lamps,
@@ -2520,6 +2556,9 @@ function paintBig(e){
 }
 // ── 買進風險評估：綜合均線、位階、動能、法人、量、型態、風報比 → 給風險等級與理由 ──
 function riskAssess(e){
+  // 空方缺口：未回補的向下跳空，直接視為風險股票
+  if(!e._downGap){ try{ const s=e.ser; if(s&&s.h&&s.l){ const dg=findGap(s.h,s.l,10,0,true,s.c,'down');
+    if(dg&&dg.dir==='down'&&!dg.closed)e._downGap=dg; } }catch(err){} }
   let plan={}; try{ plan=tradePlan(e.ser,e.wpat)||{}; }catch(err){}
   const px=e.px, pros=[], cons=[];
   let score=50;   // 0-100，越高越偏「風險低、條件好」
@@ -2552,6 +2591,7 @@ function riskAssess(e){
   if(e.ri!=null&&e.ri<=e.nR){score+=6;pros.push(`投信買超排行第 ${e.ri}`);}
   if(e.contF>=3){score+=4;pros.push(`外資連續買超 ${e.contF} 日`);}
   if(e._contBoth>=CONT_DAYS){score+=8;pros.push(`外資與投信同步連買 ${e._contBoth} 日（張數不拘）`);}
+  if(e._downGap){ score-=50; cons.push(`⚠ ${e._downGap.date?fmtD(e._downGap.date):(e._downGap.ago+' 日前')} 出現<b>向下跳空缺口</b>（−${e._downGap.pct.toFixed(2)}%）且尚未回補，上方壓力沉重，請留意`); }
   if((e.f!=null&&e.f<0)&&(e.i!=null&&e.i<0)){score-=8;cons.push('外資、投信同步賣超，籌碼偏空');}
 
   // 5 動能與量
@@ -2574,7 +2614,7 @@ function riskAssess(e){
       const g=findGap(s.h,s.l,10,0,false,s.c);   // 近 10 交易日內的向上缺口
       if(g&&g.gapLow!=null){
         gapStop=g.gapLow;
-        const when = g.ago===0?'今日':`${g.ago} 交易日前`;
+        const when = (g.date?fmtD(g.date):(g.ago===0?'今日':`${g.ago} 交易日前`));
         if(!g.closed){
           score+=8;
           pros.push(`${when}出現向上跳空缺口（+${g.pct.toFixed(2)}%）${g.unf?'、尚未回補':''}，買方氣勢強`);
@@ -4150,7 +4190,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r209';
+const RULES_VER='r213';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4167,7 +4207,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V209 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V213 之後不再推薦，但更早開的追蹤紀錄還留著
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
@@ -4306,7 +4346,8 @@ function buildEntrySnapshot(e){
   let target = p.target!=null?p.target:(p.resist!=null?p.resist:null);
   if(target!=null && target<=e.px) target=null;     // 目標低於或等於現價 → 無效，不設停利（B 單續抱移動停損）
   const tags=[`站上4均線`,`多頭排列`];
-  if(e._easyGap)tags.push('向上缺口');
+  if(e._easyGap && e._easyGap.dir!=='down')tags.push('向上缺口');
+  if(e._downGap)tags.push('⚠ 空方缺口');
   if(e._easyVol)tags.push('今日爆量');
   if(e._contBoth>=CONT_DAYS)tags.push(`外資投信連買${e._contBoth}日`);
   if(p.rideName)tags.push(`沿${p.rideName}走`);
@@ -4550,6 +4591,9 @@ function scanEasyPicks(off){
       let gp=null;
       try{ const s=e.ser; if(s.h&&s.l)gp=findGap(s.h,s.l,10,0,true,s.c); }catch(err){}
       if(gp&&!gp.closed)e._easyGap=gp;
+      // 空方缺口（向下跳空且尚未回補）→ 風險股票
+      try{ const s=e.ser; if(s.h&&s.l){ const dg=findGap(s.h,s.l,10,0,true,s.c,'down');
+        if(dg&&dg.dir==='down'&&!dg.closed)e._downGap=dg; } }catch(err){}
       e._easyVol=(e.ratio5>=1.3 || e.ratio>=e.vx);
       // 外資＋投信同步連買（不管張數）——強化訊號，標在卡片上
       e._contBoth = contBothDays(code);
