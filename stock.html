@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V221</title>
+<title>盤後篩選台 V222</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -465,8 +465,8 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .chip.b3{background:var(--up);color:#fff}
 .chip.b2{background:var(--amber);color:var(--ink)}
 .chip.b1{background:rgba(242,181,68,.2);color:var(--amber)}
-.chip.g2{background:var(--down);color:#fff}
-.chip.g1{background:rgba(31,158,110,.2);color:var(--down)}
+.chip.g2{background:var(--up);color:#fff}
+.chip.g1{background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.35)}
 .tabs{margin:0}
 .tabs button{padding:6px 16px;font-weight:500}
 .perf{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:16px;background:var(--panel)}
@@ -484,7 +484,8 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 #tblwrap table{width:100%;table-layout:auto}
 #tblwrap th,#tblwrap td{white-space:nowrap}
 @media(max-width:1100px){#tblwrap th,#tblwrap td{padding-left:6px;padding-right:6px;font-size:12px}}
-.chip.gd{background:rgba(31,158,110,.18);color:var(--dn,#1F9E6E);border:1px solid rgba(31,158,110,.55)}
+.chip.gd{background:rgba(31,158,110,.16);color:var(--dn,#1F9E6E);border:1px solid rgba(31,158,110,.5)}
+.chip.gd2{background:var(--dn,#1F9E6E);color:#fff}
 .contchip{display:inline-block;background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
@@ -615,7 +616,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V221</span>
+    <h1>盤後篩選台</h1><span class="ver">V222</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1914,7 +1915,8 @@ function gapCell(g){
   const agoTxt = ago<=0?'今天':(ago<5?`${ago} 日前`:`N 日前`);
   const dt = g.date?fmtD(g.date):'';
   const down = g.dir==='down';
-  return`<span class="chip ${down?'gd':(g.unf?'g2':'g1')}" title="${down?'向下跳空（空方缺口）':'向上跳空'}${dt?'，發生於 '+dt:''}">${down?'▼':'▲'}${g.pct.toFixed(2)}%</span>`+
+  const cls = down ? (g.unf?'gd2':'gd') : (g.unf?'g2':'g1');
+  return`<span class="chip ${cls}" title="${down?'空方缺口：當日最高 < 前日最低':'多方缺口：當日最低 > 前日最高'}${dt?'，發生於 '+dt:''}">${down?'▼空':'▲多'} ${g.pct.toFixed(2)}%</span>`+
     `<span class="ago" title="缺口發生日與是否已回補">${dt||agoTxt}·${g.unf?'未補':'已補'}</span>`;
 }
 function burstCell(ratio){
@@ -4288,7 +4290,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V221 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V222 之後不再推薦，但更早開的追蹤紀錄還留著
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
