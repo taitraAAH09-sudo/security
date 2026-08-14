@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V215</title>
+<title>盤後篩選台 V217</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -610,7 +610,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V215</span>
+    <h1>盤後篩選台</h1><span class="ver">V217</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -649,7 +649,7 @@ tbody tr{cursor:pointer}
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
       <button class="simtab" id="easyTabSec">🏭 近期產業</button>
-      <button class="testbtn tabsync" id="testSync" title="併入今天的推薦並重算狀態；規則有更新時會自動整批重跑">↻ 同步／重算</button>
+      <button class="testbtn tabsync" id="testSync" title="用目前最新的規則，把所有推薦日與追蹤紀錄整批重新計算一次（舊版算出來的數字全部作廢重建）">↻ 全部重算</button>
     </div>
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
@@ -2591,6 +2591,7 @@ function riskAssess(e){
   if(e.ri!=null&&e.ri<=e.nR){score+=6;pros.push(`投信買超排行第 ${e.ri}`);}
   if(e.contF>=3){score+=4;pros.push(`外資連續買超 ${e.contF} 日`);}
   if(e._contBoth>=CONT_DAYS){score+=8;pros.push(`外資與投信同步連買 ${e._contBoth} 日（張數不拘）`);}
+  if(e.chg!=null && e.chg>=4){ score-=10; cons.push(`今日已大漲 ${e.chg.toFixed(2)}%，收盤價追進的風險偏高，建議等回檔到買區下緣再進`); }
   if(e._downGap){ score-=50; cons.push(`⚠ ${e._downGap.date?fmtD(e._downGap.date):(e._downGap.ago+' 日前')} 出現<b>向下跳空缺口</b>（−${e._downGap.pct.toFixed(2)}%）且尚未回補，上方壓力沉重，請留意`); }
   if((e.f!=null&&e.f<0)&&(e.i!=null&&e.i<0)){score-=8;cons.push('外資、投信同步賣超，籌碼偏空');}
 
@@ -4203,7 +4204,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r215';
+const RULES_VER='r216';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4220,7 +4221,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V215 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V217 之後不再推薦，但更早開的追蹤紀錄還留著
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
@@ -4344,15 +4345,15 @@ function buildEntrySnapshot(e){
   // 建議買區以「同一個停損」為錨：一定在停損上方一點點，且不高於現價。
   // 舊版直接拿「守住率最高的均線」當買區，那條線可能遠低於停損（例：緯創買區168、停損190），
   // 等於叫人買在停損下方，一進場就該砍。
+  // 買區上緣一律是「推薦當天收盤價」——追蹤紀錄就是用這個價進場，兩者必須一致，
+  // 否則會出現「叫你買 134~138，帳上卻用 141 計算」的矛盾。下緣抓停損上方一點點。
   let buy;
   {
     const px=e.px;
-    if(mvStop!=null && px!=null && mvStop<px){
-      const lo=Math.max(mvStop*1.002, Math.min(px, mvStop*1.01));
-      const hi=Math.min(px, Math.max(lo*1.01, mvStop*1.04));
-      buy = `${lo.toFixed(2)}–${hi.toFixed(2)}`;
-    } else if(px!=null){
-      buy = `${(px*0.99).toFixed(2)}–${px.toFixed(2)}`;    // 停損算不出來就抓現價下方 1%
+    if(px!=null){
+      let lo = mvStop!=null&&mvStop<px ? Math.max(mvStop*1.005, px*0.97) : px*0.98;
+      if(lo>=px)lo=px*0.99;
+      buy = `${lo.toFixed(2)}–${px.toFixed(2)}`;
     } else buy='—';
   }
   // 停利目標必須「高於進場價」才合理；前高壓力若在現價之下不能當停利
@@ -4363,6 +4364,7 @@ function buildEntrySnapshot(e){
   if(e._downGap)tags.push('⚠ 空方缺口');
   if(e._easyVol)tags.push('今日爆量');
   if(e._contBoth>=CONT_DAYS)tags.push(`外資投信連買${e._contBoth}日`);
+  if(e.chg!=null && e.chg>=4)tags.push(`⚠ 今日已漲${e.chg.toFixed(1)}%`);
   if(p.rideName)tags.push(`沿${p.rideName}走`);
   return {
     rv:RULES_VER,
@@ -4712,16 +4714,25 @@ $('#easyTabTest').onclick=()=>switchEasyTab('test');
   if(cd)cd.oninput=()=>{ const v=+cd.value||3; CONT_DAYS=v; const l=$('#contDLbl'); if(l)l.textContent=v; }; })();
 $('#easyTabSec').onclick=()=>switchEasyTab('sec');
 
+// 手動按這顆＝使用者明確要求重整，一律用現行規則把所有推薦日與追蹤紀錄整批重算，
+// 不必自己一張一張找哪些是舊版算出來的。（自動同步走輕量路徑，只在規則版號變了才重算）
 $('#testSync').onclick=async()=>{
-  const note=$('#testNote'); note.textContent='同步中…';
-  const url=await ensureFbUrl();
-  if(!url){ note.textContent='⚠️ 找不到雲端網址，請到左邊「雲端同步」貼上 Realtime Database 網址'; return; }
-  // 先從雲端拉一次（跨裝置看同一份）
-  await testLoad();
-  const r=await testAutoSync();
-  const n=(TEST_TRACK.entries||[]).length;
-  note.textContent = `✓ 已連雲端（${url.replace('https://','').split('.')[0]}）· 目前追蹤 ${n} 檔` + (r.added?`，本次新增 ${r.added}`:'');
-  testRender();
+  const b=$('#testSync'); const note=$('#testNote');
+  const t0=b.textContent; b.disabled=true; b.textContent='重算中…';
+  if(note)note.textContent='用最新規則重算全部…';
+  try{
+    const url=await ensureFbUrl();
+    if(!url){ if(note)note.textContent='⚠️ 找不到雲端網址，請到左邊「雲端同步」貼上 Realtime Database 網址'; return; }
+    await loadRecoHistory();
+    await testLoad();
+    await recalcAll();                    // 舊版快照全部作廢重建
+    TEST_TRACK.rulesVer=RULES_VER;
+    const r=await testAutoSync();
+    const n=(TEST_TRACK.entries||[]).length, days=Object.keys(RECO_HIST||{}).length;
+    if(note)note.textContent=`✓ 已用最新規則重算：${days} 個推薦日、追蹤 ${n} 筆` + (r&&r.added?`，本次新增 ${r.added}`:'');
+    testRender();
+  }catch(err){ if(note)note.textContent='重算失敗：'+err.message; }
+  finally{ b.textContent=t0; b.disabled=false; }
 };
 $('#testClear').onclick=async()=>{
   if(!confirm('確定清空 Test 追蹤紀錄？（雲端與本機都會清）'))return;
