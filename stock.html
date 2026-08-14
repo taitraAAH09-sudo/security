@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V217</title>
+<title>盤後篩選台 V218</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -610,7 +610,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V217</span>
+    <h1>盤後篩選台</h1><span class="ver">V218</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -2277,20 +2277,25 @@ function graceStop(ser, i0, i){
   // 帶量進場 → 呼吸期看 5MA（爆量拉抬後理應貼著 5MA 走，守不住就是假突破）；
   // 沒帶量 → 看 20MA，給更寬的空間。第 4 天起才交棒給大量低點／缺口那套。
   const burst = hadBurstAt(ser, i0);
+  // 有未回補的向上跳空缺口 → 缺口下緣就是最該守的位置（跌破＝缺口回補、型態破壞），優先於均線
+  let gapLow=null;
+  try{ if(ser.h&&ser.l){ const g=findGap(ser.h.slice(0,i+1), ser.l.slice(0,i+1), 10, 0, true, ser.c.slice(0,i+1), 'up');
+    if(g&&g.dir==='up'&&!g.closed&&g.gapLow!=null&&g.gapLow<c[i])gapLow=g.gapLow; } }catch(e){}
   // 糾結規則在呼吸期也適用：20MA 與 60MA 相差不到 4% 就直接看季線，
   // 兩條幾乎重疊時停在 20MA 沒有意義（例：2484 希華 20MA 70.66、60MA 67.95，差 3.8%）
   const m20=maAt(20), m60=maAt(60);
   const tangled = (m20!=null && m60!=null && Math.abs(m20-m60)/m20<0.04);
-  const line = tangled ? m60 : (burst ? maAt(5) : m20);
-  const nm = tangled ? '60MA' : (burst ? '5MA' : '20MA');
+  const line = gapLow!=null ? gapLow : (tangled ? m60 : (burst ? maAt(5) : m20));
+  const nm = gapLow!=null ? '缺口下緣' : (tangled ? '60MA' : (burst ? '5MA' : '20MA'));
   let px=null, why='';
   if(line!=null && c[i]!=null && line<c[i]){ px=line;
-    why = tangled ? `60MA（20MA 與 60MA 只差 ${(Math.abs(m20-m60)/m20*100).toFixed(1)}%，糾結時看季線）`
-                  : `${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
+    why = gapLow!=null ? '未回補向上缺口的下緣（跌破＝缺口回補）'
+        : tangled ? `60MA（20MA 與 60MA 只差 ${(Math.abs(m20-m60)/m20*100).toFixed(1)}%，糾結時看季線）`
+        : `${nm}（進場前 3 天的保護${burst?'，帶量進場看 5MA':''}）`; }
   if(px==null || (floor!=null && px<floor && !burst)) { }   // 沒帶量時仍以均線為準，不硬拉到保底
   if(px==null){ px=floor; why='進場價下方 8%（進場前 3 天的保護）'; }
   // 帶量進場用 5MA 會比較貼，補一道下限：至少要有進場價下方 3% 的空間
-  if(burst && !tangled && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
+  if(burst && !tangled && gapLow==null && entry!=null && px!=null && px>entry*0.97){ px=+(entry*0.97).toFixed(2); why='進場價下方 3%（帶量進場的最小空間）'; }
   return px!=null ? {price:px, why} : null;
 }
 function movingStopAt(ser,i){
@@ -2316,6 +2321,10 @@ function movingStopAt(ser,i){
   const ma60Now=(()=>{ if(i<59)return null; let t=0,n=0; for(let k=i-59;k<=i;k++){ if(c[k]==null)continue; t+=c[k]; n++; } return n>=60?t/n:null; })();
   const tangled = (ma20Now!=null && ma60Now!=null && Math.abs(ma20Now-ma60Now)/ma20Now<0.04);
   if(tangled && ma60Now<c[i]) return {price:ma60Now, why:`60MA（20MA 與 60MA 只差 ${(Math.abs(ma20Now-ma60Now)/ma20Now*100).toFixed(1)}%，糾結時看季線）`, idx:i};
+  // 未回補的向上缺口下緣優先於爆量低點：跌破缺口才是型態壞掉
+  try{ const g2=findGap(h.slice(0,i+1), l.slice(0,i+1), 10, 0, true, c.slice(0,i+1), 'up');
+    if(g2&&g2.dir==='up'&&!g2.closed&&g2.gapLow!=null&&g2.gapLow<c[i])
+      return mergeMA20({price:g2.gapLow, why:'缺口下緣', idx:i}); }catch(e){}
   if(burstStop)return mergeMA20(burstStop);
   // 2) 近 10 根內有未封閉向上缺口 → 用缺口下緣（跳空前一天最高）
   try{
@@ -4204,7 +4213,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r216';
+const RULES_VER='r218';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4221,7 +4230,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V217 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V218 之後不再推薦，但更早開的追蹤紀錄還留著
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
