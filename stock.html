@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V222</title>
+<title>盤後篩選台 V224</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -616,7 +616,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V222</span>
+    <h1>盤後篩選台</h1><span class="ver">V224</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1016,6 +1016,8 @@ function contBuyN(code,which,days){
 let CONT_DAYS=3;
 // 推薦清單的最低成交量門檻（張）。量沒破千的不考慮。
 const MIN_VOL=1000;
+// 股價上限：萬元股不列入推薦。兩張就要兩百多萬，資金比重失衡、也會把追蹤成績的損益統計整個帶偏。
+const MAX_PX=10000;
 function contBuyUniverse(){
   const days=Object.keys(DB.insts||{}).sort();
   const out=new Set();
@@ -3431,14 +3433,14 @@ async function testLoad(){
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
-  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); purgeLowVolume(); testDedupeExisting();
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); purgeLowVolume(); purgeHighPrice(); testDedupeExisting();
     try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
     try{await testFbPush(true);}catch(e){}      // 把清乾淨的版本推回雲端，否則下次又被塞回來
     return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
   purgeBeforeStart();
   purgeFinancials();
-  purgeLowVolume();
+  purgeLowVolume(); purgeHighPrice();
   testDedupeExisting();
 }
 async function testSave(){
@@ -3606,7 +3608,7 @@ function testRefreshStatus(){
 async function recalcAll(){
   purgeBeforeStart();
   purgeFinancials();
-  purgeLowVolume();
+  purgeLowVolume(); purgeHighPrice();
   for(const d of Object.keys(RECO_HIST||{})) delete RECO_HIST[d];   // 快照丟掉重建，買區與初始停損才會套新規則
   await backfillRecoDays(30);
   // 追蹤紀錄也一律換成新規則產生的快照：舊版算出來的推薦價／停損／標籤全部作廢，
@@ -3648,7 +3650,7 @@ async function testAutoSync(){
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   purgeBeforeStart();     // 清掉系統開始記錄之前的資料
   purgeFinancials();      // 清掉金融／銀行股的舊紀錄
-  purgeLowVolume();       // 清掉當天量沒破千的舊紀錄
+  purgeLowVolume(); purgeHighPrice();  // 清掉量沒破千、股價破萬的舊紀錄
   testDedupeExisting();   // 先清掉舊版留下的重複，再開始併新的
   // 由舊到新逐日併入；每併一天就重算一次狀態，「前一筆是否已全數出場」才會是最新的
   for(const d of Object.keys(RECO_HIST).sort()){ added += testIngestDay(d, RECO_HIST[d]); testRefreshStatus(); }
@@ -4273,7 +4275,7 @@ const RECO_KEY='easy_reco_hist_v1', SETTLED_KEY='easy_reco_settled_v1';
 const RECO_START='20260803';
 // 規則版號：只要停損／停利／篩選規則有調整就把它往上加。
 // 同步時發現存檔的版號跟現在不一樣，就自動整批重跑一次，使用者不必記得按第二顆按鈕。
-const RULES_VER='r221';
+const RULES_VER='r224';
 // 金融／銀行股一律清掉：V195 之後不再推薦，但更早開的舊追蹤紀錄還留著（8/3 的永豐金、第一金、臺企銀、合庫金）
 function purgeFinancials(){
   let n=0;
@@ -4290,7 +4292,27 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V222 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V224 之後不再推薦，但更早開的追蹤紀錄還留著
+// 萬元股的舊紀錄一併清掉
+function purgeHighPrice(){
+  if(!DB.dates||!DB.dates.length)return 0;
+  const pxOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.c)return null;
+    const i=DB.dates.indexOf(d); return i>=0?st.c[i]:null; };
+  const high=(code,d)=>{ const v=pxOn(code,d); return v!=null && v>=MAX_PX; };
+  let n=0;
+  for(const d in (RECO_HIST||{})){
+    const arr=RECO_HIST[d]||[];
+    const keep=arr.filter(x=>!high(x.code,d));
+    if(keep.length!==arr.length){ n+=arr.length-keep.length; RECO_HIST[d]=keep; }
+    if(!keep.length)delete RECO_HIST[d];
+  }
+  if(TEST_TRACK&&Array.isArray(TEST_TRACK.entries)){
+    const before=TEST_TRACK.entries.length;
+    TEST_TRACK.entries=TEST_TRACK.entries.filter(e=>!high(e.code,e.firstDate));
+    n+=before-TEST_TRACK.entries.length;
+  }
+  return n;
+}
 function purgeLowVolume(){
   if(!DB.dates||!DB.dates.length)return 0;
   const volOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.q)return null;
@@ -4567,7 +4589,7 @@ function renderEasyTabsAndList(){
   }
   if(!EASY_SEL_DATE||days.indexOf(EASY_SEL_DATE)<0)EASY_SEL_DATE=days[0];
   const whyBox=`<div class="whybox">
-      <span>🔎 某檔為什麼沒被推薦？</span>
+      <span>🔎 查某一檔：為什麼在／不在清單？</span>
       <input id="whyCode" placeholder="輸入代號，如 5351" maxlength="6" inputmode="numeric">
       <button id="whyGo" class="testbtn">查</button>
       <div class="whyout" id="whyOut"></div>
@@ -4634,6 +4656,7 @@ function whyNotPicked(code, dstr){
   if(isFinancial(code, st.n))return `<b>${nm}</b>：金融／銀行類已排除，不列入推薦。`;
   const vq0=st.q&&st.q[idx];
   if(vq0==null||vq0<MIN_VOL)return `<b>${nm}</b>：${fmtD(dstr)} 成交量只有 ${vq0==null?'—':vq0.toLocaleString()} 張，未達 ${MIN_VOL.toLocaleString()} 張門檻，不列入推薦。`;
+  if(st.c[idx]>=MAX_PX)return `<b>${nm}</b>：${fmtD(dstr)} 收盤 ${st.c[idx].toLocaleString()} 元，達萬元股門檻（≥ ${MAX_PX.toLocaleString()}），不列入推薦。`;
   const off=DB.dates.length-1-idx;
   const saved=OFFSET; OFFSET=off;
   let e=null; try{ e=evaluate(code); }catch(err){}
@@ -4653,7 +4676,19 @@ function whyNotPicked(code, dstr){
     .find(x=>{ const a=x.lotA||{},b=x.lotB||{}; const cl=a.done&&b.done;
       const cd=cl?[a.date,b.date].filter(Boolean).sort().pop():null; return !cl||!cd||cd>=dstr; });
   if(prev)return `<b>${nm}</b>　${fmtD(dstr)} 條件其實都符合，但 ${fmtD(prev.firstDate)} 開的那筆還沒結案，同一檔同時只追一筆，所以不重複列出。`;
-  return `<b>${nm}</b>　${fmtD(dstr)} 兩關都通過，照理應該在清單裡——若清單沒有，按一次「同步／重算」重建那天的推薦。`;
+  // 條件都過、也沒有未結案的舊部位 → 它「本來就該在清單裡」，把數字攤開讓人核對
+  const px=st.c[idx];
+  const ma=n=>{ let t=0,k=0; for(let j=idx;j>idx-n;j--){ if(j<0||st.c[j]==null)return null; t+=st.c[j]; k++; } return k===n?t/k:null; };
+  const m5=ma(5),m10=ma(10),m20=ma(20),m60=ma(60);
+  const fx=v=>v==null?'—':v.toFixed(2);
+  const closed=(TEST_TRACK.entries||[]).filter(x=>x.code===code&&x.firstDate<dstr)
+    .sort((a,b)=>a.firstDate<b.firstDate?1:-1)[0];
+  return `<b>${nm}</b>　${fmtD(dstr)} <b style="color:var(--up)">確實符合推薦條件</b>，所以會出現在清單裡：<br>`
+    + `✓ 收盤 ${fx(px)} 站上四條均線（MA5 ${fx(m5)}／MA10 ${fx(m10)}／MA20 ${fx(m20)}／MA60 ${fx(m60)}）<br>`
+    + `✓ 季線在最下　✓ 成交量 ${vq0.toLocaleString()} 張 ≥ ${MIN_VOL.toLocaleString()}<br>`
+    + (closed
+        ? `ℹ️ 之前 ${fmtD(closed.firstDate)} 開過一筆，但已經結案，所以可以重新開單。`
+        : `ℹ️ 之前沒有開過單。`);
 }
 // 掃出「某個基準日」的推薦清單（off=0 是最新一天，1 是前一天…）。現在與補建過去共用同一套規則。
 function scanEasyPicks(off){
@@ -4669,6 +4704,7 @@ function scanEasyPicks(off){
       if(isFinancial(code, st.n))continue;                 // 金融／銀行股不推薦
       // 成交量沒破千張的不列入：量太小滑價大、也難進出
       const vq=st.q&&st.q[baseIdx]; if(vq==null||vq<MIN_VOL)continue;
+      if(st.c[baseIdx]>=MAX_PX)continue;                   // 萬元股不推薦
       let e; try{ e=evaluate(code); }catch(err){ continue; }
       if(!e||!e.enough)continue;
       const allMA=e.lamps&&e.lamps.every(Boolean);
