@@ -240,18 +240,19 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V4';
+const VER = 'V5';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
 const PROXY = [
   u => u,
-  u => 'https://corsproxy.io/?' + encodeURIComponent(u),
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  u => 'https://corsfix.com/' + u,
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
   u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
   u => 'https://thingproxy.freeboard.io/fetch/' + u
 ];
-const PROXY_NAME = ['直連','corsproxy','allorigins','codetabs','thingproxy'];
+const PROXY_NAME = ['直連','corsproxy','corsfix','allorigins','codetabs','thingproxy'];
 async function getJSON(url){
   const notes = [];
   for(let i=0;i<PROXY.length;i++){
