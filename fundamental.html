@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V13</title>
+<title>法人卡位選股台 V15</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -189,7 +189,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V13</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V15</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -214,6 +214,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <div class="fld"><label>投信連買 ≥ 日</label><input type="number" id="fTrust" value="0" min="0"></div>
     <div class="fld"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
     <div class="fld"><label>營收年增 ≥ %</label><input type="number" id="fYoY" value=""></div>
+    <div class="fld"><label>貴投信 ≤ %</label><input type="number" id="fVsT" value=""></div>
     <div class="fld"><label>溢價 ≤ %</label><input type="number" id="fPrem" value=""></div>
     <div class="fld"><label>訊號</label><select id="fSig"><option value="">全部</option>
       <option value="watch">可觀察（上車候選）</option><option value="hold">續抱</option>
@@ -265,9 +266,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="revPeriod">營收月份</th><th data-k="revYoY">營收年增%</th><th data-k="revMoM">營收月增%</th>
       <th data-k="gm">毛利率%</th><th data-k="om">營益率%</th><th data-k="nm">淨利率%</th>
       <th data-k="triScore">三率三升</th><th data-k="repDate">財報日期</th><th data-k="epsTTM">EPS(近4季)</th>
+      <th data-k="trustCost">投信成本</th><th data-k="vsTrust">貴投信%</th>
+      <th data-k="instCost">法人成本</th><th data-k="vsInst">貴法人%</th>
       <th data-k="px">收盤</th><th data-k="supPx">參考防守位</th><th data-k="supGap">距防守%</th>
       <th data-k="mcap">市值(億)</th><th data-k="pe">本益比</th>
-      <th data-k="fair">合理價中值</th><th data-k="prem">溢價%</th>
+      <th data-k="fair">合理價中值</th><th data-k="fairLo">合理價區間</th><th data-k="prem">溢價%</th>
     </tr></thead>
     <tbody id="tb"></tbody>
   </table></div>
@@ -294,6 +297,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <button class="btn pri" id="btnFbPush">把本機資料全部灌上雲端</button>
     <div id="fbState" style="font-size:12px;color:var(--dim);padding-bottom:6px"></div>
   </div></div>
+  <div id="bandOut"></div>
   <div id="cacheInfo" style="font-size:12px;color:var(--dim);margin-bottom:10px"></div>
   <div id="probeOut"></div>
 </div>
@@ -304,13 +308,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V13
+   法人卡位選股台 V15
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V13';
+const VER = 'V15';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1200,9 +1204,45 @@ function metrics(code){
   cands.sort((a,b) => b[1]-a[1]);
   const sup = cands[0] || null;
 
+  /* --- 法人建倉成本：拿每個買超日的均價，用當天買超張數加權 ---
+     算的是「他們在什麼價位吃貨」，所以只取買超日、用買超張數當權重。
+     當日均價用典型價 (高+低+收)/3，比單用收盤貼近實際成交。 */
+  function costOf(series){
+    let lots = 0, sum = 0, days = 0, lo = null, hi = null;
+    for(let i = 0; i < series.length; i++){
+      const q = series[i];
+      if(q === null || q <= 0) continue;
+      const c = p.c[i], h = p.h[i], l = p.l[i];
+      if(c === null) continue;
+      const tp = (h !== null && l !== null) ? (h + l + c) / 3 : c;
+      sum += tp * q; lots += q; days++;
+      lo = lo === null ? tp : Math.min(lo, tp);
+      hi = hi === null ? tp : Math.max(hi, tp);
+    }
+    return lots > 0 ? {cost: sum / lots, lots, days, lo, hi} : null;
+  }
+  const tCost = costOf(q.t);
+  const fCost = costOf(q.f);
+  const bothSeries = q.t.map((v, i) => {
+    const a = v === null ? 0 : Math.max(v, 0);
+    const b = q.f[i] === null ? 0 : Math.max(q.f[i], 0);
+    return (a + b) > 0 ? a + b : null;
+  });
+  const iCost = costOf(bothSeries);
+
+  const vs = c => (c && c.cost) ? (px - c.cost) / c.cost * 100 : null;
+
   return {
     px, trustD, foreignD, net5, net5t, net5f, vol20,
     t10buy, t10sell, net20t, build20, shares, recent2t, net5tOnly,
+    tCost, fCost, iCost,
+    trustCost: tCost ? tCost.cost : null,
+    trustLots: tCost ? tCost.lots : null,
+    trustDays: tCost ? tCost.days : null,
+    trustLo: tCost ? tCost.lo : null,
+    trustHi: tCost ? tCost.hi : null,
+    instCost: iCost ? iCost.cost : null,
+    vsTrust: vs(tCost), vsForeign: vs(fCost), vsInst: vs(iCost),
     f5sellDays, net5fOnly, volRatio, volSpike,
     pattern, patNote, chg20, range20, hiEx3,
     supName: sup ? sup[0] : null, supPx: sup ? sup[1] : null,
@@ -1484,6 +1524,8 @@ function tagsFor(m, f, s, V){
   if(m.trustD >= 3) t.push(['投信連買'+m.trustD+'日','tr']);
   if(m.trustD >= 3 && m.foreignD >= 3) t.push(['外資投信同步','good']);
   if(m.absorb !== null && m.absorb >= 8) t.push(['法人強吸籌','good']);
+  if(m.vsTrust !== null && m.vsTrust <= 0) t.push(['低於投信成本','good']);
+  else if(m.vsTrust !== null && m.vsTrust >= 15) t.push(['貴投信'+Math.round(m.vsTrust)+'%','bad']);
   if(m.runPct !== null && m.runPct < 3 && (m.trustD >= 3 || m.foreignD >= 3))
     t.push(['🎯 買超但沒漲','good']);
   if(m.runPct !== null && m.runPct >= 15) t.push(['追價風險','bad']);
@@ -1504,6 +1546,7 @@ function score(){
   const noFin  = document.getElementById('fNoFin').checked;
   const noLoss = document.getElementById('fNoLoss').checked;
   buildPEBands();
+  renderBands();
   snapMargins();
 
   for(const code in DATA.ins){
@@ -1541,6 +1584,9 @@ function score(){
       volRatio:m.volRatio, volSpike:m.volSpike,
       pattern:m.pattern, patNote:m.patNote,
       supName:m.supName, supPx:m.supPx, supGap:m.supGap,
+      trustCost:m.trustCost, trustLots:m.trustLots, trustDays:m.trustDays,
+      trustLo:m.trustLo, trustHi:m.trustHi,
+      instCost:m.instCost, vsTrust:m.vsTrust, vsInst:m.vsInst, vsForeign:m.vsForeign,
       absorb:m.absorb, runPct:m.runPct, toHigh:m.toHigh, distMA20:m.distMA20, px:m.px,
       revYoY:(f.rev && f.rev.yoy !== undefined) ? f.rev.yoy : null,
       revMoM:(f.rev && f.rev.mom !== undefined) ? f.rev.mom : null,
@@ -1574,6 +1620,7 @@ function filtered(){
   const q     = document.getElementById('fQ').value.trim();
   const tOnly = document.getElementById('fTrustOnly').checked;
   const prem  = document.getElementById('fPrem').value;
+  const vsT   = document.getElementById('fVsT').value;
   const hasF  = document.getElementById('fHasFund').checked;
   const t10   = document.getElementById('fT10').value;
   const netD  = document.getElementById('fNetD').value;
@@ -1588,6 +1635,7 @@ function filtered(){
     if(tOnly && r.trustD === 0) return false;
     if(hasF && !r.hasFund) return false;
     if(prem !== '' && (r.prem === null || r.prem > +prem)) return false;
+    if(vsT !== '' && (r.vsTrust === null || r.vsTrust > +vsT)) return false;
     if(t10 !== '' && r.t10buy < +t10) return false;
     if(netD !== '' && (r.t10buy - r.t10sell) < +netD) return false;
     if(volM === 'mild'    && !(r.volRatio !== null && r.volRatio >= 1.2 && r.volRatio <= 3)) return false;
@@ -1677,14 +1725,15 @@ const COL_GROUPS = [
   ['基本', ['code','name','ind','score','sigRank']],
   ['三軸分數', ['sChip','sFund','sRoom']],
   ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','absorb','volRatio']],
+  ['法人成本', ['trustCost','vsTrust','instCost','vsInst']],
   ['位階', ['runPct','toHigh','distMA20','supPx','supGap']],
   ['基本面', ['revPeriod','revYoY','revMoM','gm','om','nm','triScore','repDate']],
-  ['估值', ['epsTTM','px','mcap','pe','fair','prem']]
+  ['估值', ['epsTTM','px','mcap','pe','fair','fairLo','prem']]
 ];
 const COL_LOCK = ['code','name','score','sigRank'];                 // 這幾欄不給關
 const COL_HIDE_DEFAULT = ['volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom'];
 const COL_CORE = ['code','name','ind','score','sigRank','pattern','trustD','t10buy','net20t','build20',
-                  'revPeriod','revYoY','revMoM','gm','om','triScore','epsTTM','px','pe','fair','prem'];
+                  'trustCost','vsTrust','revPeriod','revYoY','revMoM','gm','om','triScore','epsTTM','px','pe','fair','fairLo','prem'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
@@ -1802,7 +1851,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="36" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="41" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -1838,6 +1887,13 @@ function render(){
       <td>${triChip(r.TRI)}</td>
       <td style="color:var(--dim)">${r.repDate || '<span class="na">—</span>'}</td>
       <td class="${cls(r.epsTTM)}">${fmt(r.epsTTM,2)}</td>
+      <td>${r.trustCost===null?'<span class="na">—</span>'
+            :fmt(r.trustCost,2)+`<span style="color:var(--dim2);font-size:10px"> ${r.trustDays}日</span>`}</td>
+      <td class="prem ${r.vsTrust===null?'na':(r.vsTrust>0?'pos':'neg')}">${
+        r.vsTrust===null ? '—' : (r.vsTrust>0?'+':'') + fmt(r.vsTrust,1)}</td>
+      <td>${r.instCost===null?'<span class="na">—</span>':fmt(r.instCost,2)}</td>
+      <td class="prem ${r.vsInst===null?'na':(r.vsInst>0?'pos':'neg')}">${
+        r.vsInst===null ? '—' : (r.vsInst>0?'+':'') + fmt(r.vsInst,1)}</td>
       <td>${fmt(r.px,2)}</td>
       <td>${r.supPx===null?'<span class="na">—</span>':`<span style="color:var(--dim2);font-size:10.5px">${r.supName}</span> ${fmt(r.supPx,2)}`}</td>
       <td class="${cls(r.supGap)}">${fmt(r.supGap,1)}</td>
@@ -1845,8 +1901,13 @@ function render(){
       <td>${fmt(r.pe,1)}</td>
       <td class="fairbox">${
         r.V.mid===null ? '<span class="na">—</span>'
-        : fmt(r.V.mid,1) + (r.V.spread > 2.2
-            ? ' <span style="color:var(--dim2);font-size:10px" title="同業本益比很分散，這個中值參考性低">寬</span>' : '')}</td>
+        : fmt(r.V.mid,1) + (r.V.lo!==null
+            ? ` <span style="color:var(--dim2);font-size:10px">±${Math.round((r.V.hi-r.V.lo)/2/r.V.mid*100)}%</span>` : '')}</td>
+      <td class="fairbox">${r.V.lo===null ? '<span class="na">—</span>'
+        : `<span style="color:var(--dn)">${fmt(r.V.lo,1)}</span>`
+        + `<span style="color:var(--dim2)"> ～ </span>`
+        + `<span style="color:var(--up)">${fmt(r.V.hi,1)}</span>`
+        + (r.V.spread > 2.2 ? ` <span style="color:var(--accent);font-size:10px">寬</span>` : '')}</td>
       <td class="prem ${r.prem===null?'na':(r.prem>0?'pos':'neg')}">${
         r.prem===null ? '—'
         : (r.prem>0 ? '貴 +' : '便宜 ') + fmt(r.prem,1)}</td>
@@ -1866,20 +1927,30 @@ function sparkline(code){
   const c = p.c, n = c.length, W = 520, H = 60, pad = 4;
   const vals = c.filter(x => x !== null);
   if(vals.length < 3 || n < 2) return '';
-  const mn = Math.min(...vals), mx = Math.max(...vals), rg = (mx-mn)||1;
+  const row = ROWS.find(x => x.code === code);
+  const tc = row ? row.trustCost : null;
+  const lo0 = Math.min(...vals), hi0 = Math.max(...vals);
+  const mn = tc !== null ? Math.min(lo0, tc) : lo0;
+  const mx = tc !== null ? Math.max(hi0, tc) : hi0;
+  const rg = (mx - mn) || 1;
+  const Y = v => H - pad - (v - mn) / rg * (H - 2*pad);
   let d = '', started = false, marks = '';
   for(let i=0;i<n;i++){
     if(c[i] === null) continue;
     const x = pad + i/(n-1)*(W-2*pad);
-    const y = H - pad - (c[i]-mn)/rg*(H-2*pad);
-    d += (started ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+    d += (started ? 'L' : 'M') + x.toFixed(1) + ',' + Y(c[i]).toFixed(1);
     started = true;
     if(q && q.t[i] !== null && q.t[i] > 0)
-      marks += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.2" fill="var(--trust)"/>`;
+      marks += `<circle cx="${x.toFixed(1)}" cy="${Y(c[i]).toFixed(1)}" r="2.2" fill="var(--trust)"/>`;
   }
+  const costLine = tc !== null
+    ? `<line x1="${pad}" y1="${Y(tc).toFixed(1)}" x2="${W-pad}" y2="${Y(tc).toFixed(1)}"
+             stroke="var(--trust)" stroke-width="1" stroke-dasharray="4 3"/>`
+    : '';
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none">
-    <path d="${d}" fill="none" stroke="var(--dim)" stroke-width="1.4"/>${marks}</svg>
-    <div style="font-size:11px;color:var(--dim2)">近 ${n} 個交易日收盤走勢，紫點是投信買超的日子</div>`;
+    ${costLine}<path d="${d}" fill="none" stroke="var(--dim)" stroke-width="1.4"/>${marks}</svg>
+    <div style="font-size:11px;color:var(--dim2)">近 ${n} 個交易日收盤走勢，紫點是投信買超的日子${
+      tc !== null ? `，紫色虛線是投信建倉成本 ${fmt(tc,2)} 元` : ''}</div>`;
 }
 
 function axBlock(title, arr, got, max){
@@ -1926,6 +1997,19 @@ function showDetail(code){
           <div><div class="k">籌碼還在不在</div>
             <div class="v">投信 10 日 買${r.t10buy} 賣${r.t10sell}</div>
             <div class="s">最近兩日淨${r.M.recent2t>=0?'買':'賣'} ${Math.abs(Math.round(r.M.recent2t)).toLocaleString()} 張${r.M.recent2t<=0?'　·　連買段落可能結束':''}</div></div>
+          <div><div class="k">投信在什麼價位吃貨</div>
+            <div class="v">${r.trustCost===null ? '—' : fmt(r.trustCost,2) + ' 元'}</div>
+            <div class="s">${r.trustCost===null ? '這段期間投信沒有買超'
+              : `${r.trustDays} 個買超日、共 ${Math.round(r.trustLots).toLocaleString()} 張，`
+                + `區間 ${fmt(r.trustLo,2)}～${fmt(r.trustHi,2)}`}</div></div>
+          <div><div class="k">你現在進場貴多少</div>
+            <div class="v ${r.vsTrust===null?'':(r.vsTrust>0?'pos':'neg')}">${
+              r.vsTrust===null ? '—' : (r.vsTrust>0 ? '貴 +' : '便宜 ') + fmt(r.vsTrust,1) + '%'}</div>
+            <div class="s">${r.vsTrust===null ? ''
+              : r.vsTrust <= 3 ? '幾乎跟投信同一個價位，這才叫卡位'
+              : r.vsTrust <= 8 ? '略高於投信成本，還在合理範圍'
+              : r.vsTrust <= 15 ? '已明顯高於投信成本，等回檔比較好'
+              : '比投信貴一成五以上，這是替他們抬轎'}</div></div>
           <div><div class="k">還有多少空間</div>
             <div class="v">期間漲 ${fmt(r.runPct,1)}%</div>
             <div class="s">距 20 日高點 ${fmt(r.toHigh,1)}%</div></div>
@@ -1983,6 +2067,35 @@ function valBlock(r){
 }
 
 /* ---------- 資料源面板 ---------- */
+/* 各產業本益比帶一覽：讓使用者一眼看出「合理價區間為什麼有時窄有時寬」 */
+function renderBands(){
+  const el = document.getElementById('bandOut');
+  if(!el) return;
+  const keys = Object.keys(PEBAND.byInd || {}).sort();
+  if(!keys.length){ el.innerHTML = ''; return; }
+  const rows = keys.map(k => {
+    const b = PEBAND.byInd[k];
+    const sp = b.p75 / b.p25;
+    const pm = Math.round((b.p75 - b.p25) / 2 / b.p50 * 100);
+    return {k, b, sp, pm};
+  }).sort((a,b) => b.sp - a.sp);
+  const med = rows.map(r => r.sp).sort((a,b)=>a-b)[Math.floor(rows.length/2)];
+  el.innerHTML = `<div class="ep">
+    <h4>各產業本益比帶（合理價區間就是從這裡來的）</h4>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:6px">
+      共 ${rows.length} 個產業有足夠樣本。上緣÷下緣的中位數是 <b style="color:var(--tx)">${med.toFixed(2)} 倍</b>——
+      這就是「合理價頭尾大概差多少」的答案。倍數越大代表同業估值越分散、那個中值越不可靠。
+    </div>
+    <div class="kv" style="grid-template-columns:1fr auto auto auto auto;max-height:320px">
+      <b>產業</b><b>檔數</b><b>P25</b><b>中位</b><b>P75</b>
+      ${rows.map(r => `<span>${r.k}${r.sp>2.2?' <span style="color:var(--accent)">寬</span>':''}</span>
+        <span style="text-align:right">${r.b.n}</span>
+        <span style="text-align:right">${r.b.p25.toFixed(1)}</span>
+        <span style="text-align:right;color:var(--tx)">${r.b.p50.toFixed(1)}</span>
+        <span style="text-align:right">${r.b.p75.toFixed(1)}　<b style="color:var(--dim2)">±${r.pm}%</b></span>`).join('')}
+    </div></div>`;
+}
+
 function renderProbe(){
   const out = document.getElementById('probeOut');
   const live = [
@@ -2081,6 +2194,7 @@ function exportCsv(){
   const head = ['代號','名稱','產業','卡位分','訊號','訊號說明','法人','基本面','空間','投信連買','外資連買',
     '近5日買超張','吸籌%','期間漲幅%','距20日高%','距MA20%','營收年增%',
     '毛利率%','營益率%','淨利率%','三率三升','財報期別','財報日期',
+    '投信成本','投信買超日數','投信買超張數','貴投信%','法人成本','貴法人%',
     '單季EPS','近4季EPS','收盤','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
   const TRIW = {three:'三率三升', part:'部分上升', down:'三率齊跌',
                 guess:'推測（僅一期財報）', wait:'待累積', none:''};
@@ -2090,6 +2204,8 @@ function exportCsv(){
     r.trustD,r.foreignD,r.net5,fmt(r.absorb,2),fmt(r.runPct,2),fmt(r.toHigh,2),fmt(r.distMA20,2),
     fmt(r.revYoY,2),fmt(r.gm,2),fmt(r.om,2),fmt(r.nm,2),
     (r.TRI ? TRIW[r.TRI.state] : ''), r.isPeriod||'', (r.repDate||'').replace('※',''),
+    fmt(r.trustCost,2), r.trustDays||'', r.trustLots?Math.round(r.trustLots):'',
+    fmt(r.vsTrust,2), fmt(r.instCost,2), fmt(r.vsInst,2),
     fmt(r.eps,2),fmt(r.epsTTM,2),fmt(r.px,2),
     r.mcap===null?'':Math.round(r.mcap), fmt(r.pe,2),
     fmt(r.V.lo,2),fmt(r.V.mid,2),fmt(r.V.hi,2),fmt(r.prem,2),
@@ -2277,6 +2393,57 @@ document.getElementById('docOut').innerHTML = `
 <b>防守位的用法是：跌破它代表你當初進場的那個理由不成立了</b>，不是虧損到某個百分比才停損。
 進場理由是「剛站回 20 日線」，那跌破 20 日線就該走；理由是「突破頸線」，那跌回頸線下就該走。</p>
 
+<h3>投信成本：你進場比投信貴多少</h3>
+<p>這是這支工具裡<b>最貼近「該不該現在買」的一個數字</b>，而且完全不依賴財報。</p>
+<p>算法：把投信每一個買超日的當日均價，用<b>那天的買超張數當權重</b>加權平均。
+當日均價取典型價（高＋低＋收）÷3，比單用收盤價貼近實際成交。</p>
+<ul>
+<li><b>投信成本</b>＝他們在什麼價位吃貨。後面的小字是幾個買超日。</li>
+<li><b>貴投信%</b>＝（現價 − 投信成本）÷ 投信成本。<span class="pos">紅色為正代表你比投信貴</span>，<span class="neg">綠色為負代表你比投信便宜</span>。</li>
+<li><b>法人成本</b>是外資＋投信合計的同樣算法。</li>
+</ul>
+<table>
+<tr><th>貴投信%</th><th>怎麼讀</th></tr>
+<tr><td>≤ 0%</td><td>你比投信買得還便宜，這是最好的位置</td></tr>
+<tr><td>0 ～ 3%</td><td>幾乎跟投信同一個價位，這才叫卡位</td></tr>
+<tr><td>3 ～ 8%</td><td>略高於投信成本，還在合理範圍</td></tr>
+<tr><td>8 ～ 15%</td><td>已明顯高於投信成本，等回檔比較好</td></tr>
+<tr><td>≥ 15%</td><td>比投信貴一成五以上，這是替他們抬轎</td></tr>
+</table>
+<p>點開任一列，明細會列出投信的買超日數、總張數、以及他們建倉的價格區間。
+下方走勢圖上那條<b>紫色虛線就是投信成本</b>，紫點是他們買超的日子——一眼就看得出現價離他們的成本多遠。</p>
+<div class="warn">
+<b>三個必須知道的限制：</b>
+<ul>
+<li>只看得到<b>快取範圍內</b>（預設 25 個交易日）的買超。投信如果更早就開始建倉，那段成本我們看不到，算出來的成本會偏高。</li>
+<li>只取<b>買超日</b>、不扣賣超。所以這是「吃貨均價」，不是「持倉淨成本」。</li>
+<li>用日均價估算，不是真實成交明細。投信一天之內買在哪個價位我們無從得知。</li>
+</ul>
+儘管如此，它比「同業本益比推算的合理價」對卡位這件事有用得多——
+因為它衡量的是<b>你跟那個正在買的人差多遠</b>，而不是跟一群不相干的同業比。
+</div>
+<p>篩選列有「貴投信 ≤ %」，按「套用投信建倉條件」時預設會設成 <b>8%</b>。</p>
+
+<h3>合理價頭尾大概差多少</h3>
+<p>差多少完全取決於<b>那個產業的本益比有多集中</b>。表格上的合理價中值旁邊會標 <code>±N%</code>，
+右邊「合理價區間」欄直接顯示下緣～上緣。實際跑起來大致是這樣：</p>
+<table>
+<tr><th>產業型態</th><th>上緣÷下緣</th><th>±幅度</th><th>意思</th></tr>
+<tr><td>估值集中（水泥、食品、鋼鐵）</td><td>約 1.1～1.4 倍</td><td>±7～15%</td><td>同業共識高，中值可信</td></tr>
+<tr><td>估值中等（電子零組件、機械）</td><td>約 1.3～1.7 倍</td><td>±13～25%</td><td>還算堪用</td></tr>
+<tr><td>估值分散（光電、生技、資訊服務）</td><td>2～3 倍以上</td><td>±40% 以上</td><td>同業自己都沒共識，中值幾乎沒有參考價值</td></tr>
+</table>
+<p>舉例：同樣是 EPS 3 元的公司，在水泥業算出 34.5～40.0（±7%），在光電業會算出 42.0～90.0（±40%）。
+差別不在公司，在產業估值的離散程度。</p>
+<div class="warn">
+<b>±40% 的區間不是估值，是「我也不知道」的委婉說法。</b>
+上緣÷下緣超過 2.2 倍時，區間欄會標一個「寬」字提醒你。
+看到「寬」就把這個數字當背景資訊，別拿它做決策——決策看訊號欄。<br>
+「資料源」分頁最上方有一張<b>各產業本益比帶</b>的完整表，
+列出每個產業的檔數與 P25／中位／P75，並算出全體的上緣÷下緣中位數。
+想知道自己在看的那檔股票估值可不可信，先去那張表看它的產業散不散。
+</div>
+
 <h3>為什麼合理價的區間那麼寬</h3>
 <p>區間是「同業本益比 P25～P75 × 近四季 EPS」。如果算出 300～584，代表<b>那個產業裡各家本益比本來就散得很開</b>——
 上緣是下緣的近兩倍，同業自己都沒共識，「中位數」這個錨自然就弱。</p>
@@ -2419,7 +2586,7 @@ document.querySelectorAll('#tbl th').forEach(th => {
   };
 });
 ['fScore','fTrust','fRun','fYoY','fPrem','fInd','fQ','fTrustOnly','fHasFund',
- 'fT10','fNetD','fVol','fPat','fNoDump','fSig'].forEach(id => {
+ 'fT10','fNetD','fVol','fPat','fNoDump','fSig','fVsT'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('input', render);
   el.addEventListener('change', render);
@@ -2437,7 +2604,8 @@ document.getElementById('btnPreset').onclick = () => {
   SET('fVol', 'mild');   // 量溫和放大，不追爆量
   SET('fPat', '__early');// 打底 / 剛突破 / 剛站回均線
   SET('fNoDump', true);  // 排除外資對倒
-  SET('fPrem', 20);
+  SET('fPrem', '');
+  SET('fVsT', 8);
   SET('fTrustOnly', true);
   SET('fHasFund', true);
   SET('fSig', 'watch');
@@ -2445,7 +2613,7 @@ document.getElementById('btnPreset').onclick = () => {
   render();
 };
 document.getElementById('btnReset').onclick = () => {
-  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig'].forEach(id => SET(id, ''));
+  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig','fVsT'].forEach(id => SET(id, ''));
   SET('fScore', 0); SET('fTrust', 0); SET('fNoDump', false); SET('fTrustOnly', false);
   render();
 };
