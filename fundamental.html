@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V9</title>
+<title>法人卡位選股台 V10</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -119,6 +119,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .alertbox ul{margin:6px 0 0;padding-left:20px}
 .alertbox li{font-size:12px;color:#e8b4b4}
 .alertbox code{background:#1a0e10;padding:1px 5px;border-radius:4px;font-size:11px}
+.alertbox+.alertbox{margin-top:8px}
+.alertbox.soft{background:#1e1a10;border-color:#4a3c17;color:#ffd9a0}
+.alertbox.soft b{color:var(--accent)}
 
 .vint{display:flex;flex-wrap:wrap;gap:0;margin:0 0 10px;background:var(--panel);
   border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -171,14 +174,14 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V9</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V10</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
 </header>
 
-<div id="alert" class="alertbox"></div>
+<div id="alert"></div>
 
 <div class="tabbar">
   <button class="tab on" data-p="p1">🎯 卡位名單</button>
@@ -280,30 +283,35 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V9
+   法人卡位選股台 V10
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V9';
+const VER = 'V10';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
-/* CORS 代理。順序有講究：
-   corsproxy.io 免費方案單檔上限 1MB，基本面那幾支端點是全市場上千家公司，
-   很容易超過而失敗，所以把沒有明確size限制的 allorigins 排在它前面。
-   corsproxy 的網址格式已從 `/?目標` 改成 `/?url=目標`，舊格式相容性差，
-   兩種都留著當前後手。 */
+/* CORS 代理。實測發現：
+   - openapi.twse.com.tw 沒開 CORS，全部得靠代理
+   - allorigins 連得上但大檔會 HTTP 408 逾時
+   - corsproxy.io 免費方案只允許 localhost / github.io 這類來源，
+     直接用 file:// 開檔會被拒（Failed to fetch），且單檔上限 1MB
+   所以多備幾家，並把能吃大檔的排前面。 */
 const PROXY = [
   u => u,
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://api.cors.lol/?url=' + encodeURIComponent(u),
+  u => 'https://proxy.corsfix.com/?' + u,
   u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
   u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+  u => 'https://whateverorigin.org/get?url=' + encodeURIComponent(u),
   u => 'https://corsproxy.io/?' + encodeURIComponent(u),
   u => 'https://thingproxy.freeboard.io/fetch/' + u
 ];
-const PROXY_NAME = ['直連','allorigins','corsproxy(url=)','codetabs','corsproxy(舊格式)','thingproxy'];
+const PROXY_NAME = ['直連','allorigins','cors.lol','corsfix','corsproxy(url=)',
+                    'codetabs','whateverorigin','corsproxy(舊格式)','thingproxy'];
 async function getJSON(url){
   const notes = [];
   for(let i=0;i<PROXY.length;i++){
@@ -316,6 +324,10 @@ async function getJSON(url){
       let data;
       try{ data = JSON.parse(txt); }
       catch(pe){ throw new Error('不是 JSON（前 60 字：' + txt.slice(0,60).replace(/\s+/g,' ') + '）'); }
+      // whateverorigin 之類的代理會把內容包在 {contents:"..."} 裡，拆開來
+      if(data && !Array.isArray(data) && typeof data.contents === 'string'){
+        try{ data = JSON.parse(data.contents); }catch(e2){}
+      }
       return {data, via: i===0 ? 'direct' : 'proxy'+i, viaName: label, bytes: txt.length};
     }catch(e){ notes.push(`${label}→${e.message}`); }
   }
@@ -613,7 +625,11 @@ function ingestFund(ep, rows){
       r.bs = {debt: pct(li,as), cur: pct(ca,cl),
               out: String(K(row,'出表日期','OutDate')||'').trim()};
     } else if(ep.kind === 'val'){
-      r.val = {pe:N(K(row,'PEratio','本益比')), pb:N(K(row,'PBratio','股價淨值比')), dy:N(K(row,'DividendYield','殖利率'))};
+      r.val = {
+        pe: N(K(row,'PEratio','PERatio','PriceEarningRatio','本益比','PE')),
+        pb: N(K(row,'PBratio','PBRatio','PriceBookRatio','股價淨值比','淨值比')),
+        dy: N(K(row,'DividendYield','YieldRatio','殖利率'))
+      };
     } else if(ep.kind === 'co'){
       const ind = K(row,'產業別','IndustryName','Industry');
       if(ind && !r.ind) r.ind = String(ind).trim();
@@ -733,8 +749,16 @@ async function runAll(){
 function renderAlert(){
   const el = document.getElementById('alert');
   if(!el) return;
-  if(!DATA.dates.length){ el.innerHTML = ''; return; }
-  if(fundLooksLoaded()){ el.innerHTML = ''; return; }
+  const notes = [];
+
+  // 沒開雲端快取就提醒，這正是「每次打開都要重跑」的解法
+  if(!fbReady() && DATA.dates.length){
+    notes.push(`<div class="alertbox soft"><b>雲端快取還沒啟用</b>　資料目前只存在這台瀏覽器。
+      換裝置或清快取就得整批重抓，基本面每 6 小時也會重抓一次。
+      到「🔬 資料源」分頁填 Firebase 網址並勾選啟用，抓過的日子就永遠不必再抓。</div>`);
+  }
+
+  if(!DATA.dates.length || fundLooksLoaded()){ el.innerHTML = notes.join(''); return; }
 
   const lines = [];
   for(const ep of FUND_EPS){
@@ -744,10 +768,10 @@ function renderAlert(){
     else if(p.st && p.st.valued === 0)
       lines.push(`<li><b>${ep.name}</b>：連到了（${p.st.rows} 筆／${p.viaName||p.via}），但欄位對不上。實際欄位：<code>${(p.st.keys||[]).slice(0,12).join(' , ')}</code></li>`);
   }
-  el.innerHTML = `<b>基本面資料沒進來</b>，所以營收年增、營益率、EPS、市值、合理價這幾欄是空的。
+  el.innerHTML = notes.join('') + `<div class="alertbox"><b>基本面資料沒進來</b>，所以營收年增、營益率、EPS、市值、合理價這幾欄是空的。
     卡位分目前只由法人與空間兩軸算出來，參考價值有限。
     ${lines.length ? '<ul>' + lines.join('') + '</ul>'
-                   : '<div style="margin-top:4px;font-size:12px">還沒有診斷資訊——按上方「只抓基本面」跑一次，這裡會列出每支端點卡在哪。</div>'}`;
+                   : '<div style="margin-top:4px;font-size:12px">還沒有診斷資訊——按上方「只抓基本面」跑一次，這裡會列出每支端點卡在哪。</div>'}</div>`;
 }
 
 /* 只重抓基本面：不動已經抓好的法人與行情，十秒就知道結果 */
@@ -993,9 +1017,9 @@ function buildPEBands(){
     const pe = f.val && f.val.pe;
     if(!(pe > 0) || pe > 100) continue;                 // 本益比過高多半是獲利趨近於零，排除
     if(isFinancial(code, f.name, f.ind)) continue;      // 金融股本益比結構不同，不混進來
+    if(!f.ind) continue;                                // 沒有產業別的不納入取樣
     all.push(pe);
-    const k = f.ind || '其他';
-    (byInd[k] = byInd[k] || []).push(pe);
+    (byInd[f.ind] = byInd[f.ind] || []).push(pe);
   }
   all.sort((a,b)=>a-b);
   const mk = arr => {
@@ -1016,21 +1040,34 @@ function valuation(code, px, f){
 
   let shares = null, mcap = null;
   if(co && co.cap > 0){
-    shares = co.cap / (co.par || 10);                   // 股數
-    mcap   = px ? px * shares / 1e8 : null;             // 億元
+    shares = co.cap / (co.par || 10);
+    mcap   = px ? px * shares / 1e8 : null;
   }
 
-  const band = PEBAND.byInd[f.ind || '其他'] || PEBAND.all;
-  let lo = null, mid = null, hi = null, prem = null, bandSrc = null;
-  if(epsTTM !== null && epsTTM > 0 && band){
-    const cap = v => Math.min(v, 40);                   // 產業本益比上緣封在 40，免得算出離譜目標價
+  /* 合理價只在「有同產業樣本」時才算。
+     少了產業別就退回全市場分位的話，水泥、營建這種成熟股會被電子股的高本益比
+     拉出一個它從來沒到過的目標價（亞泥算出 100 元就是這樣來的），寧可不給。 */
+  const ind  = f.ind || '';
+  const band = ind ? PEBAND.byInd[ind] : null;
+  let lo = null, mid = null, hi = null, prem = null, bandSrc = null, bandWhy = null;
+
+  if(!ind){
+    bandWhy = '缺產業別，無法跟同業比';
+  } else if(!band){
+    bandWhy = `${ind} 樣本不足 8 檔，同業分位不可靠`;
+  } else if(epsTTM === null){
+    bandWhy = '交易所沒給本益比（多半是近四季虧損）';
+  } else if(epsTTM <= 0){
+    bandWhy = '近四季 EPS 非正數';
+  } else {
+    const cap = v => Math.min(v, 30);                  // 本益比上緣封在 30 倍
     lo  = epsTTM * cap(band.p25);
     mid = epsTTM * cap(band.p50);
     hi  = epsTTM * cap(band.p75);
     prem = (px - mid) / mid * 100;
-    bandSrc = PEBAND.byInd[f.ind || '其他'] ? `${f.ind || '其他'}（${band.n} 檔）` : `全市場（${band.n} 檔）`;
+    bandSrc = `${ind}（${band.n} 檔）`;
   }
-  return {pe, pb, epsTTM, bvps, shares, mcap, lo, mid, hi, prem, band, bandSrc};
+  return {pe, pb, epsTTM, bvps, shares, mcap, lo, mid, hi, prem, band, bandSrc, bandWhy};
 }
 
 function scoreOne(m, f, V){
@@ -1394,10 +1431,12 @@ let COL_ORDER = [];      // data-k 依表格實際順序
 
 function colInit(){
   COL_ORDER = [...document.querySelectorAll('#tbl thead th')].map(th => th.dataset.k);
-  try{
-    const s = JSON.parse(localStorage.getItem(COL_KEY));
-    if(Array.isArray(s)) COL_HIDDEN = new Set(s);
-  }catch(e){}
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(COL_KEY)); }catch(e){}
+  // 沒存過就用「只留核心」開場，欄位太多一次攤開根本看不完
+  COL_HIDDEN = Array.isArray(saved)
+    ? new Set(saved)
+    : new Set(COL_ORDER.filter(k => !COL_CORE.includes(k)));
   COL_LOCK.forEach(k => COL_HIDDEN.delete(k));
   colApply();
   colPanel();
@@ -1585,7 +1624,7 @@ function valBlock(r){
   const row = (k, v, s) => `<div class="part"><div class="pt1"><span>${k}</span><em>${v}</em></div>
     ${s ? `<div style="color:var(--dim2);font-size:10.5px">${s}</div>` : ''}</div>`;
 
-  let fair = '<div style="font-size:11.5px;color:var(--dim)">近四季 EPS 為零或負，合理價不適用。</div>';
+  let fair = `<div style="font-size:11.5px;color:var(--dim)">合理價算不出來：${V.bandWhy || '資料不足'}</div>`;
   if(V.lo !== null){
     const pos = Math.max(0, Math.min(100, (r.px - V.lo) / ((V.hi - V.lo) || 1) * 100));
     fair = `
@@ -1793,12 +1832,21 @@ document.getElementById('docOut').innerHTML = `
 同產業樣本少於 8 檔時退用全市場分位；本益比上緣封在 40 倍，免得高本益比產業算出離譜的目標價。
 </div>
 
+<div class="warn">
+<b>合理價一定要有同產業樣本才算。</b>缺產業別、或同業不足 8 檔時，這欄直接顯示「—」，
+點開該列會告訴你是哪個原因。
+早期版本在缺產業別時會退回用「全市場」本益比分位，結果電子股的高本益比把水泥、營建這類
+成熟股的目標價拉到它們從來沒到過的水準（亞泥被算出 100 元就是這樣來的）。
+寧可不給數字，也不給一個錯的錨。本益比上緣另外封在 30 倍。
+</div>
+
 <h3>欄位太多看不完？</h3>
 <p>表格上方有「⚙ 欄位顯示」，可以逐欄開關，選擇會記在瀏覽器裡。
-兩顆快捷鍵：<b>只留核心</b>剩 20 欄（代號、名稱、產業、卡位分、位階、投信籌碼、營收與三率、估值）；
-<b>全部顯示</b>把 35 欄攤開。代號、名稱、卡位分三欄鎖住不給關。</p>
-<p>預設先幫你關掉的是：量倍、期間漲幅、距20日高、距MA20、吸籌%、法人分、空間分。
-這些不是沒用，是在你已經有「位階型態」這一欄之後資訊重複——型態標籤已經把「噴出了沒」講完了。</p>
+<b>第一次打開預設就是「只留核心」20 欄</b>（代號、名稱、產業、卡位分、位階、投信籌碼、營收與三率、估值）；
+按「全部顯示」把 35 欄攤開。代號、名稱、卡位分三欄鎖住不給關。</p>
+<p>沒進核心的是量倍、期間漲幅、距20日高、距MA20、吸籌%、法人分、空間分、外資連買等。
+這些不是沒用，是在你已經有「位階型態」這一欄之後資訊重複——型態標籤已經把「噴出了沒」講完了。
+需要細看時再打開。</p>
 
 <h3>溢價%：紅綠代表什麼</h3>
 <p>是的，用 EPS 估的。路徑是：<b>收盤 ÷ 交易所本益比 = 近四季 EPS</b>，再乘上同產業本益比的中位數得到合理價中值，
