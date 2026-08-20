@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V4</title>
+<title>法人卡位選股台 V8</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -130,6 +130,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .vi .s{font-size:10.5px;color:var(--dim)}
 .vi.warnv .v{color:var(--accent)}
 .fairbox{font-variant-numeric:tabular-nums}
+.pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
+.pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
+.pat.pk{background:#2b2140;color:#d8b9ff;border-color:#43336b}
+.pat.pm{background:#1e2733;color:#a9b6c6;border-color:#33404f}
+.pat.px{background:#3a1f24;color:#ffb3b3;border-color:#5c2b32}
+.pat.pd{background:#12301f;color:#8fe0ad;border-color:#1f4a30}
+.pat.pn{background:#1a1f27;color:var(--dim2);border-color:var(--line)}
 .tri{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap}
 .tri.t3{background:#3a1f24;color:#ffb3b3;border:1px solid #5c2b32}
 .tri.t2{background:#2f2712;color:#ffd166;border:1px solid #4a3c17}
@@ -153,7 +160,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V4</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V8</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -185,6 +192,22 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
     <label class="chk"><input type="checkbox" id="fTrustOnly">只看投信有買的</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
+  </div>
+  <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+    <button class="btn pri" id="btnPreset">套用「投信建倉」條件</button>
+    <button class="btn" id="btnReset">清掉條件</button>
+    <div class="fld"><label>投信 10 日買超天數 ≥</label><input type="number" id="fT10" value="" min="0" max="10"></div>
+    <div class="fld"><label>買多賣少（買−賣天數）≥</label><input type="number" id="fNetD" value=""></div>
+    <div class="fld"><label>量能倍數</label>
+      <select id="fVol"><option value="">不限</option>
+        <option value="mild">溫和放大 1.2～3 倍</option>
+        <option value="nospike">排除爆量（單日 &gt;5 倍）</option></select></div>
+    <div class="fld"><label>位階型態</label><select id="fPat"><option value="">全部</option>
+      <option value="打底整理">打底整理</option><option value="剛突破頸線">剛突破頸線</option>
+      <option value="剛站回均線">剛站回均線</option><option value="回檔測均線">回檔測均線</option>
+      <option value="__early">前三種（尚未發動）</option>
+      <option value="已噴出">已噴出</option></select></div>
+    <label class="chk"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
   </div></div>
 
   <div class="tblwrap"><table id="tbl">
@@ -192,12 +215,15 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="code">代號</th><th data-k="name">名稱</th><th data-k="ind">產業</th>
       <th data-k="score">卡位分</th>
       <th data-k="sChip">法人</th><th data-k="sFund">基本面</th><th data-k="sRoom">空間</th>
-      <th data-k="trustD">投信連買</th><th data-k="foreignD">外資連買</th>
-      <th data-k="net5">近5日買超(張)</th><th data-k="absorb">吸籌%</th>
+      <th data-k="pattern">位階型態</th>
+      <th data-k="trustD">投信連買</th><th data-k="t10buy">投信10日買/賣</th>
+      <th data-k="foreignD">外資連買</th>
+      <th data-k="net5">近5日買超(張)</th><th data-k="net20t">投信20日(張)</th>
+      <th data-k="build20">建倉%</th><th data-k="absorb">吸籌%</th><th data-k="volRatio">量倍</th>
       <th data-k="runPct">期間漲幅%</th><th data-k="toHigh">距20日高%</th><th data-k="distMA20">距MA20%</th>
       <th data-k="revYoY">營收年增%</th><th data-k="gm">毛利率%</th><th data-k="om">營益率%</th><th data-k="nm">淨利率%</th>
       <th data-k="triScore">三率三升</th><th data-k="repDate">財報日期</th><th data-k="epsTTM">EPS(近4季)</th>
-      <th data-k="px">收盤</th>
+      <th data-k="px">收盤</th><th data-k="supPx">參考防守位</th><th data-k="supGap">距防守%</th>
       <th data-k="mcap">市值(億)</th><th data-k="pe">本益比</th>
       <th data-k="fair">合理價</th><th data-k="prem">溢價%</th>
     </tr></thead>
@@ -234,24 +260,30 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V4
+   法人卡位選股台 V8
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V7';
+const VER = 'V8';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
+/* CORS 代理。順序有講究：
+   corsproxy.io 免費方案單檔上限 1MB，基本面那幾支端點是全市場上千家公司，
+   很容易超過而失敗，所以把沒有明確size限制的 allorigins 排在它前面。
+   corsproxy 的網址格式已從 `/?目標` 改成 `/?url=目標`，舊格式相容性差，
+   兩種都留著當前後手。 */
 const PROXY = [
   u => u,
-  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
   u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+  u => 'https://corsproxy.io/?' + encodeURIComponent(u),
   u => 'https://thingproxy.freeboard.io/fetch/' + u
 ];
-const PROXY_NAME = ['直連','corsproxy','allorigins','codetabs','thingproxy'];
+const PROXY_NAME = ['直連','allorigins','corsproxy(url=)','codetabs','corsproxy(舊格式)','thingproxy'];
 async function getJSON(url){
   const notes = [];
   for(let i=0;i<PROXY.length;i++){
@@ -814,13 +846,86 @@ function metrics(code){
   const hi20 = hiLo(p.h,20,true), lo20 = hiLo(p.l,20,false);
   const enough60 = DATA.dates.length >= 60;
 
+  /* --- 投信「買多賣少」而不只是連買 --- */
+  const win = (arr, k) => {
+    const out = [];
+    for(let i = arr.length-1; i >= 0 && out.length < k; i--) if(arr[i] !== null) out.push(arr[i]);
+    return out;
+  };
+  const t10 = win(q.t, 10);
+  const t10buy  = t10.filter(x => x > 0).length;
+  const t10sell = t10.filter(x => x < 0).length;
+  const net20t  = sumLast(q.t, 20) || 0;
+  const shares  = (f0 => f0 && f0.co && f0.co.cap > 0 ? f0.co.cap/(f0.co.par||10) : null)(DATA.fund[code]);
+  const build20 = shares ? net20t * 1000 / shares * 100 : null;   // 張→股，佔股本比重
+
+  /* --- 外資是不是在對倒 --- */
+  const f5 = win(q.f, 5);
+  const f5sellDays = f5.filter(x => x < 0).length;
+  const net5fOnly  = f5.reduce((a,b)=>a+b, 0);
+
+  /* --- 量能：溫和放大 vs 爆量 --- */
+  const v5arr = win(p.v, 5);
+  const v5avg = v5arr.length ? v5arr.reduce((a,b)=>a+b,0)/v5arr.length : null;
+  const volRatio = (v5avg !== null && vol20) ? v5avg/vol20 : null;          // 近5日均量 ÷ 20日均量
+  const volSpike = (vol20 && v5arr.length) ? Math.max(...v5arr)/vol20 : null; // 近5日最大單日量倍數
+
+  /* --- 位階型態（只標籤，不參與評分） --- */
+  const hiEx3 = (() => {          // 不含最近 3 日的 20 日高點，用來認頸線
+    const out = [];
+    let skipped = 0;
+    for(let i = p.h.length-1; i >= 0 && out.length < 20; i--){
+      if(p.h[i] === null) continue;
+      if(skipped < 3){ skipped++; continue; }
+      out.push(p.h[i]);
+    }
+    return out.length ? Math.max(...out) : null;
+  })();
+  const cAll = p.c.filter(x => x !== null);
+  const c20ago = cAll.length >= 20 ? cAll[cAll.length-20] : cAll[0];
+  const chg20 = c20ago ? (px - c20ago)/c20ago*100 : null;
+  const distMA20 = ma20 ? (px-ma20)/ma20*100 : null;
+  const wasBelow = (() => {       // 最近 5 天內曾經在 20 日線下方
+    const cs = win(p.c, 6);
+    return ma20 ? cs.slice(1).some(v => v < ma20) : false;
+  })();
+  const range20 = (hi20 && lo20) ? (hi20-lo20)/lo20*100 : null;
+
+  let pattern = '趨勢中', patNote = '';
+  if(distMA20 !== null && (distMA20 > 10 || (chg20 !== null && chg20 > 20))){
+    pattern = '已噴出'; patNote = `距 20 日線 ${fmt(distMA20,1)}%、20 日漲幅 ${fmt(chg20,1)}%`;
+  } else if(hiEx3 && px > hiEx3 && px <= hiEx3*1.05){
+    pattern = '剛突破頸線'; patNote = `站上前高 ${fmt(hiEx3,2)}，突破幅度 ${fmt((px-hiEx3)/hiEx3*100,1)}%`;
+  } else if(ma20 && wasBelow && px >= ma20){
+    pattern = '剛站回均線'; patNote = `五日內曾在 20 日線下，今日收在 ${fmt(ma20,2)} 之上`;
+  } else if(range20 !== null && range20 < 15){
+    pattern = '打底整理'; patNote = `20 日振幅僅 ${fmt(range20,1)}%`;
+  } else if(distMA20 !== null && distMA20 >= -4 && distMA20 <= 2){
+    pattern = '回檔測均線'; patNote = `貼著 20 日線 ${fmt(ma20,2)}`;
+  } else if(distMA20 !== null && distMA20 < -4){
+    pattern = '均線之下'; patNote = `低於 20 日線 ${fmt(Math.abs(distMA20),1)}%`;
+  }
+
+  /* --- 參考防守位：現價下方最近的一道支撐 --- */
+  const cands = [];
+  if(ma20 && ma20 < px) cands.push(['MA20', ma20]);
+  if(lo20 && lo20 < px) cands.push(['20日低', lo20]);
+  if(hiEx3 && hiEx3 < px) cands.push(['頸線', hiEx3]);
+  cands.sort((a,b) => b[1]-a[1]);
+  const sup = cands[0] || null;
+
   return {
     px, trustD, foreignD, net5, net5t, net5f, vol20,
+    t10buy, t10sell, net20t, build20, shares,
+    f5sellDays, net5fOnly, volRatio, volSpike,
+    pattern, patNote, chg20, range20, hiEx3,
+    supName: sup ? sup[0] : null, supPx: sup ? sup[1] : null,
+    supGap: sup ? (px - sup[1])/px*100 : null,
     absorb  : vol5 ? net5/vol5*100 : null,
     runPct  : runSincePct(p.c, buyDays),
     toHigh  : hi20 ? (px-hi20)/hi20*100 : null,
     fromLow : lo20 ? (px-lo20)/lo20*100 : null,
-    distMA20: ma20 ? (px-ma20)/ma20*100 : null,
+    distMA20,
     aboveMA60: (enough60 && ma60 !== null) ? px > ma60 : null,
     ma5, ma10, ma20, ma60, hi20, lo20
   };
@@ -1116,6 +1221,11 @@ function score(){
       score:s.score, sChip:s.sChip, sFund:s.sFund, sRoom:s.sRoom, cmp:s.cmp,
       hasFund:s.hasFund, S:s, M:m, V,
       trustD:m.trustD, foreignD:m.foreignD, net5:Math.round(m.net5),
+      t10buy:m.t10buy, t10sell:m.t10sell, net20t:m.net20t, build20:m.build20,
+      f5sellDays:m.f5sellDays, net5fOnly:m.net5fOnly,
+      volRatio:m.volRatio, volSpike:m.volSpike,
+      pattern:m.pattern, patNote:m.patNote,
+      supName:m.supName, supPx:m.supPx, supGap:m.supGap,
       absorb:m.absorb, runPct:m.runPct, toHigh:m.toHigh, distMA20:m.distMA20, px:m.px,
       revYoY:(f.rev && f.rev.yoy !== undefined) ? f.rev.yoy : null,
       gm:(f.is && f.is.gm !== undefined) ? f.is.gm : null,
@@ -1149,6 +1259,11 @@ function filtered(){
   const tOnly = document.getElementById('fTrustOnly').checked;
   const prem  = document.getElementById('fPrem').value;
   const hasF  = document.getElementById('fHasFund').checked;
+  const t10   = document.getElementById('fT10').value;
+  const netD  = document.getElementById('fNetD').value;
+  const volM  = document.getElementById('fVol').value;
+  const pat   = document.getElementById('fPat').value;
+  const noDump= document.getElementById('fNoDump').checked;
 
   let out = ROWS.filter(r => {
     if(r.score < min) return false;
@@ -1156,6 +1271,13 @@ function filtered(){
     if(tOnly && r.trustD === 0) return false;
     if(hasF && !r.hasFund) return false;
     if(prem !== '' && (r.prem === null || r.prem > +prem)) return false;
+    if(t10 !== '' && r.t10buy < +t10) return false;
+    if(netD !== '' && (r.t10buy - r.t10sell) < +netD) return false;
+    if(volM === 'mild'    && !(r.volRatio !== null && r.volRatio >= 1.2 && r.volRatio <= 3)) return false;
+    if(volM === 'nospike' && !(r.volSpike !== null && r.volSpike <= 5)) return false;
+    if(pat === '__early'  && !['打底整理','剛突破頸線','剛站回均線'].includes(r.pattern)) return false;
+    if(pat && pat !== '__early' && r.pattern !== pat) return false;
+    if(noDump && r.f5sellDays >= 3 && r.net5fOnly < 0) return false;
     if(runMx !== '' && r.runPct !== null && r.runPct > +runMx) return false;
     if(yoy !== '' && (r.revYoY === null || r.revYoY < +yoy)) return false;
     if(ind && r.ind !== ind) return false;
@@ -1229,13 +1351,20 @@ function renderVintage(){
       <div class="s">按「更新並篩選」才會變</div></div>`;
 }
 
+const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
+                 '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
+function patChip(p){
+  if(!p) return '<span class="na">—</span>';
+  return `<span class="pat ${PAT_CLS[p]||'pn'}">${p}</span>`;
+}
+
 function render(){
   renderVintage();
   renderAlert();
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="26" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="33" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -1249,10 +1378,15 @@ function render(){
       <td>${r.sChip===null?'<span class="na">—</span>':r.sChip}</td>
       <td>${r.sFund===null?'<span class="na">—</span>':r.sFund}</td>
       <td>${r.sRoom===null?'<span class="na">—</span>':r.sRoom}</td>
+      <td>${patChip(r.pattern)}</td>
       <td>${r.trustD ? dots(Math.min(r.trustD,5),5,'f')+' '+r.trustD : '<span class="na">—</span>'}</td>
+      <td><b style="color:var(--trust)">${r.t10buy}</b><span style="color:var(--dim2)"> / ${r.t10sell}</span></td>
       <td>${r.foreignD ? dots(Math.min(r.foreignD,5),5,'g')+' '+r.foreignD : '<span class="na">—</span>'}</td>
       <td class="${cls(r.net5)}">${r.net5.toLocaleString()}</td>
+      <td class="${cls(r.net20t)}">${Math.round(r.net20t).toLocaleString()}</td>
+      <td class="${cls(r.build20)}">${fmt(r.build20,2)}</td>
       <td class="${cls(r.absorb)}">${fmt(r.absorb,1)}</td>
+      <td class="${r.volSpike>5?'pos':''}">${fmt(r.volRatio,2)}</td>
       <td class="${cls(r.runPct)}">${fmt(r.runPct,1)}</td>
       <td>${fmt(r.toHigh,1)}</td>
       <td class="${cls(r.distMA20)}">${fmt(r.distMA20,1)}</td>
@@ -1264,6 +1398,8 @@ function render(){
       <td style="color:var(--dim)">${r.repDate || '<span class="na">—</span>'}</td>
       <td class="${cls(r.epsTTM)}">${fmt(r.epsTTM,2)}</td>
       <td>${fmt(r.px,2)}</td>
+      <td>${r.supPx===null?'<span class="na">—</span>':`<span style="color:var(--dim2);font-size:10.5px">${r.supName}</span> ${fmt(r.supPx,2)}`}</td>
+      <td class="${cls(r.supGap)}">${fmt(r.supGap,1)}</td>
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td>${fmt(r.pe,1)}</td>
       <td class="fairbox">${r.V.lo===null?'<span class="na">—</span>':fmt(r.V.lo,1)+'～'+fmt(r.V.hi,1)}</td>
@@ -1407,7 +1543,14 @@ function renderProbe(){
       let body = '';
       if(p && p.ok){
         const s = p.sample || {};
-        body = `<div style="font-size:12px;color:var(--dim);margin-bottom:4px">回傳 <b style="color:var(--tx)">${p.count}</b> 筆　·　第一筆的完整欄位</div>
+        const mb = p.bytes ? (p.bytes/1048576).toFixed(2) : null;
+        const big = p.bytes && p.bytes > 1048576;
+        body = `<div style="font-size:12px;color:var(--dim);margin-bottom:4px">
+            回傳 <b style="color:var(--tx)">${p.count}</b> 筆
+            ${mb ? `　·　<b style="color:${big?'var(--accent)':'var(--tx)'}">${mb} MB</b>${big?'（超過 corsproxy 免費上限 1MB）':''}` : ''}
+            ${p.viaName ? '　·　'+p.viaName : ''}${p.ms ? '　·　'+p.ms+'ms' : ''}
+            ${p.st ? `　·　認得代號 ${p.st.coded} 筆／抽到值 <b style="color:${p.st.valued?'#8fe0ad':'#ff9d9d'}">${p.st.valued}</b> 筆` : ''}
+          </div>
           <div class="kv">${Object.keys(s).map(k=>`<b>${k}</b><span>${String(s[k]).slice(0,90)}</span>`).join('')}</div>`;
       } else if(p) body = `<div style="color:#ff9d9d;font-size:12px">${p.err}</div>`;
       return `<div class="ep"><h4>${ep.name} ${pill}</h4><div class="epurl">${ep.url}</div>${body}</div>`;
@@ -1531,6 +1674,48 @@ document.getElementById('docOut').innerHTML = `
 同產業樣本少於 8 檔時退用全市場分位；本益比上緣封在 40 倍，免得高本益比產業算出離譜的目標價。
 </div>
 
+<h3>「投信建倉」那顆按鈕在做什麼</h3>
+<p>一鍵套上這組條件，用來找投信剛開始吃貨、但股價還沒發動的標的：</p>
+<ul>
+<li>近 10 日投信買超 ≥3 天，且買超天數比賣超天數多 ≥2 天（<b>買多賣少</b>，不是只看連買，中間斷一天不會整段作廢）</li>
+<li>買超期間漲幅 ≤8%</li>
+<li>量能溫和放大：近 5 日均量是 20 日均量的 1.2～3 倍</li>
+<li>位階限打底整理／剛突破頸線／剛站回均線</li>
+<li>排除外資對倒：近 5 日外資賣超 ≥3 天且淨賣超</li>
+<li>依「建倉%」由大到小排</li>
+</ul>
+
+<h3>位階型態怎麼判的</h3>
+<table>
+<tr><th>標籤</th><th>判定</th></tr>
+<tr><td>已噴出</td><td>距 20 日線 &gt;10%，或 20 日漲幅 &gt;20%</td></tr>
+<tr><td>剛突破頸線</td><td>站上「不含最近 3 日」的 20 日高點，且突破幅度 ≤5%</td></tr>
+<tr><td>剛站回均線</td><td>五日內曾在 20 日線下方，今日收在其上</td></tr>
+<tr><td>打底整理</td><td>20 日振幅（高−低）÷低 &lt;15%</td></tr>
+<tr><td>回檔測均線</td><td>距 20 日線 −4%～+2%</td></tr>
+</table>
+<p>依你的要求，型態<b>只當標籤與可選篩選，不進評分</b>。順序是由上往下判，先中先算。</p>
+
+<div class="warn">
+<b>「建倉%」不是投信持股比率。</b>公開 API 只給每日買賣超（流量），不給持股水位（存量）。
+這一欄是「近 20 日投信淨買超 ÷ 股本」，量的是<b>最近吃了多少貨</b>，不是<b>總共抱多少</b>。
+一檔長期被投信抱著 8% 的股票，如果這個月沒動作，這欄會接近 0。
+你原本要的 1～6% 持股比率，Yahoo 股市有公布，但那是 HTML 頁面不是 JSON，要另外爬。
+</div>
+
+<div class="warn">
+<b>投信買超榜正在被 ETF 稀釋。</b>主動式 ETF 成立與高股息 ETF 募集造成的建倉，
+在統計上都算「投信買超」，但那是被動配置不是經理人看好基本面。
+金融股大量出現在買超榜多半就是這個原因（工具預設已排除金融股）。
+看到投信大買時，先確認它不是剛好被納入某檔 ETF 成分。
+</div>
+
+<h3>參考防守位</h3>
+<p>取現價下方最近的一道支撐（MA20／20 日低點／突破的頸線，三者取最高的那個），並算出距離幾 %。
+這是<b>位置參考不是進出建議</b>。比較有意義的用法是：防守位設在你進場理由消失的地方——
+如果進場理由是「剛站回 20 日線」，跌破 20 日線就是理由消失；理由是「突破頸線」，跌回頸線下就是。
+這比抓一個固定百分比停損有依據。</p>
+
 <h3>三率三升</h3>
 <p>毛利率、營業利益率、稅後淨利率三者同時比上一期高。這需要<b>兩期</b>財報才算得出來，
 而公開 API 只給最新一期，所以工具改成自己累積：每次抓到新的一季就把三率存進
@@ -1622,11 +1807,36 @@ document.querySelectorAll('#tbl th').forEach(th => {
     render();
   };
 });
-['fScore','fTrust','fRun','fYoY','fPrem','fInd','fQ','fTrustOnly','fHasFund'].forEach(id => {
+['fScore','fTrust','fRun','fYoY','fPrem','fInd','fQ','fTrustOnly','fHasFund',
+ 'fT10','fNetD','fVol','fPat','fNoDump'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('input', render);
   el.addEventListener('change', render);
 });
+
+/* 一鍵套用「投信剛開始建倉、股價還沒發動」那組條件 */
+const SET = (id, v) => { const e = document.getElementById(id);
+  if(e.type === 'checkbox') e.checked = v; else e.value = v; };
+document.getElementById('btnPreset').onclick = () => {
+  SET('fScore', 0);      // 分數不設限，這組條件本身就夠嚴
+  SET('fTrust', 0);
+  SET('fT10', 3);        // 近 10 日投信至少買超 3 天，排除 1-2 天試單
+  SET('fNetD', 2);       // 買多賣少
+  SET('fRun', 8);        // 買超期間漲幅 ≤8%，還沒發動
+  SET('fVol', 'mild');   // 量溫和放大，不追爆量
+  SET('fPat', '__early');// 打底 / 剛突破 / 剛站回均線
+  SET('fNoDump', true);  // 排除外資對倒
+  SET('fPrem', 20);
+  SET('fTrustOnly', true);
+  SET('fHasFund', true);
+  SORT = {k:'build20', dir:-1};
+  render();
+};
+document.getElementById('btnReset').onclick = () => {
+  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ'].forEach(id => SET(id, ''));
+  SET('fScore', 0); SET('fTrust', 0); SET('fNoDump', false); SET('fTrustOnly', false);
+  render();
+};
 document.getElementById('btnFbTest').onclick = fbTest;
 ['fbUrl','fbOn'].forEach(id => document.getElementById(id).addEventListener('change', () => { fbSave(); renderVintage(); }));
 ['fNoFin','fNoLoss'].forEach(id => document.getElementById(id).addEventListener('change', score));
