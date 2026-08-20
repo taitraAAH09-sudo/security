@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V8</title>
+<title>法人卡位選股台 V9</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -129,6 +129,17 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .vi .v{font-size:14px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums}
 .vi .s{font-size:10.5px;color:var(--dim)}
 .vi.warnv .v{color:var(--accent)}
+.colbar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.colpanel{display:none;background:var(--panel);border:1px solid var(--line);border-radius:9px;
+  padding:12px;margin-bottom:10px}
+.colpanel.on{display:block}
+.colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
+.colgrid label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);cursor:pointer}
+.colgrid label input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex:none}
+.colgrid label.locked{opacity:.45;cursor:not-allowed}
+.colgrp{font-size:11px;color:var(--accent);font-weight:700;margin:10px 0 4px;letter-spacing:.5px}
+.colgrp:first-child{margin-top:0}
+
 .fairbox{font-variant-numeric:tabular-nums}
 .pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
 .pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
@@ -160,7 +171,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V8</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V9</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -210,6 +221,14 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
   </div></div>
 
+  <div class="colbar">
+    <button class="btn" id="btnCols">⚙ 欄位顯示</button>
+    <span id="colCount" style="font-size:12px;color:var(--dim)"></span>
+    <button class="btn" id="btnColsCore" style="font-size:12px;padding:5px 10px">只留核心</button>
+    <button class="btn" id="btnColsAll" style="font-size:12px;padding:5px 10px">全部顯示</button>
+  </div>
+  <div class="colpanel" id="colPanel"></div>
+
   <div class="tblwrap"><table id="tbl">
     <thead><tr>
       <th data-k="code">代號</th><th data-k="name">名稱</th><th data-k="ind">產業</th>
@@ -221,7 +240,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="net5">近5日買超(張)</th><th data-k="net20t">投信20日(張)</th>
       <th data-k="build20">建倉%</th><th data-k="absorb">吸籌%</th><th data-k="volRatio">量倍</th>
       <th data-k="runPct">期間漲幅%</th><th data-k="toHigh">距20日高%</th><th data-k="distMA20">距MA20%</th>
-      <th data-k="revYoY">營收年增%</th><th data-k="gm">毛利率%</th><th data-k="om">營益率%</th><th data-k="nm">淨利率%</th>
+      <th data-k="revPeriod">營收月份</th><th data-k="revYoY">營收年增%</th><th data-k="revMoM">營收月增%</th>
+      <th data-k="gm">毛利率%</th><th data-k="om">營益率%</th><th data-k="nm">淨利率%</th>
       <th data-k="triScore">三率三升</th><th data-k="repDate">財報日期</th><th data-k="epsTTM">EPS(近4季)</th>
       <th data-k="px">收盤</th><th data-k="supPx">參考防守位</th><th data-k="supGap">距防守%</th>
       <th data-k="mcap">市值(億)</th><th data-k="pe">本益比</th>
@@ -260,13 +280,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V8
+   法人卡位選股台 V9
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V8';
+const VER = 'V9';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1228,6 +1248,7 @@ function score(){
       supName:m.supName, supPx:m.supPx, supGap:m.supGap,
       absorb:m.absorb, runPct:m.runPct, toHigh:m.toHigh, distMA20:m.distMA20, px:m.px,
       revYoY:(f.rev && f.rev.yoy !== undefined) ? f.rev.yoy : null,
+      revMoM:(f.rev && f.rev.mom !== undefined) ? f.rev.mom : null,
       gm:(f.is && f.is.gm !== undefined) ? f.is.gm : null,
       om:(f.is && f.is.om !== undefined) ? f.is.om : null,
       nm:(f.is && f.is.nm !== undefined) ? f.is.nm : null,
@@ -1351,6 +1372,77 @@ function renderVintage(){
       <div class="s">按「更新並篩選」才會變</div></div>`;
 }
 
+/* ==========================================================================
+   欄位顯示控制
+   用 nth-child 直接隱藏整欄，不用改表格內容。分組是為了讓「這欄在講什麼」一目了然。
+   ========================================================================== */
+const COL_GROUPS = [
+  ['基本', ['code','name','ind','score']],
+  ['三軸分數', ['sChip','sFund','sRoom']],
+  ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','absorb','volRatio']],
+  ['位階', ['runPct','toHigh','distMA20','supPx','supGap']],
+  ['基本面', ['revPeriod','revYoY','revMoM','gm','om','nm','triScore','repDate']],
+  ['估值', ['epsTTM','px','mcap','pe','fair','prem']]
+];
+const COL_LOCK = ['code','name','score'];                 // 這幾欄不給關
+const COL_HIDE_DEFAULT = ['volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom'];
+const COL_CORE = ['code','name','ind','score','pattern','trustD','t10buy','net20t','build20',
+                  'revPeriod','revYoY','revMoM','gm','om','triScore','epsTTM','px','pe','fair','prem'];
+const COL_KEY = 'kawei_cols_v8';
+let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
+let COL_ORDER = [];      // data-k 依表格實際順序
+
+function colInit(){
+  COL_ORDER = [...document.querySelectorAll('#tbl thead th')].map(th => th.dataset.k);
+  try{
+    const s = JSON.parse(localStorage.getItem(COL_KEY));
+    if(Array.isArray(s)) COL_HIDDEN = new Set(s);
+  }catch(e){}
+  COL_LOCK.forEach(k => COL_HIDDEN.delete(k));
+  colApply();
+  colPanel();
+}
+function colApply(){
+  let css = '';
+  COL_ORDER.forEach((k, i) => {
+    if(COL_HIDDEN.has(k)) css += `#tbl th:nth-child(${i+1}),#tbl td:nth-child(${i+1}){display:none}`;
+  });
+  let el = document.getElementById('colhide');
+  if(!el){ el = document.createElement('style'); el.id = 'colhide'; document.head.appendChild(el); }
+  el.textContent = css;
+  const shown = COL_ORDER.length - COL_HIDDEN.size;
+  const cc = document.getElementById('colCount');
+  if(cc) cc.textContent = `顯示 ${shown} / ${COL_ORDER.length} 欄`;
+  try{ localStorage.setItem(COL_KEY, JSON.stringify([...COL_HIDDEN])); }catch(e){}
+}
+function colLabel(k){
+  const th = [...document.querySelectorAll('#tbl thead th')].find(t => t.dataset.k === k);
+  return th ? th.textContent.trim() : k;
+}
+function colPanel(){
+  const p = document.getElementById('colPanel');
+  if(!p) return;
+  p.innerHTML = COL_GROUPS.map(([g, keys]) => {
+    const items = keys.filter(k => COL_ORDER.includes(k)).map(k => {
+      const lock = COL_LOCK.includes(k);
+      return `<label class="${lock?'locked':''}">
+        <input type="checkbox" data-col="${k}" ${COL_HIDDEN.has(k)?'':'checked'} ${lock?'disabled':''}>
+        ${colLabel(k)}</label>`;
+    }).join('');
+    return items ? `<div class="colgrp">${g}</div><div class="colgrid">${items}</div>` : '';
+  }).join('');
+  p.querySelectorAll('input[data-col]').forEach(cb => {
+    cb.onchange = () => {
+      if(cb.checked) COL_HIDDEN.delete(cb.dataset.col); else COL_HIDDEN.add(cb.dataset.col);
+      colApply();
+    };
+  });
+}
+function colSet(visible){
+  COL_HIDDEN = new Set(COL_ORDER.filter(k => !visible.includes(k) && !COL_LOCK.includes(k)));
+  colApply(); colPanel();
+}
+
 const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
                  '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
 function patChip(p){
@@ -1364,7 +1456,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="33" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="35" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -1390,7 +1482,9 @@ function render(){
       <td class="${cls(r.runPct)}">${fmt(r.runPct,1)}</td>
       <td>${fmt(r.toHigh,1)}</td>
       <td class="${cls(r.distMA20)}">${fmt(r.distMA20,1)}</td>
+      <td style="color:var(--dim)">${r.revPeriod ? roc2ad(r.revPeriod) : '<span class="na">—</span>'}</td>
       <td class="${cls(r.revYoY)}">${fmt(r.revYoY,1)}</td>
+      <td class="${cls(r.revMoM)}">${fmt(r.revMoM,1)}</td>
       <td>${fmt(r.gm,1)}</td>
       <td class="${cls(r.om)}">${fmt(r.om,1)}</td>
       <td class="${cls(r.nm)}">${fmt(r.nm,1)}</td>
@@ -1403,7 +1497,9 @@ function render(){
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td>${fmt(r.pe,1)}</td>
       <td class="fairbox">${r.V.lo===null?'<span class="na">—</span>':fmt(r.V.lo,1)+'～'+fmt(r.V.hi,1)}</td>
-      <td class="prem ${r.prem===null?'na':(r.prem>0?'pos':'neg')}">${fmt(r.prem,1)}</td>
+      <td class="prem ${r.prem===null?'na':(r.prem>0?'pos':'neg')}">${
+        r.prem===null ? '—'
+        : (r.prem>0 ? '貴 +' : '便宜 ') + fmt(r.prem,1)}</td>
     </tr>`).join('');
 
   document.querySelectorAll('#tb tr[data-c]').forEach(tr => {
@@ -1553,8 +1649,31 @@ function renderProbe(){
           </div>
           <div class="kv">${Object.keys(s).map(k=>`<b>${k}</b><span>${String(s[k]).slice(0,90)}</span>`).join('')}</div>`;
       } else if(p) body = `<div style="color:#ff9d9d;font-size:12px">${p.err}</div>`;
-      return `<div class="ep"><h4>${ep.name} ${pill}</h4><div class="epurl">${ep.url}</div>${body}</div>`;
+      return `<div class="ep"><h4>${ep.name} ${pill}
+        <button class="btn" data-ep="${ep.id}" style="font-size:11px;padding:3px 9px;margin-left:auto">單獨重試</button></h4>
+        <div class="epurl">${ep.url}</div>${body}</div>`;
     }).join('');
+
+  out.querySelectorAll('button[data-ep]').forEach(b => {
+    b.onclick = async () => {
+      const ep = FUND_EPS.find(e => e.id === b.dataset.ep);
+      b.disabled = true;
+      setStatus(`單獨重試：${ep.name}`, true);
+      const t0 = Date.now();
+      try{
+        const {data, via, viaName, bytes} = await getJSON(ep.url);
+        if(!Array.isArray(data)) throw new Error('回傳不是陣列');
+        const st = ingestFund(ep, data);
+        PROBE[ep.id] = {ok:true, via, viaName, bytes, ms:Date.now()-t0, count:data.length, sample:data[0]||null, st};
+        setStatus(`${ep.name}：${data.length} 筆，抽到 ${st.valued} 筆有效值，${(bytes/1048576).toFixed(2)} MB，走 ${viaName}`, false, st.valued===0);
+        if(st.valued > 0){ DATA.fundAt = Date.now(); cacheSave(); score(); }
+      }catch(e){
+        PROBE[ep.id] = {ok:false, err:String(e.message||e), ms:Date.now()-t0};
+        setStatus(`${ep.name} 失敗：${e.message}`, false, true);
+      }
+      renderProbe();
+    };
+  });
 }
 
 async function probeAll(){
@@ -1673,6 +1792,34 @@ document.getElementById('docOut').innerHTML = `
 </ul>
 同產業樣本少於 8 檔時退用全市場分位；本益比上緣封在 40 倍，免得高本益比產業算出離譜的目標價。
 </div>
+
+<h3>欄位太多看不完？</h3>
+<p>表格上方有「⚙ 欄位顯示」，可以逐欄開關，選擇會記在瀏覽器裡。
+兩顆快捷鍵：<b>只留核心</b>剩 20 欄（代號、名稱、產業、卡位分、位階、投信籌碼、營收與三率、估值）；
+<b>全部顯示</b>把 35 欄攤開。代號、名稱、卡位分三欄鎖住不給關。</p>
+<p>預設先幫你關掉的是：量倍、期間漲幅、距20日高、距MA20、吸籌%、法人分、空間分。
+這些不是沒用，是在你已經有「位階型態」這一欄之後資訊重複——型態標籤已經把「噴出了沒」講完了。</p>
+
+<h3>溢價%：紅綠代表什麼</h3>
+<p>是的，用 EPS 估的。路徑是：<b>收盤 ÷ 交易所本益比 = 近四季 EPS</b>，再乘上同產業本益比的中位數得到合理價中值，
+現價偏離中值多少就是溢價。</p>
+<p>顏色沿用台股慣例（紅漲綠跌），所以：</p>
+<ul>
+<li><b class="pos">紅色「貴 +N%」</b>＝現價高於同業合理價中值，<b>相對偏貴</b></li>
+<li><b class="neg">綠色「便宜 −N%」</b>＝現價低於中值，<b>相對便宜</b></li>
+</ul>
+<div class="warn">
+這裡的紅色<b>不是</b>「漲得好」的意思，是「貴了、要小心」。
+台股習慣紅色代表正面，這一欄剛好相反，所以我在數字前面直接寫上「貴／便宜」兩個字，避免看反。
+另外再提醒一次：這是<b>相對同業</b>的估值，不是絕對價值。整個產業被炒高時，貴的股票也會顯示「便宜」。
+</div>
+
+<h3>營收月份這一欄</h3>
+<p>月營收每月 10 日前公告上個月的數字，所以這欄顯示的是<b>資料所屬月份</b>（不是公告日）。
+旁邊的營收年增%是跟去年同月比、營收月增%是跟上個月比，兩欄都紅漲綠跌。
+過了 8/10 之後這欄應該顯示 2026/07；如果還停在更早的月份，代表月營收端點沒抓到最新一期。</p>
+<p>「財報日期」是另一回事——那是季報（毛利率、營益率、淨利率、三率三升的來源），一季才更新一次。
+帶 <code>※</code> 表示抓不到出表日期、退回用最後交易日代替。</p>
 
 <h3>「投信建倉」那顆按鈕在做什麼</h3>
 <p>一鍵套上這組條件，用來找投信剛開始吃貨、但股價還沒發動的標的：</p>
@@ -1851,8 +1998,14 @@ document.getElementById('btnClear').onclick = () => {
   ROWS = []; render(); cacheInfo();
 };
 
+document.getElementById('btnCols').onclick = () =>
+  document.getElementById('colPanel').classList.toggle('on');
+document.getElementById('btnColsCore').onclick = () => colSet(COL_CORE);
+document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); colApply(); colPanel(); };
+
 cacheLoad();
 fbLoad();
+colInit();
 cacheInfo();
 renderProbe();
 renderVintage();
