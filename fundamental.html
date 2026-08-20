@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V10</title>
+<title>法人卡位選股台 V13</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -143,6 +143,21 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .colgrp{font-size:11px;color:var(--accent);font-weight:700;margin:10px 0 4px;letter-spacing:.5px}
 .colgrp:first-child{margin-top:0}
 
+.sigbox{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:12px}
+.sigh{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12.5px;color:var(--dim);flex-wrap:wrap}
+.siggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.siggrid .k{font-size:10.5px;color:var(--dim2);letter-spacing:.4px}
+.siggrid .v{font-size:14px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums}
+.siggrid .s{font-size:10.5px;color:var(--dim);line-height:1.5}
+
+.sig{font-size:11px;font-weight:800;border-radius:4px;padding:2px 7px;white-space:nowrap;border:1px solid}
+.sig.sw{background:#3a1f24;color:#ffb3b3;border-color:#7a3a44}
+.sig.sh{background:#2f2712;color:#ffd166;border-color:#4a3c17}
+.sig.sn{background:#1e2733;color:#a9b6c6;border-color:#3d4b5f}
+.sig.sl{background:#2b2140;color:#d8b9ff;border-color:#43336b}
+.sig.se{background:#12301f;color:#8fe0ad;border-color:#1f4a30}
+.sig.so{background:#1a1f27;color:var(--dim2);border-color:var(--line)}
+
 .fairbox{font-variant-numeric:tabular-nums}
 .pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
 .pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
@@ -174,7 +189,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V10</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V13</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -200,6 +215,10 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <div class="fld"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
     <div class="fld"><label>營收年增 ≥ %</label><input type="number" id="fYoY" value=""></div>
     <div class="fld"><label>溢價 ≤ %</label><input type="number" id="fPrem" value=""></div>
+    <div class="fld"><label>訊號</label><select id="fSig"><option value="">全部</option>
+      <option value="watch">可觀察（上車候選）</option><option value="hold">續抱</option>
+      <option value="warn">警戒</option><option value="late">已發動</option>
+      <option value="exit">離場</option></select></div>
     <div class="fld"><label>產業</label><select id="fInd"><option value="">全部</option></select></div>
     <div class="fld"><label>搜尋</label><input type="text" id="fQ" placeholder="2330 或 台積電"></div>
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
@@ -235,7 +254,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   <div class="tblwrap"><table id="tbl">
     <thead><tr>
       <th data-k="code">代號</th><th data-k="name">名稱</th><th data-k="ind">產業</th>
-      <th data-k="score">卡位分</th>
+      <th data-k="score">卡位分</th><th data-k="sigRank">訊號</th>
       <th data-k="sChip">法人</th><th data-k="sFund">基本面</th><th data-k="sRoom">空間</th>
       <th data-k="pattern">位階型態</th>
       <th data-k="trustD">投信連買</th><th data-k="t10buy">投信10日買/賣</th>
@@ -248,7 +267,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="triScore">三率三升</th><th data-k="repDate">財報日期</th><th data-k="epsTTM">EPS(近4季)</th>
       <th data-k="px">收盤</th><th data-k="supPx">參考防守位</th><th data-k="supGap">距防守%</th>
       <th data-k="mcap">市值(億)</th><th data-k="pe">本益比</th>
-      <th data-k="fair">合理價</th><th data-k="prem">溢價%</th>
+      <th data-k="fair">合理價中值</th><th data-k="prem">溢價%</th>
     </tr></thead>
     <tbody id="tb"></tbody>
   </table></div>
@@ -270,7 +289,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <input type="text" id="fbUrl" placeholder="https://xxxx-default-rtdb.firebaseio.com">
     </div>
     <label class="chk"><input type="checkbox" id="fbOn">啟用雲端快取</label>
+    <label class="chk"><input type="checkbox" id="fbOnly">只讀雲端（完全不連證交所）</label>
     <button class="btn" id="btnFbTest">測試連線</button>
+    <button class="btn pri" id="btnFbPush">把本機資料全部灌上雲端</button>
     <div id="fbState" style="font-size:12px;color:var(--dim);padding-bottom:6px"></div>
   </div></div>
   <div id="cacheInfo" style="font-size:12px;color:var(--dim);margin-bottom:10px"></div>
@@ -283,13 +304,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V10
+   法人卡位選股台 V13
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V10';
+const VER = 'V13';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -412,22 +433,32 @@ function cacheInfo(){
    基本面快照存 /kawei/fund。規則需允許讀寫。
    ========================================================================== */
 const FB_KEY = 'kawei_fb_v3';
-let FB = {url:'', on:false};
+let FB = {url:'', on:false, only:false};
 function fbLoad(){
   try{ const o = JSON.parse(localStorage.getItem(FB_KEY)); if(o) FB = Object.assign(FB, o); }catch(e){}
-  const u = document.getElementById('fbUrl'), c = document.getElementById('fbOn');
+  const u = document.getElementById('fbUrl'), c = document.getElementById('fbOn'),
+        o2 = document.getElementById('fbOnly');
   if(u) u.value = FB.url || '';
   if(c) c.checked = !!FB.on;
+  if(o2) o2.checked = !!FB.only;
 }
 function fbSave(){
-  FB.url = (document.getElementById('fbUrl').value || '').trim().replace(/\/+$/,'');
-  FB.on  = document.getElementById('fbOn').checked;
+  FB.url  = (document.getElementById('fbUrl').value || '').trim().replace(/\/+$/,'');
+  FB.on   = document.getElementById('fbOn').checked;
+  FB.only = document.getElementById('fbOnly').checked;
+  if(FB.only) FB.on = true;                     // 唯讀模式必然要用雲端
   try{ localStorage.setItem(FB_KEY, JSON.stringify(FB)); }catch(e){}
 }
 function fbReady(){ return FB.on && /^https:\/\/.+/.test(FB.url); }
+function fbOnlyMode(){ return FB.only && fbReady(); }
 async function fbGet(path){
   if(!fbReady()) return null;
-  const r = await fetch(`${FB.url}/${path}.json`, {cache:'no-store'});
+  // path 可能帶查詢字串（例如 kawei/days?shallow=true），
+  // .json 必須接在路徑後面、查詢字串前面，否則 Firebase 認不得
+  const i = path.indexOf('?');
+  const p = i < 0 ? path : path.slice(0, i);
+  const q = i < 0 ? ''   : '?' + path.slice(i+1);
+  const r = await fetch(`${FB.url}/${p}.json${q}`, {cache:'no-store'});
   if(!r.ok) throw new Error('Firebase HTTP ' + r.status);
   return await r.json();
 }
@@ -457,6 +488,96 @@ async function fbTest(){
   }catch(e){
     el.innerHTML = `<span style="color:#ff9d9d">${e.message}</span>　（多半是資料庫規則沒開放讀寫）`;
   }
+}
+
+/* 只讀雲端：完全不碰證交所。
+   給網路擋掉 TWSE 的人用——由另一個人在通的網路上灌滿雲端，這裡純粹下載。 */
+async function loadFromCloud(fails){
+  let days = 0;
+  setStatus('讀取雲端索引…', true, false, 5);
+  let index = null;
+  try{ index = await fbGet('kawei/days?shallow=true'); }
+  catch(e){ fails.push(`Firebase 索引：${e.message}`); }
+  if(!index){
+    // shallow 不支援時退而求其次，整包拉下來
+    try{ index = await fbGet('kawei/days'); }catch(e){ fails.push(`Firebase 讀 days：${e.message}`); }
+  }
+  if(!index){ return {days:0, fund:0}; }
+
+  const all = Object.keys(index).sort();
+  const have = new Set(DATA.dates);
+  const want = all.slice(-Math.max(+document.getElementById('fDays').value || 25, 25));
+  const need = want.filter(d => !have.has(d));
+
+  for(let i=0;i<need.length;i++){
+    const d = need[i];
+    setStatus(`從雲端讀 ${d}（${i+1}/${need.length}）`, true, false, 5 + Math.round(i/Math.max(need.length,1)*70));
+    try{
+      const day = await fbGet('kawei/days/' + d);
+      if(day && day.ins && day.px){ pushDay(d, day.ins, day.px); days++; }
+    }catch(e){ fails.push(`Firebase 讀 ${d}：${e.message}`); }
+  }
+
+  setStatus('讀取雲端基本面快照…', true, false, 80);
+  let fund = 0;
+  try{
+    const snap = await fbGet('kawei/fund');
+    // 唯讀模式不管快照多舊都收，因為這裡本來就沒有重抓的能力
+    if(snap && snap.data){
+      for(const c in snap.data){
+        const src = snap.data[c], dst = fRec(c);
+        ['name','ind','mkt','rev','is','bs','val','co'].forEach(k => { if(src[k]) dst[k] = src[k]; });
+        fund++;
+      }
+      DATA.fundAt = snap.at || Date.now();
+    }
+  }catch(e){ fails.push(`Firebase 讀基本面：${e.message}`); }
+
+  setStatus('讀取雲端三率歷史…', true, false, 90);
+  try{
+    const hist = await fbGet('kawei/hist');
+    if(hist){ DATA.hist = DATA.hist || {}; for(const p in hist) DATA.hist[p] = Object.assign({}, hist[p], DATA.hist[p]||{}); }
+  }catch(e){ fails.push(`Firebase 讀三率歷史：${e.message}`); }
+
+  return {days, fund, cloudDays: all.length};
+}
+
+/* 把本機已有的東西一次全部灌上雲端。
+   給「在通的網路上跑一次」的那個人用，跑完同事就有得讀了。 */
+async function pushAllToCloud(){
+  const btn = document.getElementById('btnFbPush');
+  const el  = document.getElementById('fbState');
+  fbSave();
+  if(!fbReady()){ el.innerHTML = '<span style="color:#ff9d9d">請先填網址並勾選啟用雲端快取</span>'; return; }
+  if(!DATA.dates.length){ el.innerHTML = '<span style="color:#ff9d9d">本機還沒有資料可以上傳，先按「更新並篩選」</span>'; return; }
+  btn.disabled = true;
+  let ok = 0, bad = 0;
+
+  for(let i=0;i<DATA.dates.length;i++){
+    const d = DATA.dates[i];
+    setStatus(`上傳 ${d} 到雲端（${i+1}/${DATA.dates.length}）`, true, false, Math.round(i/DATA.dates.length*85));
+    const ins = {}, px = {};
+    for(const c in DATA.ins){
+      const s = DATA.ins[c];
+      if(s.f[i] !== null || s.t[i] !== null) ins[c] = {f:s.f[i]||0, t:s.t[i]||0};
+    }
+    for(const c in DATA.px){
+      const s = DATA.px[c];
+      if(s.c[i] !== null) px[c] = {c:s.c[i], h:s.h[i], l:s.l[i], v:s.v[i]};
+    }
+    if(!Object.keys(ins).length || !Object.keys(px).length) continue;
+    try{ await fbPut('kawei/days/' + d, {ins, px}); ok++; }catch(e){ bad++; }
+  }
+
+  setStatus('上傳基本面快照…', true, false, 90);
+  try{ await fbPut('kawei/fund', {at:DATA.fundAt || Date.now(), data:DATA.fund}); }catch(e){ bad++; }
+  setStatus('上傳三率歷史…', true, false, 95);
+  try{ await fbPut('kawei/hist', DATA.hist || {}); }catch(e){ bad++; }
+
+  btn.disabled = false;
+  el.innerHTML = `已上傳 <b style="color:var(--tx)">${ok}</b> 個交易日、基本面 ${Object.keys(DATA.fund).length} 檔`
+               + (bad ? `，<span style="color:#ff9d9d">${bad} 項失敗</span>` : '。同事現在勾「只讀雲端」就能用了。');
+  setStatus(`灌雲端完成：${ok} 個交易日。`, false, bad > 0);
 }
 
 function setStatus(msg, busy, isErr, p){
@@ -524,14 +645,20 @@ async function fetchPx(date){
 }
 
 /* ---------- 基本面端點（OpenAPI 快照） ---------- */
+/* alt = 備援網址。實測 openapi.twse.com.tw 與 www.tpex.org.tw 在使用者網路被擋
+   （連直連都 Failed to fetch），但 www.twse.com.tw 是通的（T86／MI_INDEX 都靠它）。
+   凡是 www.twse.com.tw 上有同樣資料的，一律排在前面先試。
+   {D} 會替換成最後一個交易日。 */
 const FUND_EPS = [
+  {id:'val_L', kind:'val', mkt:'上市', name:'上市 本益比／殖利率／淨值比',
+   url:'https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date={D}&selectType=ALL&response=json',
+   alt:'https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL', twseRwd:true},
   {id:'rev_L', kind:'rev', mkt:'上市', name:'上市 每月營業收入', url:'https://openapi.twse.com.tw/v1/opendata/t187ap05_L'},
   {id:'rev_O', kind:'rev', mkt:'上櫃', name:'上櫃 每月營業收入', url:'https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O'},
   {id:'is_L',  kind:'is',  mkt:'上市', name:'上市 綜合損益表（一般業）', url:'https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci'},
   {id:'is_O',  kind:'is',  mkt:'上櫃', name:'上櫃 綜合損益表（一般業）', url:'https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap06_O_ci'},
   {id:'bs_L',  kind:'bs',  mkt:'上市', name:'上市 資產負債表（一般業）', url:'https://openapi.twse.com.tw/v1/opendata/t187ap07_L_ci'},
   {id:'bs_O',  kind:'bs',  mkt:'上櫃', name:'上櫃 資產負債表（一般業）', url:'https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap07_O_ci'},
-  {id:'val_L', kind:'val', mkt:'上市', name:'上市 本益比／殖利率／淨值比', url:'https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL'},
   {id:'val_O', kind:'val', mkt:'上櫃', name:'上櫃 本益比分析', url:'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis'},
   {id:'co_L',  kind:'co',  mkt:'上市', name:'上市 公司基本資料（股本、產業別）', url:'https://openapi.twse.com.tw/v1/opendata/t187ap03_L'},
   {id:'co_O',  kind:'co',  mkt:'上櫃', name:'上櫃 公司基本資料（股本、產業別）', url:'https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O'}
@@ -556,28 +683,98 @@ function fundLooksLoaded(){
 }
 
 /* 抓全部基本面端點，回傳「總共抽到幾筆有效值」；同時把逐支診斷寫進 PROBE */
+/* ==========================================================================
+   產業別備援
+   產業別本來只從 openapi 的公司基本資料拿，那支被擋住就整欄空白，
+   連帶合理價全部算不出來。MI_INDEX 可以用分類代碼查，一類一次，
+   而它在 www.twse.com.tw 上、是通的。抓一次存起來，產業歸屬很少變。
+   ========================================================================== */
+const TWSE_IND = {
+  '01':'水泥工業','02':'食品工業','03':'塑膠工業','04':'紡織纖維','05':'電機機械',
+  '06':'電器電纜','08':'玻璃陶瓷','09':'造紙工業','10':'鋼鐵工業','11':'橡膠工業',
+  '12':'汽車工業','14':'建材營造','15':'航運業','16':'觀光餐旅','17':'金融保險',
+  '18':'貿易百貨','20':'其他業','21':'化學工業','22':'生技醫療業','23':'油電燃氣業',
+  '24':'半導體業','25':'電腦及週邊設備業','26':'光電業','27':'通信網路業',
+  '28':'電子零組件業','29':'電子通路業','30':'資訊服務業','31':'其他電子業',
+  '32':'文化創意業','33':'農業科技業','80':'管理股票'
+};
+async function fetchIndustries(fails){
+  const D = DATA.dates[DATA.dates.length-1] || ymd(new Date());
+  const codes = Object.keys(TWSE_IND);
+  let got = 0;
+  for(let i=0;i<codes.length;i++){
+    const t = codes[i];
+    setStatus(`補產業別 ${i+1}/${codes.length}：${TWSE_IND[t]}`, true, false, Math.round(i/codes.length*100));
+    try{
+      const {data} = await getJSON(
+        `https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${D}&type=${t}&response=json`);
+      const rows = rwdToRows(data);
+      if(!rows) continue;
+      for(const r of rows){
+        const code = String(K(r,'證券代號')||'').trim();
+        if(!/^\d{4}$/.test(code)) continue;
+        const rec = fRec(code);
+        rec.ind = TWSE_IND[t];
+        rec.mkt = rec.mkt || '上市';
+        got++;
+      }
+    }catch(e){ fails && fails.push(`產業別 ${TWSE_IND[t]}：${e.message}`); }
+  }
+  DATA.indAt = got ? Date.now() : 0;
+  return got;
+}
+
 async function fetchFundamentals(fails, base, span){
   let valued = 0;
+  const D = DATA.dates[DATA.dates.length-1] || ymd(new Date());
   for(let i=0;i<FUND_EPS.length;i++){
     const ep = FUND_EPS[i];
     setStatus(`抓基本面 ${i+1}/${FUND_EPS.length}：${ep.name}`, true, false,
               base + Math.round(i/FUND_EPS.length*span));
     const t0 = Date.now();
-    try{
-      const {data, via, bytes} = await getJSON(ep.url);
-      if(!Array.isArray(data)) throw new Error('回傳不是陣列（可能是代理回了錯誤頁）');
-      if(!data.length) throw new Error('回傳空陣列');
-      const st = ingestFund(ep, data);
-      valued += st.valued;
-      PROBE[ep.id] = {ok:true, via, bytes, ms:Date.now()-t0, count:data.length,
-                      sample:data[0]||null, st};
-      if(st.valued === 0) fails.push(`${ep.name}：連到了 ${st.rows} 筆，但欄位對不上，一個值都沒抽到`);
-    }catch(e){
-      PROBE[ep.id] = {ok:false, err:String(e.message||e), ms:Date.now()-t0};
-      fails.push(`${ep.name}：${e.message}`);
+    const urls = [ep.url.replace('{D}', D)];
+    if(ep.alt) urls.push(ep.alt);
+    let ok = false, lastErr = null;
+
+    for(const u of urls){
+      try{
+        const {data, via, viaName, bytes} = await getJSON(u);
+        // www.twse.com.tw 的報表回的是 {stat,fields,data}，OpenAPI 回的是物件陣列
+        const rows = Array.isArray(data) ? data : rwdToRows(data);
+        if(!rows || !rows.length) throw new Error(Array.isArray(data) ? '回傳空陣列' : '回傳不是可用的表格');
+        const st = ingestFund(ep, rows);
+        valued += st.valued;
+        PROBE[ep.id] = {ok:true, via, viaName, bytes, ms:Date.now()-t0,
+                        count:rows.length, sample:rows[0]||null, st, usedUrl:u};
+        if(st.valued === 0) fails.push(`${ep.name}：連到了 ${st.rows} 筆，但欄位對不上，一個值都沒抽到`);
+        ok = true;
+        break;
+      }catch(e){ lastErr = e; }
+    }
+    if(!ok){
+      PROBE[ep.id] = {ok:false, err:String(lastErr && lastErr.message || lastErr), ms:Date.now()-t0};
+      fails.push(`${ep.name}：${lastErr && lastErr.message}`);
     }
   }
   return valued;
+}
+
+/* 把 www.twse.com.tw 報表格式（fields + data 陣列）攤平成物件陣列，
+   這樣後面的模糊欄位比對可以共用一套邏輯 */
+function rwdToRows(d){
+  if(!d || d.stat !== 'OK') return null;
+  const tables = d.tables || (d.fields ? [d] : []);
+  const out = [];
+  for(const t of tables){
+    const f = t.fields || [];
+    if(idxOf(f,'證券代號') < 0 && idxOf(f,'公司代號') < 0) continue;
+    for(const r of (t.data || [])){
+      const o = {};
+      f.forEach((k, i) => o[String(k)] = r[i]);
+      out.push(o);
+    }
+  }
+  return out;
 }
 /* 回傳診斷數字：收到幾筆、幾筆認得出代號、幾筆真的抽到有效數值 */
 function ingestFund(ep, rows){
@@ -655,12 +852,33 @@ function ingestFund(ep, rows){
 async function runAll(){
   const btn = document.getElementById('btnRun');
   btn.disabled = true;
+  fbSave();
+  const fails = [];
+
+  // --- 只讀雲端：整段跳過證交所 ---
+  if(fbOnlyMode()){
+    const r = await loadFromCloud(fails);
+    DATA.runAt = Date.now();
+    cacheSave(); cacheInfo();
+    PROBE._fails = fails;
+    renderProbe();
+    score();
+    btn.disabled = false;
+    setStatus(
+      DATA.dates.length
+        ? `只讀雲端完成。新讀 <b>${r.days}</b> 天、基本面 <b>${r.fund}</b> 檔，`
+          + `本機共 <b>${DATA.dates.length}</b> 個交易日${r.cloudDays?`（雲端有 ${r.cloudDays} 天）`:''}。`
+          + (fails.length ? ` <span style="color:#ff9d9d">${fails.length} 項失敗。</span>` : '')
+        : `<span style="color:#ff9d9d">雲端沒有讀到任何資料。</span>`
+          + `請確認網址正確、資料庫規則允許讀取，且已經有人灌過資料。`,
+      false, !DATA.dates.length);
+    return;
+  }
+
   const want = backDates(+document.getElementById('fDays').value || 25);
   const have = new Set(DATA.dates);
   const need = want.filter(d => !have.has(d));
-  const fails = [];
 
-  fbSave();
   let fromCloud = 0, fromTwse = 0;
 
   let done = 0;
@@ -698,15 +916,19 @@ async function runAll(){
 
   let stale = Date.now() - (DATA.fundAt||0) > 6*3600*1000;
 
-  // 基本面也先問雲端
+  // 基本面也先問雲端。只要雲端的比本機新就收，不再要求 6 小時內——
+  // 對抓不到證交所的人來說，舊快照遠好過沒有。
   if(stale && fbReady()){
     setStatus('雲端找基本面快照…', true, false, 62);
     try{
       const snap = await fbGet('kawei/fund');
-      if(snap && snap.at && Date.now() - snap.at < 6*3600*1000 && snap.data){
-        DATA.fund = Object.assign(DATA.fund, snap.data);
-        DATA.fundAt = snap.at;
-        stale = false;
+      if(snap && snap.data && (snap.at || 0) >= (DATA.fundAt || 0)){
+        for(const c in snap.data){
+          const src = snap.data[c], dst = fRec(c);
+          ['name','ind','mkt','rev','is','bs','val','co'].forEach(k => { if(src[k]) dst[k] = src[k]; });
+        }
+        DATA.fundAt = snap.at || Date.now();
+        if(Date.now() - DATA.fundAt < 6*3600*1000) stale = false;
       }
     }catch(e){ fails.push(`Firebase 讀基本面：${e.message}`); }
   }
@@ -731,6 +953,13 @@ async function runAll(){
 
   setStatus('計算估值與卡位分數…', true, false, 97);
   DATA.runAt = Date.now();
+
+  // 產業別缺太多就用 MI_INDEX 分類代碼補一次（產業歸屬很少變，一天一次就夠）
+  const noInd = Object.values(DATA.fund).filter(f => !f.ind).length;
+  if(noInd > 200 && Date.now() - (DATA.indAt || 0) > 24*3600*1000){
+    await fetchIndustries(fails);
+  }
+
   cacheSave();
   cacheInfo();
   PROBE._fails = fails;
@@ -756,6 +985,17 @@ function renderAlert(){
     notes.push(`<div class="alertbox soft"><b>雲端快取還沒啟用</b>　資料目前只存在這台瀏覽器。
       換裝置或清快取就得整批重抓，基本面每 6 小時也會重抓一次。
       到「🔬 資料源」分頁填 Firebase 網址並勾選啟用，抓過的日子就永遠不必再抓。</div>`);
+  }
+
+  if(fbOnlyMode()){
+    if(!fundLooksLoaded() && DATA.dates.length){
+      notes.push(`<div class="alertbox soft"><b>雲端上還沒有基本面資料</b>　
+        目前是「只讀雲端」模式，這台不會去連證交所。
+        請在網路沒被擋的裝置上（手機熱點也可以）跑一次「更新並篩選」，
+        再按「把本機資料全部灌上雲端」，這裡就會有了。</div>`);
+    }
+    el.innerHTML = notes.join('');
+    return;
   }
 
   if(!DATA.dates.length || fundLooksLoaded()){ el.innerHTML = notes.join(''); return; }
@@ -899,6 +1139,8 @@ function metrics(code){
   const t10 = win(q.t, 10);
   const t10buy  = t10.filter(x => x > 0).length;
   const t10sell = t10.filter(x => x < 0).length;
+  const recent2t = win(q.t, 2).reduce((a,b)=>a+b, 0);      // 投信最近兩個交易日淨買超
+  const net5tOnly = sumLast(q.t, 5) || 0;
   const net20t  = sumLast(q.t, 20) || 0;
   const shares  = (f0 => f0 && f0.co && f0.co.cap > 0 ? f0.co.cap/(f0.co.par||10) : null)(DATA.fund[code]);
   const build20 = shares ? net20t * 1000 / shares * 100 : null;   // 張→股，佔股本比重
@@ -960,7 +1202,7 @@ function metrics(code){
 
   return {
     px, trustD, foreignD, net5, net5t, net5f, vol20,
-    t10buy, t10sell, net20t, build20, shares,
+    t10buy, t10sell, net20t, build20, shares, recent2t, net5tOnly,
     f5sellDays, net5fOnly, volRatio, volSpike,
     pattern, patNote, chg20, range20, hiEx3,
     supName: sup ? sup[0] : null, supPx: sup ? sup[1] : null,
@@ -1050,6 +1292,9 @@ function valuation(code, px, f){
   const ind  = f.ind || '';
   const band = ind ? PEBAND.byInd[ind] : null;
   let lo = null, mid = null, hi = null, prem = null, bandSrc = null, bandWhy = null;
+  let peVsInd = null, spread = null;
+
+  if(band && pe) peVsInd = pe / band.p50;      // 市場給的本益比是同業中位數的幾倍
 
   if(!ind){
     bandWhy = '缺產業別，無法跟同業比';
@@ -1059,15 +1304,23 @@ function valuation(code, px, f){
     bandWhy = '交易所沒給本益比（多半是近四季虧損）';
   } else if(epsTTM <= 0){
     bandWhy = '近四季 EPS 非正數';
+  } else if(peVsInd !== null && peVsInd >= 3){
+    /* 市場給的倍數遠高於同業，代表它在為「未來獲利」定價：轉型、題材、獲利拐點。
+       這種股票用「落後四季 EPS × 同業中位數」算出來的數字必然低得離譜，
+       而且看起來很精確、很容易被當真。寧可不給。 */
+    bandWhy = `市場給的本益比是同業中位數的 ${peVsInd.toFixed(1)} 倍`
+            + `（${fmt(pe,0)} vs ${fmt(band.p50,0)}），代表在為未來獲利定價，`
+            + `用落後四季 EPS 估值不適用`;
   } else {
-    const cap = v => Math.min(v, 30);                  // 本益比上緣封在 30 倍
+    const cap = v => Math.min(v, 30);
     lo  = epsTTM * cap(band.p25);
     mid = epsTTM * cap(band.p50);
     hi  = epsTTM * cap(band.p75);
     prem = (px - mid) / mid * 100;
     bandSrc = `${ind}（${band.n} 檔）`;
+    spread = band.p75 / band.p25;          // 同業本益比離散程度
   }
-  return {pe, pb, epsTTM, bvps, shares, mcap, lo, mid, hi, prem, band, bandSrc, bandWhy};
+  return {pe, pb, epsTTM, bvps, shares, mcap, lo, mid, hi, prem, band, bandSrc, bandWhy, peVsInd, spread};
 }
 
 function scoreOne(m, f, V){
@@ -1223,6 +1476,9 @@ function triChip(t){
 function tagsFor(m, f, s, V){
   const t = [];
   if(!s.hasFund) t.push(['⚠ 沒有基本面資料','bad']);
+  if(V && V.peVsInd !== null && V.peVsInd >= 3)
+    t.push(['市場給'+V.peVsInd.toFixed(0)+'倍同業本益比','']);
+  if(V && V.pb !== null && V.pb < 1) t.push(['股價低於淨值','good']);
   if(V && V.prem !== null && V.prem <= -15) t.push(['相對同業便宜','good']);
   if(V && V.prem !== null && V.prem >= 40) t.push(['估值偏貴','bad']);
   if(m.trustD >= 3) t.push(['投信連買'+m.trustD+'日','tr']);
@@ -1268,6 +1524,8 @@ function score(){
     if(f.ind) inds.add(f.ind);
 
     const TRI = triMargins(code, f);
+    const SIG = signalOf(m);
+    const sigRank = {watch:5, hold:4, none:3, late:2, warn:1, exit:0}[SIG.k];
     // 財報日期：優先用出表日期，沒有就照使用者要求統一退回最後一個交易日
     const rawOut = (f.is && f.is.out) || (f.bs && f.bs.out) || '';
     const repDate = rawOut ? roc2ad(rawOut) : (lastTradeDate() + '※');
@@ -1290,7 +1548,7 @@ function score(){
       om:(f.is && f.is.om !== undefined) ? f.is.om : null,
       nm:(f.is && f.is.nm !== undefined) ? f.is.nm : null,
       eps:(f.is && f.is.eps !== undefined) ? f.is.eps : null,
-      TRI, triScore:triRank, repDate,
+      TRI, triScore:triRank, repDate, SIG, sigRank,
       epsTTM:V.epsTTM, mcap:V.mcap, pe:V.pe, fair:V.mid, prem:V.prem,
       tags: tagsFor(m, f, s, V),
       revPeriod:(f.rev && f.rev.period)||'', isPeriod:(f.is && f.is.period)||''
@@ -1322,6 +1580,7 @@ function filtered(){
   const volM  = document.getElementById('fVol').value;
   const pat   = document.getElementById('fPat').value;
   const noDump= document.getElementById('fNoDump').checked;
+  const sig   = document.getElementById('fSig').value;
 
   let out = ROWS.filter(r => {
     if(r.score < min) return false;
@@ -1336,6 +1595,7 @@ function filtered(){
     if(pat === '__early'  && !['打底整理','剛突破頸線','剛站回均線'].includes(r.pattern)) return false;
     if(pat && pat !== '__early' && r.pattern !== pat) return false;
     if(noDump && r.f5sellDays >= 3 && r.net5fOnly < 0) return false;
+    if(sig && (!r.SIG || r.SIG.k !== sig)) return false;
     if(runMx !== '' && r.runPct !== null && r.runPct > +runMx) return false;
     if(yoy !== '' && (r.revYoY === null || r.revYoY < +yoy)) return false;
     if(ind && r.ind !== ind) return false;
@@ -1403,8 +1663,8 @@ function renderVintage(){
     <div class="vi ${staleFund?'warnv':''}"><div class="k">財報</div><div class="v">${isP || '—'}</div>
       <div class="s">${withFund} 檔有基本面資料</div></div>
     <div class="vi"><div class="k">雲端快取</div>
-      <div class="v">${fbReady() ? '已啟用' : '未啟用'}</div>
-      <div class="s">${fbReady() ? '抓過的日子不再重抓' : '在「資料源」分頁設定'}</div></div>
+      <div class="v">${fbOnlyMode() ? '只讀雲端' : (fbReady() ? '已啟用' : '未啟用')}</div>
+      <div class="s">${fbOnlyMode() ? '完全不連證交所' : (fbReady() ? '抓過的日子不再重抓' : '在「資料源」分頁設定')}</div></div>
     <div class="vi"><div class="k">最後更新</div><div class="v">${atS}</div>
       <div class="s">按「更新並篩選」才會變</div></div>`;
 }
@@ -1414,16 +1674,16 @@ function renderVintage(){
    用 nth-child 直接隱藏整欄，不用改表格內容。分組是為了讓「這欄在講什麼」一目了然。
    ========================================================================== */
 const COL_GROUPS = [
-  ['基本', ['code','name','ind','score']],
+  ['基本', ['code','name','ind','score','sigRank']],
   ['三軸分數', ['sChip','sFund','sRoom']],
   ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','absorb','volRatio']],
   ['位階', ['runPct','toHigh','distMA20','supPx','supGap']],
   ['基本面', ['revPeriod','revYoY','revMoM','gm','om','nm','triScore','repDate']],
   ['估值', ['epsTTM','px','mcap','pe','fair','prem']]
 ];
-const COL_LOCK = ['code','name','score'];                 // 這幾欄不給關
+const COL_LOCK = ['code','name','score','sigRank'];                 // 這幾欄不給關
 const COL_HIDE_DEFAULT = ['volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom'];
-const COL_CORE = ['code','name','ind','score','pattern','trustD','t10buy','net20t','build20',
+const COL_CORE = ['code','name','ind','score','sigRank','pattern','trustD','t10buy','net20t','build20',
                   'revPeriod','revYoY','revMoM','gm','om','triScore','epsTTM','px','pe','fair','prem'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
@@ -1482,6 +1742,53 @@ function colSet(visible){
   colApply(); colPanel();
 }
 
+/* ==========================================================================
+   訊號：上車／續抱／下車
+   刻意不看估值。估值回答「值不值得關注」，籌碼與位階才回答「現在該不該動」。
+   判定由重到輕，先中先算——先確認要不要離場，再談要不要進場。
+   ========================================================================== */
+function signalOf(m){
+  // --- 離場條件優先 ---
+  if(m.net5tOnly < 0 && m.trustD === 0)
+    return {k:'exit', label:'投信轉賣', why:`近 5 日投信淨賣超 ${Math.abs(Math.round(m.net5tOnly)).toLocaleString()} 張，進場理由已消失`};
+
+  if(m.supPx !== null && m.px < m.supPx)
+    return {k:'exit', label:'跌破防守', why:`收盤 ${fmt(m.px,2)} 已跌破${m.supName} ${fmt(m.supPx,2)}`};
+
+  if(m.recent2t <= 0 && m.trustD === 0 && m.t10buy > 0)
+    return {k:'warn', label:'買盤中斷', why:'投信最近兩個交易日沒有買超，先前的連買段落可能結束'};
+
+  if(m.runPct !== null && m.runPct >= 20)
+    return {k:'late', label:'已發動', why:`買超期間已漲 ${fmt(m.runPct,1)}%，這時候進場是追價不是卡位`};
+
+  // --- 進場觀察 ---
+  const early = ['打底整理','剛突破頸線','剛站回均線'].includes(m.pattern);
+  const buying = (m.t10buy - m.t10sell) >= 2 || m.trustD >= 3;
+  const noDump = !(m.f5sellDays >= 3 && m.net5fOnly < 0);
+  const quiet  = m.runPct === null || m.runPct <= 10;
+
+  if(early && buying && noDump && quiet)
+    return {k:'watch', label:'可觀察',
+      why:`${m.pattern}＋投信 10 日買 ${m.t10buy} 賣 ${m.t10sell} 天，期間僅漲 ${fmt(m.runPct,1)}%，`
+        + `${m.supName ? `防守看${m.supName} ${fmt(m.supPx,2)}` : '尚無明確防守位'}`};
+
+  if(!buying)
+    return {k:'none', label:'籌碼不足', why:'投信買超天數不夠，還看不出建倉'};
+
+  if(!early)
+    return {k:'none', label:'位階不符', why:`目前是「${m.pattern}」，不在打底／剛突破／剛站回均線這三種`};
+
+  if(!noDump)
+    return {k:'warn', label:'外資對倒', why:`投信在買但外資近 5 日賣 ${m.f5sellDays} 天且淨賣超，可能是投信在接盤`};
+
+  return {k:'hold', label:'續抱', why:`投信仍在買，站在${m.supName || '支撐'}之上，但已漲 ${fmt(m.runPct,1)}%，不宜再加碼`};
+}
+const SIG_CLS = {watch:'sw', hold:'sh', warn:'sn', late:'sl', exit:'se', none:'so'};
+function sigChip(s){
+  if(!s) return '<span class="na">—</span>';
+  return `<span class="sig ${SIG_CLS[s.k]||'so'}">${s.label}</span>`;
+}
+
 const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
                  '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
 function patChip(p){
@@ -1495,7 +1802,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="35" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="36" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -1506,6 +1813,7 @@ function render(){
       <td>${r.name} <span class="mk">${r.mkt}</span></td>
       <td style="color:var(--dim)">${r.ind}</td>
       <td><span class="sc ${r.score>=70?'s1':(r.score>=55?'s2':'s3')}">${r.score}</span></td>
+      <td>${sigChip(r.SIG)}</td>
       <td>${r.sChip===null?'<span class="na">—</span>':r.sChip}</td>
       <td>${r.sFund===null?'<span class="na">—</span>':r.sFund}</td>
       <td>${r.sRoom===null?'<span class="na">—</span>':r.sRoom}</td>
@@ -1535,7 +1843,10 @@ function render(){
       <td class="${cls(r.supGap)}">${fmt(r.supGap,1)}</td>
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td>${fmt(r.pe,1)}</td>
-      <td class="fairbox">${r.V.lo===null?'<span class="na">—</span>':fmt(r.V.lo,1)+'～'+fmt(r.V.hi,1)}</td>
+      <td class="fairbox">${
+        r.V.mid===null ? '<span class="na">—</span>'
+        : fmt(r.V.mid,1) + (r.V.spread > 2.2
+            ? ' <span style="color:var(--dim2);font-size:10px" title="同業本益比很分散，這個中值參考性低">寬</span>' : '')}</td>
       <td class="prem ${r.prem===null?'na':(r.prem>0?'pos':'neg')}">${
         r.prem===null ? '—'
         : (r.prem>0 ? '貴 +' : '便宜 ') + fmt(r.prem,1)}</td>
@@ -1604,6 +1915,22 @@ function showDetail(code){
         <div style="color:var(--dim);margin-top:3px">${r.TRI ? r.TRI.why : ''}</div>
       </div>
       <div class="tags">${r.tags.map(([t,c]) => `<span class="tg ${c}">${t}</span>`).join('')}</div>
+      <div class="sigbox">
+        <div class="sigh">${sigChip(r.SIG)} <span>${r.SIG ? r.SIG.why : ''}</span></div>
+        <div class="siggrid">
+          <div><div class="k">進場理由</div><div class="v">${r.pattern}</div>
+            <div class="s">${r.patNote || ''}</div></div>
+          <div><div class="k">理由消失在哪</div>
+            <div class="v">${r.supPx===null ? '—' : r.supName + ' ' + fmt(r.supPx,2)}</div>
+            <div class="s">${r.supGap===null ? '尚無明確支撐' : '距現價 '+fmt(r.supGap,1)+'%，跌破就是進場理由不成立'}</div></div>
+          <div><div class="k">籌碼還在不在</div>
+            <div class="v">投信 10 日 買${r.t10buy} 賣${r.t10sell}</div>
+            <div class="s">最近兩日淨${r.M.recent2t>=0?'買':'賣'} ${Math.abs(Math.round(r.M.recent2t)).toLocaleString()} 張${r.M.recent2t<=0?'　·　連買段落可能結束':''}</div></div>
+          <div><div class="k">還有多少空間</div>
+            <div class="v">期間漲 ${fmt(r.runPct,1)}%</div>
+            <div class="s">距 20 日高點 ${fmt(r.toHigh,1)}%</div></div>
+        </div>
+      </div>
       <div class="axes">
         ${axBlock('法人卡位', s.A, r.sChip===null?'—':r.sChip, 40)}
         ${axBlock('基本面', s.B, r.sFund===null?'—':r.sFund, 35)}
@@ -1751,13 +2078,14 @@ function exportCsv(){
   const rows = filtered();
   if(!rows.length){ alert('目前沒有資料可以匯出。'); return; }
   const last = DATA.dates[DATA.dates.length-1] || '';
-  const head = ['代號','名稱','產業','卡位分','法人','基本面','空間','投信連買','外資連買',
+  const head = ['代號','名稱','產業','卡位分','訊號','訊號說明','法人','基本面','空間','投信連買','外資連買',
     '近5日買超張','吸籌%','期間漲幅%','距20日高%','距MA20%','營收年增%',
     '毛利率%','營益率%','淨利率%','三率三升','財報期別','財報日期',
     '單季EPS','近4季EPS','收盤','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
   const TRIW = {three:'三率三升', part:'部分上升', down:'三率齊跌',
                 guess:'推測（僅一期財報）', wait:'待累積', none:''};
   const body = rows.map(r => [r.code,r.name,r.ind,r.score,
+    r.SIG?r.SIG.label:'', r.SIG?'"'+r.SIG.why.replace(/"/g,'')+'"':'',
     r.sChip===null?'':r.sChip, r.sFund===null?'':r.sFund, r.sRoom===null?'':r.sRoom,
     r.trustD,r.foreignD,r.net5,fmt(r.absorb,2),fmt(r.runPct,2),fmt(r.toHigh,2),fmt(r.distMA20,2),
     fmt(r.revYoY,2),fmt(r.gm,2),fmt(r.om,2),fmt(r.nm,2),
@@ -1840,6 +2168,34 @@ document.getElementById('docOut').innerHTML = `
 寧可不給數字，也不給一個錯的錨。本益比上緣另外封在 30 倍。
 </div>
 
+<div class="warn">
+<b>這個合理價對「獲利拐點股」完全無效，工具現在會自己閉嘴。</b><br>
+方法是「落後四季 EPS × 同業本益比中位數」，它預設市場給的倍數應該跟同業差不多。
+但轉型股、題材股、獲利剛要放量的股票，市場給的是<b>未來</b>獲利的價格，跟過去四季無關。<br>
+例：一詮（2486）現價約 235，落後四季 EPS 約 2 元，市場給到 117 倍本益比——
+因為它從傳統 LED 導線架轉去做 AI 散熱。用同業 15 倍去乘，只會算出 30 元這種
+「它 2021 年以前的舊股價」。數字看起來很精確，其實完全不適用。<br>
+所以現在的規則是：<b>當市場給的本益比達到同業中位數 3 倍以上，合理價直接顯示「—」</b>，
+並在明細寫出是幾倍、為什麼不算。清單上也會掛一個「市場給 N 倍同業本益比」的標籤。
+不給數字，好過給一個看起來很篤定的錯數字。
+</div>
+<p>反過來說，這個標籤本身就是有用的資訊：對「卡位」這個主題而言，
+市場已經給到同業好幾倍本益比的股票，<b>本來就不是卡位標的</b>，那是題材已經發動的股票。</p>
+
+<h3>資料源被公司網路擋住怎麼辦</h3>
+<p>實測發現 <code>openapi.twse.com.tw</code> 與 <code>www.tpex.org.tw</code> 在某些網路環境下
+連直連都 Failed to fetch，而 <code>www.twse.com.tw</code>（法人與行情的來源）卻一直很順。
+這比較像網路層封鎖，不是 CORS 問題——公司防火牆常放行主要財經網站、擋掉公用 proxy 網域。</p>
+<p>對策是能搬的都搬到通的那個網域：</p>
+<ul>
+<li><b>本益比／股價淨值比</b>改走 <code>www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d</code>，
+原本的 openapi 版留作備援。這支還多給「財報年/季」，順便補上財報期別。</li>
+<li><b>產業別</b>改用 <code>MI_INDEX</code> 的分類代碼逐類查（水泥 01、半導體 24、電子零組件 28…），
+同樣在通的網域上。產業歸屬很少變，一天抓一次就夠。沒有產業別就沒有合理價，這一條很關鍵。</li>
+<li>月營收與財務報表目前只有 openapi 有，還沒有替代來源。這兩項如果一直抓不到，
+最快的解法是把檔案放到 GitHub Pages 或用手機網路跑一次，資料進 Firebase 之後就不必再抓。</li>
+</ul>
+
 <h3>欄位太多看不完？</h3>
 <p>表格上方有「⚙ 欄位顯示」，可以逐欄開關，選擇會記在瀏覽器裡。
 <b>第一次打開預設就是「只留核心」20 欄</b>（代號、名稱、產業、卡位分、位階、投信籌碼、營收與三率、估值）；
@@ -1868,6 +2224,66 @@ document.getElementById('docOut').innerHTML = `
 過了 8/10 之後這欄應該顯示 2026/07；如果還停在更早的月份，代表月營收端點沒抓到最新一期。</p>
 <p>「財報日期」是另一回事——那是季報（毛利率、營益率、淨利率、三率三升的來源），一季才更新一次。
 帶 <code>※</code> 表示抓不到出表日期、退回用最後交易日代替。</p>
+
+<h3>要分享給同事：一人灌資料，其他人唯讀</h3>
+<p>如果公司網路擋掉證交所，架構應該是<b>一個人在沒被擋的網路上灌滿雲端，其他人只讀雲端</b>。
+這樣同事那台完全不需要連得上證交所。</p>
+
+<p><b>你（灌資料的那個人）要做的：</b></p>
+<ul>
+<li>切到手機熱點，或任何沒被擋的網路</li>
+<li>「資料源」分頁填 Firebase 網址、勾「啟用雲端快取」、按「測試連線」確認讀寫都通</li>
+<li>按「更新並篩選」跑完整流程</li>
+<li>再按「<b>把本機資料全部灌上雲端</b>」——它會把每個交易日、基本面快照、三率歷史一次全部推上去</li>
+<li>之後每天在通的網路上跑一次就好，新的那天會自動同步</li>
+</ul>
+
+<p><b>同事要做的：</b></p>
+<ul>
+<li>填同一個 Firebase 網址</li>
+<li>勾「啟用雲端快取」<b>和「只讀雲端（完全不連證交所）」</b></li>
+<li>按「更新並篩選」——這時它只會跟 Firebase 要資料，一次都不會碰證交所</li>
+</ul>
+
+<div class="warn">
+<b>兩個要先確認的事。</b><br>
+一、<b>Firebase 本身會不會也被公司網路擋？</b>如果 <code>*.firebaseio.com</code> 也在黑名單裡，這條路一樣不通。
+請同事先按「測試連線」，通了才有意義。<br>
+二、<b>資料庫規則要允許讀取。</b>同事只需要讀，所以比較安全的設法是讀開放、寫限制：
+<code>{"rules":{".read":true,".write":false}}</code>，等你要灌資料時再暫時把 <code>.write</code> 打開。
+規則全開（讀寫都 true）方便但任何人拿到網址都能改你的資料，自己斟酌。
+</div>
+
+<p>唯讀模式下，基本面快照<b>不管多舊都會收下</b>——對連不到證交所的人來說，昨天的資料遠好過沒有資料。
+頁面上方的「最後更新」與「月營收 / 財報」期別會告訴同事手上這份資料是什麼時候的。</p>
+
+<h3>訊號：什麼時候上車、什麼時候下車</h3>
+<div class="warn">
+<b>合理價不是用來抓進出點的。</b>它回答「這檔值不值得我關注」，不回答「今天該不該買」。
+你要的進出訊號在籌碼與位階，所以「訊號」這一欄<b>刻意完全不看估值</b>。
+</div>
+<p>判定順序由重到輕，先確認要不要離場，再談要不要進場：</p>
+<table>
+<tr><th>訊號</th><th>觸發條件</th><th>意思</th></tr>
+<tr><td>投信轉賣</td><td>近 5 日投信淨賣超且今日沒買</td><td>進場理由已消失</td></tr>
+<tr><td>跌破防守</td><td>收盤跌破 MA20／20 日低／頸線中最近的那道</td><td>進場理由不成立了</td></tr>
+<tr><td>買盤中斷</td><td>投信最近兩個交易日都沒買</td><td>先前的連買段落可能結束</td></tr>
+<tr><td>已發動</td><td>買超期間漲幅 ≥20%</td><td>這時候進場是追價不是卡位</td></tr>
+<tr><td><b>可觀察</b></td><td>打底／剛突破／剛站回均線　＋　投信買多賣少　＋　期間漲幅 ≤10%　＋　外資沒對倒</td><td>四個條件同時成立</td></tr>
+<tr><td>外資對倒</td><td>投信在買但外資近 5 日賣 ≥3 天且淨賣超</td><td>可能是投信在接盤</td></tr>
+<tr><td>續抱</td><td>投信仍在買、站在支撐之上，但已漲一段</td><td>不宜再加碼</td></tr>
+</table>
+<p>點開任一列，「進場理由 / 理由消失在哪 / 籌碼還在不在 / 還有多少空間」四格會把該檔的數字攤開。
+<b>防守位的用法是：跌破它代表你當初進場的那個理由不成立了</b>，不是虧損到某個百分比才停損。
+進場理由是「剛站回 20 日線」，那跌破 20 日線就該走；理由是「突破頸線」，那跌回頸線下就該走。</p>
+
+<h3>為什麼合理價的區間那麼寬</h3>
+<p>區間是「同業本益比 P25～P75 × 近四季 EPS」。如果算出 300～584，代表<b>那個產業裡各家本益比本來就散得很開</b>——
+上緣是下緣的近兩倍，同業自己都沒共識，「中位數」這個錨自然就弱。</p>
+<p>所以表格只顯示<b>合理價中值</b>一個數字，完整區間放在點開後的明細裡。
+中值旁邊出現「寬」字，表示同業本益比離散度超過 2.2 倍，這個中值參考性低，看看就好。</p>
+<p>務實的用法：<b>把溢價% 當粗篩，不當進出依據。</b>大幅折價值得多看一眼，
+大幅溢價提醒你別在這裡加碼——但決定買賣的是訊號欄，不是這裡。</p>
 
 <h3>「投信建倉」那顆按鈕在做什麼</h3>
 <p>一鍵套上這組條件，用來找投信剛開始吃貨、但股價還沒發動的標的：</p>
@@ -2003,7 +2419,7 @@ document.querySelectorAll('#tbl th').forEach(th => {
   };
 });
 ['fScore','fTrust','fRun','fYoY','fPrem','fInd','fQ','fTrustOnly','fHasFund',
- 'fT10','fNetD','fVol','fPat','fNoDump'].forEach(id => {
+ 'fT10','fNetD','fVol','fPat','fNoDump','fSig'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('input', render);
   el.addEventListener('change', render);
@@ -2024,16 +2440,19 @@ document.getElementById('btnPreset').onclick = () => {
   SET('fPrem', 20);
   SET('fTrustOnly', true);
   SET('fHasFund', true);
+  SET('fSig', 'watch');
   SORT = {k:'build20', dir:-1};
   render();
 };
 document.getElementById('btnReset').onclick = () => {
-  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ'].forEach(id => SET(id, ''));
+  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig'].forEach(id => SET(id, ''));
   SET('fScore', 0); SET('fTrust', 0); SET('fNoDump', false); SET('fTrustOnly', false);
   render();
 };
 document.getElementById('btnFbTest').onclick = fbTest;
-['fbUrl','fbOn'].forEach(id => document.getElementById(id).addEventListener('change', () => { fbSave(); renderVintage(); }));
+['fbUrl','fbOn','fbOnly'].forEach(id =>
+  document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad(); renderVintage(); renderAlert(); }));
+document.getElementById('btnFbPush').onclick = pushAllToCloud;
 ['fNoFin','fNoLoss'].forEach(id => document.getElementById(id).addEventListener('change', score));
 document.getElementById('btnRun').onclick = runAll;
 document.getElementById('btnFund').onclick = runFundOnly;
