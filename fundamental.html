@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V17</title>
+<title>法人卡位選股台 V18</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -170,6 +170,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 .fairbox{font-variant-numeric:tabular-nums}
 .faded{opacity:.42}
+.warnpe{color:var(--accent);font-weight:700}
 .pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
 .pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
 .pat.pk{background:#2b2140;color:#d8b9ff;border-color:#43336b}
@@ -200,7 +201,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V17</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V18</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -298,6 +299,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="distMA20">距MA20%</th>
       <th data-k="epsTTM">EPS(近4季)</th>
       <th data-k="pe">本益比</th>
+      <th data-k="peVsInd">本益比/同業</th>
       <th data-k="mcap">市值(億)</th>
       <th data-k="revPeriod">營收月份</th>
       <th data-k="revYoY">營收年增%</th>
@@ -344,13 +346,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V17
+   法人卡位選股台 V18
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V17';
+const VER = 'V18';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1382,11 +1384,18 @@ function valuation(code, px, f){
     bandWhy = '近四季 EPS 非正數';
   } else if(peVsInd !== null && peVsInd >= 3){
     /* 市場給的倍數遠高於同業，代表它在為「未來獲利」定價：轉型、題材、獲利拐點。
-       這種股票用「落後四季 EPS × 同業中位數」算出來的數字必然低得離譜，
-       而且看起來很精確、很容易被當真。寧可不給。 */
+       這種股票用「落後四季 EPS × 同業中位數」算出來的數字必然低得離譜。 */
     bandWhy = `市場給的本益比是同業中位數的 ${peVsInd.toFixed(1)} 倍`
-            + `（${fmt(pe,0)} vs ${fmt(band.p50,0)}），代表在為未來獲利定價，`
+            + `（${fmt(pe,1)} vs ${fmt(band.p50,1)}），代表在為未來獲利定價，`
             + `用落後四季 EPS 估值不適用`;
+  } else if(peVsInd !== null && peVsInd <= 0.45){
+    /* 反方向同樣不適用：市場只給同業的一半不到，通常不是「被低估」而是刻意折價——
+       獲利靠業外一次性、控股公司折價、本業結構性衰退、景氣循環高點。
+       硬乘同業中位數會算出一個市場根本不打算給的價格。 */
+    bandWhy = `市場只給同業中位數的 ${Math.round(peVsInd*100)}% 本益比`
+            + `（${fmt(pe,1)} vs ${fmt(band.p50,1)}）。這種折價通常有原因——`
+            + `獲利靠業外一次性收益、控股公司折價、本業衰退、或景氣循環高點——`
+            + `硬乘同業倍數會得到市場不打算給的價格`;
   } else {
     const cap = v => Math.min(v, 30);
     lo  = epsTTM * cap(band.p25);
@@ -1554,6 +1563,8 @@ function tagsFor(m, f, s, V){
   if(!s.hasFund) t.push(['⚠ 沒有基本面資料','bad']);
   if(V && V.peVsInd !== null && V.peVsInd >= 3)
     t.push(['市場給'+V.peVsInd.toFixed(0)+'倍同業本益比','']);
+  if(V && V.peVsInd !== null && V.peVsInd <= 0.45)
+    t.push(['市場只給同業'+Math.round(V.peVsInd*100)+'%本益比','']);
   if(V && V.pb !== null && V.pb < 1) t.push(['股價低於淨值','good']);
   if(V && V.prem !== null && V.prem <= -15) t.push(['相對同業便宜','good']);
   if(V && V.prem !== null && V.prem >= 40) t.push(['估值偏貴','bad']);
@@ -1640,7 +1651,7 @@ function score(){
       nm:(f.is && f.is.nm !== undefined) ? f.is.nm : null,
       eps:(f.is && f.is.eps !== undefined) ? f.is.eps : null,
       TRI, triScore:triRank, repDate, SIG, sigRank, PH, phaseRank,
-      fairPm, fairWide, fairUseless,
+      fairPm, fairWide, fairUseless, peVsInd:V.peVsInd,
       epsTTM:V.epsTTM, mcap:V.mcap, pe:V.pe, fair:V.mid, prem:V.prem,
       tags: tagsFor(m, f, s, V),
       revPeriod:(f.rev && f.rev.period)||'', isPeriod:(f.is && f.is.period)||''
@@ -1787,7 +1798,7 @@ const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio',
 const COL_CORE = ['code','name','ind','score','sigRank','phaseRank','pattern',
                   'trustD','t10buy','net20t','build20',
                   'px','trustCost','vsTrust','fair','fairLo','prem',
-                  'supPx','supGap','revPeriod','revYoY','revMoM','epsTTM','pe'];
+                  'supPx','supGap','revPeriod','revYoY','revMoM','epsTTM','pe','peVsInd'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
@@ -1962,7 +1973,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="42" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="43" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -2013,6 +2024,8 @@ function render(){
       <td class="${cls(r.distMA20)}">${fmt(r.distMA20,1)}</td>
       <td class="${cls(r.epsTTM)}">${fmt(r.epsTTM,2)}</td>
       <td>${fmt(r.pe,1)}</td>
+      <td class="${r.peVsInd===null?'na':(r.peVsInd>=3||r.peVsInd<=0.45?'warnpe':'')}">${
+        r.peVsInd===null ? '—' : r.peVsInd.toFixed(2)+'x'}</td>
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td style="color:var(--dim)">${r.revPeriod ? roc2ad(r.revPeriod) : '<span class="na">—</span>'}</td>
       <td class="${cls(r.revYoY)}">${fmt(r.revYoY,1)}</td>
@@ -2307,7 +2320,7 @@ function exportCsv(){
     '近5日買超張','吸籌%','期間漲幅%','距20日高%','距MA20%','營收年增%',
     '毛利率%','營益率%','淨利率%','三率三升','財報期別','財報日期',
     '投信成本','投信買超日數','投信買超張數','貴投信%','法人成本','貴法人%',
-    '單季EPS','近4季EPS','收盤','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
+    '單季EPS','近4季EPS','收盤','本益比/同業','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
   const TRIW = {three:'三率三升', part:'部分上升', down:'三率齊跌',
                 guess:'推測（僅一期財報）', wait:'待累積', none:''};
   const body = rows.map(r => [r.code,r.name,r.ind,r.score,
@@ -2319,7 +2332,7 @@ function exportCsv(){
     (r.TRI ? TRIW[r.TRI.state] : ''), r.isPeriod||'', (r.repDate||'').replace('※',''),
     fmt(r.trustCost,2), r.trustDays||'', r.trustLots?Math.round(r.trustLots):'',
     fmt(r.vsTrust,2), fmt(r.instCost,2), fmt(r.vsInst,2),
-    fmt(r.eps,2),fmt(r.epsTTM,2),fmt(r.px,2),
+    fmt(r.eps,2),fmt(r.epsTTM,2),fmt(r.px,2),fmt(r.peVsInd,2),
     r.mcap===null?'':Math.round(r.mcap), fmt(r.pe,2),
     fmt(r.V.lo,2),fmt(r.V.mid,2),fmt(r.V.hi,2),fmt(r.prem,2),
     r.tags.map(t=>t[0]).join(' ')].join(','));
@@ -2530,6 +2543,29 @@ document.getElementById('docOut').innerHTML = `
 資料會自動流進來，你只要到「⚙ 欄位顯示」把「財報」那組打開就有值。
 刪掉的話這些全部要重寫，省不了什麼卻多花一輪。</p>
 <p>要確認端點通了沒，最快是按「只抓基本面」，十秒就知道結果。</p>
+
+<h3>本益比/同業：這欄比合理價更早告訴你有問題</h3>
+<p>這欄是<b>市場給這檔的本益比 ÷ 同業中位數</b>。1.00x 代表市場給它同業一樣的評價。
+數字被標黃就是在說「這檔的估值跟同業差太多，合理價那欄不適用」。</p>
+<table>
+<tr><th>倍數</th><th>意思</th><th>合理價</th></tr>
+<tr><td>≥ 3.0x</td><td>市場在為<b>未來</b>獲利定價：轉型、題材、獲利拐點</td><td>不給</td></tr>
+<tr><td>0.45 ～ 3.0x</td><td>估值跟同業在同一個世界</td><td>正常計算</td></tr>
+<tr><td>≤ 0.45x</td><td>市場<b>刻意折價</b>，通常有原因</td><td>不給</td></tr>
+</table>
+<div class="warn">
+<b>市場只給同業四成本益比，通常不是「被低估」。</b>常見原因：
+<ul>
+<li><b>獲利靠業外一次性收益</b>——帳上 EPS 很漂亮，但來自處分資產、權益法投資收益、匯兌，本業其實在衰退。市場對這種獲利給的倍數本來就低。</li>
+<li><b>控股公司折價</b>——主要價值來自轉投資持股，市場慣例會打折。</li>
+<li><b>本業結構性衰退</b>——訂單、毛利率長期往下，過去的 EPS 不代表未來。</li>
+<li><b>景氣循環高點</b>——獲利在頂峰時本益比最低，看起來最便宜，往往是最貴的時候。</li>
+</ul>
+把同業中位數硬乘上去，只會得到<b>一個市場根本不打算給的價格</b>。所以這欄標黃時，合理價直接不給，
+點開該列會寫出是哪個方向、差幾倍。
+</div>
+<p>這對卡位主題也是有用的訊息：<b>市場長期折價的股票，不會因為投信買了幾天就重新評價。</b>
+看到 0.4x 的時候，該想的是「市場知道什麼我不知道的」，而不是「撿到便宜了」。</p>
 
 <h3>投信階段：現在是建倉還是準備結帳</h3>
 <p>靠三件事推斷——<b>最近還買不買、現價離他們的成本多遠、近五日是淨買還是淨賣</b>。
