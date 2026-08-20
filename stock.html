@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V224</title>
+<title>盤後篩選台 V226</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -616,7 +616,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V224</span>
+    <h1>盤後篩選台</h1><span class="ver">V226</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1760,7 +1760,7 @@ function run(){
     const r5=volRatio(q,5);               // 近 5 日均量比（短線爆量）
     const hasHL=h.some(x=>x!=null)&&l.some(x=>x!=null);
     if(!hasHL)noHL++;
-    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf,c,'any'):null;
+    const gp=hasHL?findGap(h,l,gDays,gPct,gUnf,c,'any',DB.dates.slice(0,c.length)):null;
     if(GAPONLY&&!gp)continue;   // 多缺口篩選模式：只留真的有缺口的
     const p30=c.length>=31?c[c.length-31]:null;
     // 型態判斷用的量價特徵
@@ -2050,7 +2050,7 @@ function evaluate(code){
   const rf=rankOf(IN.f),ri=rankOf(IN.i);
   const vb=+$('#volBase').value||60;
   const ratio=volRatio(q,vb),ratio5=volRatio(q,5),ratio60=volRatio(q,60);
-  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf,c,'any'):null;
+  const gp=(h.some(x=>x!=null)&&l.some(x=>x!=null))?findGap(h,l,gDays,gPct,gUnf,c,'any',DB.dates.slice(0,c.length)):null;
   const p30=c.length>=31?c[c.length-31]:null;
   return{code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol:q[q.length-1],
     baseDate,enough,days:c.length,m,lamps,
@@ -2274,6 +2274,7 @@ function backtest(ser){
     const m5=ma(sub,5),m10=ma(sub,10),m20=ma(sub,20),m60=ma(sub,60);
     if(m60==null)continue;
     const px=c[i];
+    if(px>=MAX_PX)continue;                       // 萬元股不列入
     if(useMA&&!(px>m5&&px>m10&&px>m20&&px>m60))continue;
     if(useOrd&&!(m5>m10&&m10>m20&&m20>m60))continue;
     if(useG&&!findGap(h.slice(0,i+1),l.slice(0,i+1),gDays,gPct,gUnf))continue;
@@ -2860,11 +2861,17 @@ window.drawChart=function drawChart(code){
     let extra='';
     try{
       const gs=findAllGaps(ser.h,ser.l,20,ser.c,ser.d,'any');
-      if(gs.length)extra+=`<div class="gaplist"><b>近 20 日缺口</b>（多方＝當日最低 > 前日最高）：`
+      // 附上原始 OHLC，方便直接跟看盤軟體對照，判斷是資料錯還是判定錯
+      const raw=(()=>{ const d=ser.d||[], n=ser.c.length, out=[];
+        for(let k=Math.max(0,n-6);k<n;k++)
+          out.push(`<span class="gitem">${d[k]?fmtD(d[k]):'—'}　開 ${ser.o&&ser.o[k]!=null?ser.o[k].toFixed(2):'—'}／高 ${ser.h&&ser.h[k]!=null?ser.h[k].toFixed(2):'—'}／低 ${ser.l&&ser.l[k]!=null?ser.l[k].toFixed(2):'—'}／收 ${ser.c[k]!=null?ser.c[k].toFixed(2):'—'}</span>`);
+        return `<div class="gaplist"><b>最近 6 天的原始資料</b>（跟你的看盤軟體對一下就知道資料有沒有抓錯）：${out.join('')}</div>`; })();
+      if(gs.length)extra+=`<div class="gaplist"><b>近 20 日缺口</b>（多方＝當日最低 > 前日最高，差距需 ≥ 兩個跳動單位）：`
         + gs.slice(-6).map(g=>`<span class="gitem ${g.dir}">${g.date?fmtD(g.date):'—'}　${g.dir==='up'?'▲多方':'▼空方'} ${g.pct.toFixed(2)}%　`
           + (g.dir==='up'?`前日高 ${g.prevHigh.toFixed(2)} → 當日低 ${g.low.toFixed(2)}`:`前日低 ${g.prevLow.toFixed(2)} → 當日高 ${g.high.toFixed(2)}`)
           + `　${g.unf?'未補':'已補'}</span>`).join('')+`</div>`;
       else extra+=`<div class="gaplist"><b>近 20 日缺口</b>：沒有（差距未達兩個跳動單位的不算）</div>`;
+      extra+=raw;
     }catch(err){}
     try{ extra+=supportHTML(ser)||''; }catch(err){}
     try{ extra+=backtestHTML(ser)||''; }catch(err){}
@@ -4292,7 +4299,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V224 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V226 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
