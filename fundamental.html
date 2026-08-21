@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V18</title>
+<title>法人卡位選股台 V21</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -55,12 +55,12 @@ header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.5px}
 .chk input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
 
 .tblwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:auto}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:right;padding:9px 8px;
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:right;padding:8px 6px;
   white-space:nowrap;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;border-bottom:1px solid var(--line)}
 th:hover{color:var(--tx)} th.sorted{color:var(--accent)}
 th:first-child,th:nth-child(2),th:nth-child(3){text-align:left}
-td{padding:8px;border-bottom:1px solid #1e2733;text-align:right;white-space:nowrap}
+td{padding:7px 6px;border-bottom:1px solid #1e2733;text-align:right;white-space:nowrap}
 td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
 tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{background:#1e2a3a}
 .pos{color:var(--up)} .neg{color:var(--dn)} .na{color:var(--dim2)}
@@ -169,8 +169,21 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .sig.so{background:#1a1f27;color:var(--dim2);border-color:var(--line)}
 
 .fairbox{font-variant-numeric:tabular-nums}
+/* 代號與名稱釘在左邊，往右捲時不會失去參照。
+   這兩欄在 COL_LOCK 裡不給關，所以永遠是第 1、2 欄。 */
+#tbl th:nth-child(1), #tbl td:nth-child(1){
+  position:sticky; left:0; z-index:3; background:var(--panel);
+  box-shadow:none}
+#tbl th:nth-child(2), #tbl td:nth-child(2){
+  position:sticky; left:58px; z-index:3; background:var(--panel);
+  box-shadow:6px 0 8px -6px rgba(0,0,0,.75)}
+#tbl thead th:nth-child(1), #tbl thead th:nth-child(2){z-index:5; background:var(--panel2)}
+#tbl tbody tr:hover td:nth-child(1), #tbl tbody tr:hover td:nth-child(2){background:#1a222e}
+#tbl tbody tr.sel td:nth-child(1), #tbl tbody tr.sel td:nth-child(2){background:#1e2a3a}
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
+.bhot{color:var(--up);font-weight:700}
 .pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
 .pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
 .pat.pk{background:#2b2140;color:#d8b9ff;border-color:#43336b}
@@ -201,7 +214,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V18</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V21</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -259,8 +272,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   <div class="colbar">
     <button class="btn" id="btnCols">⚙ 欄位顯示</button>
     <span id="colCount" style="font-size:12px;color:var(--dim)"></span>
-    <button class="btn" id="btnColsCore" style="font-size:12px;padding:5px 10px">只留核心</button>
-    <button class="btn" id="btnColsAll" style="font-size:12px;padding:5px 10px">全部顯示</button>
+    <button class="btn" id="btnColsCore" style="font-size:12px;padding:5px 10px">精簡 13 欄</button>
+    <button class="btn" id="btnColsAll" style="font-size:12px;padding:5px 10px">全部 40 欄</button>
   </div>
   <div class="colpanel" id="colPanel"></div>
 
@@ -281,8 +294,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="foreignD">外資連買</th>
       <th data-k="net5">近5日買超(張)</th>
       <th data-k="net20t">投信20日(張)</th>
-      <th data-k="build20">建倉%</th>
-      <th data-k="absorb">吸籌%</th>
+      <th data-k="build20">投信建倉%</th>
+            <th data-k="absorb">吸籌%</th>
       <th data-k="volRatio">量倍</th>
       <th data-k="px">收盤</th>
       <th data-k="trustCost">投信成本</th>
@@ -292,14 +305,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="prem">溢價%</th>
       <th data-k="instCost">法人成本</th>
       <th data-k="vsInst">貴法人%</th>
-      <th data-k="supPx">參考防守位</th>
-      <th data-k="supGap">距防守%</th>
-      <th data-k="runPct">期間漲幅%</th>
+                  <th data-k="runPct">期間漲幅%</th>
       <th data-k="toHigh">距20日高%</th>
       <th data-k="distMA20">距MA20%</th>
       <th data-k="epsTTM">EPS(近4季)</th>
       <th data-k="pe">本益比</th>
       <th data-k="peVsInd">本益比/同業</th>
+      <th data-k="foreignPct">外資持股%</th>
       <th data-k="mcap">市值(億)</th>
       <th data-k="revPeriod">營收月份</th>
       <th data-k="revYoY">營收年增%</th>
@@ -346,13 +358,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V18
+   法人卡位選股台 V21
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V18';
+const VER = 'V21';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -423,6 +435,13 @@ function idxOf(fields, ...pats){
     if(i >= 0) return i;
   }
   return -1;
+}
+/* 股數：優先用 MI_QFIIS 的發行股數，沒有才用實收資本額÷面額推算 */
+function sharesOf(f){
+  if(!f || !f.co) return null;
+  if(f.co.shares > 0) return f.co.shares;
+  if(f.co.cap > 0) return f.co.cap / (f.co.par || 10);
+  return null;
 }
 function pct(a,b){ return (a===null||b===null||!b) ? null : a/b*100; }
 function fmt(v,d){ return (v===null||v===undefined||!isFinite(v)) ? '—' : Number(v).toFixed(d===undefined?2:d); }
@@ -692,6 +711,8 @@ async function fetchPx(date){
    凡是 www.twse.com.tw 上有同樣資料的，一律排在前面先試。
    {D} 會替換成最後一個交易日。 */
 const FUND_EPS = [
+  {id:'shr_L', kind:'shr', mkt:'上市', name:'上市 外資持股統計（發行股數來源）',
+   url:'https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={D}&selectType=ALL&response=json', twseRwd:true},
   {id:'val_L', kind:'val', mkt:'上市', name:'上市 本益比／殖利率／淨值比',
    url:'https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date={D}&selectType=ALL&response=json',
    alt:'https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL', twseRwd:true},
@@ -869,12 +890,20 @@ function ingestFund(ep, rows){
         pb: N(K(row,'PBratio','PBRatio','PriceBookRatio','股價淨值比','淨值比')),
         dy: N(K(row,'DividendYield','YieldRatio','殖利率'))
       };
+    } else if(ep.kind === 'shr'){
+      /* MI_QFIIS 是外資持股統計，但它有「發行股數」這一欄——
+         而發行股數在被擋掉的公司基本資料端點之外，只有這裡拿得到。
+         有了它，市值與投信建倉比率才算得出來。 */
+      const sh = N(K(row,'發行股數','IssuedShares'));
+      if(sh > 0) r.co = Object.assign({}, r.co, {shares: sh, par: (r.co && r.co.par) || 10});
+      const fr = N(K(row,'全體外資及陸資持股比率','外資及陸資持股比率','持股比率'));
+      if(fr !== null) r.foreignPct = fr;
     } else if(ep.kind === 'co'){
       const ind = K(row,'產業別','IndustryName','Industry');
       if(ind && !r.ind) r.ind = String(ind).trim();
       const cap = N(K(row,'實收資本額','PaidInCapital','CapitalStock'));
       const par = N(K(row,'普通股每股面額','ParValue')) || 10;   // 面額欄常寫成「新台幣 10.0000元」
-      if(cap) r.co = {cap, par: par > 0 ? par : 10};
+      if(cap) r.co = Object.assign({}, r.co, {cap, par: par > 0 ? par : 10});
     }
 
     // 這一筆有沒有真的抽到東西？用來判斷「連到了但欄位對不上」
@@ -882,6 +911,7 @@ function ingestFund(ep, rows){
                 : ep.kind === 'is'  ? (r.is  && r.is.eps !== null && r.is.eps !== undefined)
                 : ep.kind === 'bs'  ? (r.bs  && r.bs.debt !== null && r.bs.debt !== undefined)
                 : ep.kind === 'val' ? (r.val && r.val.pe !== null && r.val.pe !== undefined)
+                : ep.kind === 'shr' ? (r.co  && r.co.shares > 0)
                 :                     (r.co  && r.co.cap > 0);
     if(probe) st.valued++;
   }
@@ -1184,7 +1214,7 @@ function metrics(code){
   const recent2t = win(q.t, 2).reduce((a,b)=>a+b, 0);      // 投信最近兩個交易日淨買超
   const net5tOnly = sumLast(q.t, 5) || 0;
   const net20t  = sumLast(q.t, 20) || 0;
-  const shares  = (f0 => f0 && f0.co && f0.co.cap > 0 ? f0.co.cap/(f0.co.par||10) : null)(DATA.fund[code]);
+  const shares  = sharesOf(DATA.fund[code]);
   const build20 = shares ? net20t * 1000 / shares * 100 : null;   // 張→股，佔股本比重
 
   /* --- 外資是不是在對倒 --- */
@@ -1358,11 +1388,8 @@ function valuation(code, px, f){
   const epsTTM = (pe && px) ? px / pe : null;           // 近四季 EPS，由本益比反推
   const bvps   = (pb && px) ? px / pb : null;           // 每股淨值
 
-  let shares = null, mcap = null;
-  if(co && co.cap > 0){
-    shares = co.cap / (co.par || 10);
-    mcap   = px ? px * shares / 1e8 : null;
-  }
+  const shares = sharesOf(f);
+  const mcap = (shares && px) ? px * shares / 1e8 : null;
 
   /* 合理價只在「有同產業樣本」時才算。
      少了產業別就退回全市場分位的話，水泥、營建這種成熟股會被電子股的高本益比
@@ -1640,6 +1667,7 @@ function score(){
       volRatio:m.volRatio, volSpike:m.volSpike,
       pattern:m.pattern, patNote:m.patNote,
       supName:m.supName, supPx:m.supPx, supGap:m.supGap,
+      build20:m.build20, foreignPct:(f.foreignPct===undefined?null:f.foreignPct),
       trustCost:m.trustCost, trustLots:m.trustLots, trustDays:m.trustDays,
       trustLo:m.trustLo, trustHi:m.trustHi,
       instCost:m.instCost, vsTrust:m.vsTrust, vsInst:m.vsInst, vsForeign:m.vsForeign,
@@ -1787,7 +1815,7 @@ const COL_GROUPS = [
   ['三軸分數', ['sChip','sFund','sRoom']],
   ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','absorb','volRatio']],
   ['價格比較（現價 vs 投信成本 vs 合理價）', ['px','trustCost','vsTrust','fair','fairLo','prem']],
-  ['其他成本與位階', ['instCost','vsInst','supPx','supGap','runPct','toHigh','distMA20']],
+  ['其他成本與位階', ['instCost','vsInst','runPct','toHigh','distMA20']],
   ['每股與估值', ['epsTTM','pe','mcap']],
   ['月營收', ['revPeriod','revYoY','revMoM']],
   ['財報（目前抓不到，端點通了才會有值）', ['nm','triScore','repDate']]
@@ -1795,10 +1823,9 @@ const COL_GROUPS = [
 const COL_LOCK = ['code','name','score','sigRank','phaseRank'];                 // 這幾欄不給關
 const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
-const COL_CORE = ['code','name','ind','score','sigRank','phaseRank','pattern',
-                  'trustD','t10buy','net20t','build20',
-                  'px','trustCost','vsTrust','fair','fairLo','prem',
-                  'supPx','supGap','revPeriod','revYoY','revMoM','epsTTM','pe','peVsInd'];
+const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
+                  't10buy','net20t','build20','px','trustCost','vsTrust',
+                  'revYoY','peVsInd'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
@@ -1973,7 +2000,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="43" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="42" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -1995,7 +2022,7 @@ function render(){
       <td>${r.foreignD ? dots(Math.min(r.foreignD,5),5,'g')+' '+r.foreignD : '<span class="na">—</span>'}</td>
       <td class="${cls(r.net5)}">${r.net5.toLocaleString()}</td>
       <td class="${cls(r.net20t)}">${Math.round(r.net20t).toLocaleString()}</td>
-      <td class="${cls(r.build20)}">${fmt(r.build20,2)}</td>
+      <td class="${r.build20===null?'na':(r.build20>=2?'bhot':'')}">${fmt(r.build20,2)}</td>
       <td class="${cls(r.absorb)}">${fmt(r.absorb,1)}</td>
       <td class="${r.volSpike>5?'pos':''}">${fmt(r.volRatio,2)}</td>
       <td>${fmt(r.px,2)}</td>
@@ -2017,8 +2044,6 @@ function render(){
       <td>${r.instCost===null?'<span class="na">—</span>':fmt(r.instCost,2)}</td>
       <td class="prem ${r.vsInst===null?'na':(r.vsInst>0?'pos':'neg')}">${
         r.vsInst===null ? '—' : (r.vsInst>0?'+':'') + fmt(r.vsInst,1)}</td>
-      <td>${r.supPx===null?'<span class="na">—</span>':`<span style="color:var(--dim2);font-size:10.5px">${r.supName}</span> ${fmt(r.supPx,2)}`}</td>
-      <td class="${cls(r.supGap)}">${fmt(r.supGap,1)}</td>
       <td class="${cls(r.runPct)}">${fmt(r.runPct,1)}</td>
       <td>${fmt(r.toHigh,1)}</td>
       <td class="${cls(r.distMA20)}">${fmt(r.distMA20,1)}</td>
@@ -2026,6 +2051,7 @@ function render(){
       <td>${fmt(r.pe,1)}</td>
       <td class="${r.peVsInd===null?'na':(r.peVsInd>=3||r.peVsInd<=0.45?'warnpe':'')}">${
         r.peVsInd===null ? '—' : r.peVsInd.toFixed(2)+'x'}</td>
+      <td>${r.foreignPct===null||r.foreignPct===undefined?'<span class="na">—</span>':fmt(r.foreignPct,1)}</td>
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td style="color:var(--dim)">${r.revPeriod ? roc2ad(r.revPeriod) : '<span class="na">—</span>'}</td>
       <td class="${cls(r.revYoY)}">${fmt(r.revYoY,1)}</td>
@@ -2674,12 +2700,34 @@ document.getElementById('docOut').innerHTML = `
 </table>
 <p>依你的要求，型態<b>只當標籤與可選篩選，不進評分</b>。順序是由上往下判，先中先算。</p>
 
+<h3>投信建倉% 與法定 10% 天花板</h3>
+<p>「投信建倉%」＝<b>近 20 日投信淨買超張數 ÷ 發行股數</b>。數字 ≥2% 會標紅，代表這 20 天投信吃掉了
+該公司 2% 以上的股份——以投信全體規模只佔台股市值約 1% 來看，那是相當集中的動作。</p>
 <div class="warn">
-<b>「建倉%」不是投信持股比率。</b>公開 API 只給每日買賣超（流量），不給持股水位（存量）。
+<b>對照法規（有個常被講漏的關鍵）：</b>《證券投資信託基金管理辦法》第 10 條第 1 項第 9 款規定，
+「每一基金」以及「<b>所經理之</b>全部基金」投資於任一上市櫃公司股票之股份總額，
+不得超過該公司已發行股份總數之 10%。<br>
+關鍵在「所經理之」——指的是<b>同一家投信公司</b>旗下全部基金，不是全體投信業界加總。
+元大有自己的 10% 額度、國泰也有自己的 10%。
+所以<b>「全體投信合計持股」在法律上沒有 10% 這條天花板</b>，
+理論上五家各持 8%、合計 40% 完全合法。
+而 Yahoo、CMoney 上看到的「投信持股比率」正是全體合計——那個數字到 10% 不是超標，也沒有法規意義。
+真正會卡住的是某一家投信自己逼近 10%，但那個明細並未公開揭露，從外面看不到。<br>
+這條規定沒有變過。2026 年 4 月那次鬆綁（俗稱「台積電條款」）改的是另一件事——
+「單一基金投資一檔股票不得超過<b>基金自己淨資產</b>的 10%」放寬到 25%，
+而且限該股票占加權指數比重逾 10% 才適用，目前全台股只有台積電符合。
+<b>對中小型股完全沒有影響</b>，別把兩者混為一談。<br><br>
+<b>「建倉%」仍然不是「投信持股比率」。</b>公開 API 只給每日買賣超（流量），不給持股水位（存量）。
 這一欄是「近 20 日投信淨買超 ÷ 股本」，量的是<b>最近吃了多少貨</b>，不是<b>總共抱多少</b>。
 一檔長期被投信抱著 8% 的股票，如果這個月沒動作，這欄會接近 0。
-你原本要的 1～6% 持股比率，Yahoo 股市有公布，但那是 HTML 頁面不是 JSON，要另外爬。
+它量的是<b>這 20 天吃了多少</b>，不是<b>總共抱了多少</b>。一檔長期被投信抱著 8% 的股票，
+這個月沒動作的話這欄會接近 0。真正的持股比率沒有免費 JSON API，Yahoo 股市有公布但是 HTML 頁面，要另外爬。<br>
+不過對「剛開始建倉」這個主題來說，近期增量其實比存量更貼題——
+你要找的是正在被吃貨的股票，不是已經被抱滿的。
 </div>
+<p>順帶一提，<b>發行股數</b>現在改從 <code>MI_QFIIS</code>（外資持股統計）取得，
+那支在 <code>www.twse.com.tw</code> 上、是通的。所以建倉% 與市值都活過來了，
+還順便多了一欄<b>外資持股%</b>。
 
 <div class="warn">
 <b>投信買超榜正在被 ETF 稀釋。</b>主動式 ETF 成立與高股息 ETF 募集造成的建倉，
