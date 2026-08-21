@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V33</title>
+<title>法人卡位選股台 V34</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -251,7 +251,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V33</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V34</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -411,13 +411,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V33
+   法人卡位選股台 V34
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V33';
+const VER = 'V34';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -471,10 +471,24 @@ function K(row, ...pats){
   }
   return undefined;
 }
+/* 把證交所／MOPS 的字串轉數字。
+   坑在負號：這些報表的負數可能寫成半形 -、全形 －(U+FF0D)、數學減號 −(U+2212)、
+   或 en/em dash，也可能用括號 (12.34) 表示負；而單獨一個破折號則是「無資料」。
+   舊版把所有非半形的破折號一律刪掉，結果 －12.34 變成 +12.34——正負號整個被吃掉，
+   營收衰退的股票會被讀成成長。這裡先判斷是不是無資料，再統一負號。 */
 function N(v){
   if(v === null || v === undefined) return null;
-  const s = String(v).replace(/[,\s\u3000%]/g,'').replace(/[\u2013\u2014\uFF0D]/g,'');
-  if(s === '' || s === '-' || s === '--' || s === 'N/A') return null;
+  let s = String(v).replace(/[,\s\u3000%]/g,'');
+  // 只剩符號或空白＝無資料
+  if(/^[-\u2010-\u2015\u2212\uFF0D]*$/.test(s) || s === '' || s === 'N/A' || s === '--') return null;
+  // 括號表示負：(12.34) → -12.34
+  let neg = false;
+  const par = s.match(/^\((.+)\)$/);
+  if(par){ neg = true; s = par[1]; }
+  // 各種破折號統一成半形負號（只在開頭那個才算負號）
+  s = s.replace(/^[\u2010-\u2015\u2212\uFF0D]/, '-')
+       .replace(/[\u2010-\u2015\u2212\uFF0D]/g, '');   // 中間殘留的當雜訊移除
+  if(neg && s[0] !== '-') s = '-' + s;
   const n = Number(s);
   return isFinite(n) ? n : null;
 }
