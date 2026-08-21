@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V32</title>
+<title>法人卡位選股台 V33</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -201,6 +201,20 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   background:var(--dim2);vertical-align:super;margin-left:3px}
 #tbl thead th.hashelp:hover::after{background:var(--accent)}
 
+.whybar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;
+  background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.whybar input{background:#0f151d;color:var(--tx);border:1px solid var(--line);
+  border-radius:6px;padding:6px 10px;font-size:13px;width:150px;font-family:inherit}
+.whybox{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:10px}
+.whyhead{font-size:14px;margin-bottom:10px}
+.whysteps{display:flex;flex-direction:column;gap:4px}
+.whystep{display:grid;grid-template-columns:16px minmax(110px,auto) 1fr;gap:8px;font-size:12px;align-items:baseline}
+.whystep.ok .wmk{color:var(--dn)} .whystep.no .wmk{color:var(--up);font-weight:800}
+.whystep .wlb{color:var(--tx);font-weight:600}
+.whystep .wdt{color:var(--dim)}
+.whystep.no .wdt{color:#ffb3b3}
+@media(max-width:760px){ .whystep{grid-template-columns:16px 1fr} .whystep .wdt{grid-column:2} }
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -237,7 +251,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V32</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V33</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -295,6 +309,14 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <option value="已噴出">已噴出</option></select></div>
     <label class="chk"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
   </div></div>
+
+  <div class="whybar">
+    <span style="font-size:12.5px;color:var(--dim);font-weight:600">查某一檔：為什麼在／不在名單？</span>
+    <input type="text" id="whyCode" placeholder="輸入代號，例如 9910" maxlength="4">
+    <button class="btn pri" id="btnWhy">查詢</button>
+    <span style="font-size:11.5px;color:var(--dim2)">會逐關告訴你它卡在哪一條，以及當時的數字</span>
+  </div>
+  <div id="whyOut"></div>
 
   <div class="colbar">
     <button class="btn" id="btnCols">欄位顯示</button>
@@ -389,13 +411,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V32
+   法人卡位選股台 V33
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V32';
+const VER = 'V33';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2246,6 +2268,167 @@ function initHScroll(){
 }
 let HSCROLL_SYNC = null;
 
+/* ==========================================================================
+   查某一檔：為什麼在／不在名單？
+   把 score() 的硬排除與 filtered() 的每一條篩選逐關重跑一次，
+   回報卡在哪裡、當時的數字是多少。Claude 看不到使用者的資料，
+   這是唯一能讓使用者自己查清楚的辦法。
+   ========================================================================== */
+function whyStock(code){
+  code = String(code || '').trim();
+  const R = {code, steps:[], verdict:'', row:null};
+  const pass = (label, detail) => R.steps.push({ok:true,  label, detail});
+  const fail = (label, detail) => R.steps.push({ok:false, label, detail});
+
+  if(!/^\d{4}$/.test(code)){
+    R.verdict = 'bad';
+    fail('代號格式', '請輸入四位數字代號，例如 9910');
+    return R;
+  }
+  if(!DATA.dates.length){
+    R.verdict = 'bad';
+    fail('還沒有資料', '先按「更新並篩選」');
+    return R;
+  }
+
+  const f = DATA.fund[code] || {rev:{}, is:{}, bs:{}, val:{}};
+  const nm = f.name || '';
+
+  // --- 資料層 ---
+  if(!DATA.ins[code]){
+    R.verdict = 'out';
+    fail('法人資料', `這 ${DATA.dates.length} 個交易日的三大法人日報裡完全沒有 ${code}。可能是上櫃股（本工具目前只接上市）、或這段期間沒有任何法人進出`);
+    return R;
+  }
+  pass('法人資料', '有這一檔的法人進出紀錄');
+
+  const m = metrics(code);
+  if(!m){
+    R.verdict = 'out';
+    fail('行情資料', '抓不到收盤價，無法計算');
+    return R;
+  }
+  pass('行情資料', `最新收盤 ${fmt(m.px,2)}`);
+
+  // --- score() 的硬排除，順序與程式一致 ---
+  if(m.trustD === 0 && m.foreignD === 0 && m.net5 <= 0){
+    R.verdict = 'out';
+    fail('法人有沒有在買', `投信連買 0 天、外資連買 0 天，近 5 日法人合計 ${Math.round(m.net5).toLocaleString()} 張（淨賣超）。這是硬排除，法人沒在買就不是卡位標的`);
+    return R;
+  }
+  pass('法人有沒有在買', `投信連買 ${m.trustD} 天、外資連買 ${m.foreignD} 天，近 5 日合計 ${Math.round(m.net5).toLocaleString()} 張`);
+
+  if(m.vol20 !== null && m.vol20 < 1000){
+    R.verdict = 'out';
+    fail('成交量門檻', `20 日均量只有 ${Math.round(m.vol20).toLocaleString()} 張，未達 1000 張。這是硬排除`);
+    return R;
+  }
+  pass('成交量門檻', `20 日均量 ${m.vol20===null?'—':Math.round(m.vol20).toLocaleString()} 張`);
+
+  const fin = isFinancial(code, nm || code, f.ind);
+  if(document.getElementById('fNoFin').checked && fin){
+    R.verdict = 'out';
+    fail('排除金融股', `被判定為金融股（${f.ind || '依代號區間'}）。要看的話把「排除金融股」取消勾選`);
+    return R;
+  }
+  pass('排除金融股', fin ? '是金融股但目前沒有勾排除' : '不是金融股');
+
+  const eps = (f.is && f.is.eps !== null && f.is.eps !== undefined) ? f.is.eps : null;
+  if(document.getElementById('fNoLoss').checked && eps !== null && eps <= 0){
+    R.verdict = 'out';
+    fail('排除虧損', `單季 EPS ${fmt(eps,2)} 元。要看的話把「排除虧損」取消勾選`);
+    return R;
+  }
+  pass('排除虧損', eps === null ? '沒有 EPS 資料，不受此條影響' : `單季 EPS ${fmt(eps,2)} 元`);
+
+  // --- 到這裡應該在 ROWS 裡 ---
+  const r = ROWS.find(x => x.code === code);
+  if(!r){
+    R.verdict = 'odd';
+    fail('計分', '硬排除都過了，但沒有出現在計分結果裡。可能是三軸全部都沒有資料（分數算不出來）');
+    return R;
+  }
+  R.row = r;
+  pass('計分', `卡位分 ${r.score}（法人 ${r.sChip===null?'—':r.sChip} ／ 基本面 ${r.sFund===null?'—':r.sFund} ／ 空間 ${r.sRoom===null?'—':r.sRoom}）`);
+
+  // --- filtered() 的每一條，依畫面上目前的設定 ---
+  const V = id => document.getElementById(id).value;
+  const C = id => document.getElementById(id).checked;
+  const checks = [
+    ['最低總分',      +V('fScore')||0, () => r.score >= (+V('fScore')||0), `卡位分 ${r.score}，門檻 ${+V('fScore')||0}`],
+    ['投信連買 ≥',    +V('fTrust')||0, () => r.trustD >= (+V('fTrust')||0), `投信連買 ${r.trustD} 天，門檻 ${+V('fTrust')||0}`],
+    ['只看投信有買的', C('fTrustOnly'), () => !C('fTrustOnly') || r.trustD > 0, `投信連買 ${r.trustD} 天`],
+    ['只看基本面有資料的', C('fHasFund'), () => !C('fHasFund') || r.hasFund, r.hasFund ? '有基本面資料' : '沒有基本面資料（營收／財報都沒抓到）'],
+    ['溢價 ≤',        V('fPrem'), () => V('fPrem')==='' || (r.prem !== null && r.prem <= +V('fPrem')), r.prem===null ? '算不出溢價' : `溢價 ${fmt(r.prem,1)}%`],
+    ['貴投信 ≤',      V('fVsT'),  () => V('fVsT')==='' || (r.vsTrust !== null && r.vsTrust <= +V('fVsT')), r.vsTrust===null ? '算不出投信成本' : `貴投信 ${fmt(r.vsTrust,1)}%`],
+    ['窗口內買超天數 ≥', V('fT10'), () => V('fT10')==='' || r.t10buy >= +V('fT10'), `窗口內買 ${r.t10buy} 天 / 賣 ${r.t10sell} 天`],
+    ['買多賣少 ≥',    V('fNetD'), () => V('fNetD')==='' || (r.t10buy - r.t10sell) >= +V('fNetD'), `買減賣 = ${r.t10buy - r.t10sell}`],
+    ['量能倍數',      V('fVol'), () => {
+        const v = V('fVol');
+        if(v === 'mild')    return r.volRatio !== null && r.volRatio >= 1.2 && r.volRatio <= 3;
+        if(v === 'nospike') return r.volSpike !== null && r.volSpike <= 5;
+        return true;
+      }, `量倍 ${fmt(r.volRatio,2)}、近5日最大單日 ${fmt(r.volSpike,2)} 倍`],
+    ['位階型態',      V('fPat'), () => {
+        const p = V('fPat');
+        if(p === '__early') return ['打底整理','剛突破頸線','剛站回均線'].includes(r.pattern);
+        return !p || r.pattern === p;
+      }, `目前是「${r.pattern}」`],
+    ['排除外資對倒',  C('fNoDump'), () => !(C('fNoDump') && r.f5sellDays >= 3 && r.net5fOnly < 0),
+        `外資近 5 日賣 ${r.f5sellDays} 天、淨 ${Math.round(r.net5fOnly).toLocaleString()} 張`],
+    ['訊號',          V('fSig'), () => !V('fSig') || (r.SIG && r.SIG.k === V('fSig')), `目前訊號是「${r.SIG ? r.SIG.label : '—'}」`],
+    ['買超期間漲幅 ≤', V('fRun'), () => V('fRun')==='' || r.runPct === null || r.runPct <= +V('fRun'), `期間漲幅 ${fmt(r.runPct,1)}%`],
+    ['營收年增 ≥',    V('fYoY'), () => V('fYoY')==='' || (r.revYoY !== null && r.revYoY >= +V('fYoY')), r.revYoY===null ? '沒有營收資料' : `營收年增 ${fmt(r.revYoY,1)}%`],
+    ['產業',          V('fInd'), () => !V('fInd') || r.ind === V('fInd'), `產業是「${r.ind}」`],
+    ['搜尋字串',      V('fQ'), () => { const q = V('fQ').trim(); return !q || r.code.indexOf(q) >= 0 || r.name.indexOf(q) >= 0; }, `搜尋框目前是「${V('fQ')}」`]
+  ];
+
+  let blocked = false;
+  for(const [label, cond, test, detail] of checks){
+    const active = (cond !== '' && cond !== false && cond !== 0) || label === '最低總分';
+    if(!active){ continue; }              // 這條沒設定，跳過不列
+    if(test()) pass(label, detail);
+    else { fail(label, detail + ' → 被這條擋掉'); blocked = true; break; }
+  }
+
+  R.verdict = blocked ? 'filtered' : 'in';
+  return R;
+}
+
+function renderWhy(code){
+  const el = document.getElementById('whyOut');
+  if(!el) return;
+  if(!code){ el.innerHTML = ''; return; }
+  const R = whyStock(code);
+  const r = R.row;
+  const head = {
+    in:       ['#8fe0ad', `${R.code}${r?' '+r.name:''} 目前<b>在名單裡</b>`],
+    filtered: ['#ffd166', `${R.code}${r?' '+r.name:''} <b>有進計分，但被目前的篩選條件擋掉</b>`],
+    out:      ['#ff9d9d', `${R.code}${r?' '+r.name:''} <b>連計分都沒進</b>`],
+    odd:      ['#ff9d9d', `${R.code} 狀況異常`],
+    bad:      ['#ff9d9d', `無法查詢`]
+  }[R.verdict] || ['#8b98a8', R.code];
+
+  el.innerHTML = `<div class="whybox">
+    <div class="whyhead" style="color:${head[0]}">${head[1]}</div>
+    <div class="whysteps">${R.steps.map(s =>
+      `<div class="whystep ${s.ok?'ok':'no'}">
+         <span class="wmk">${s.ok?'✓':'✕'}</span>
+         <span class="wlb">${s.label}</span>
+         <span class="wdt">${s.detail}</span>
+       </div>`).join('')}</div>
+    ${r ? `<div style="margin-top:10px;font-size:12px;color:var(--dim)">
+      收盤 ${fmt(r.px,2)}　·　投信成本 ${fmt(r.trustCost,2)}　·　貴投信 ${fmt(r.vsTrust,1)}%　·　
+      位階 ${r.pattern}　·　階段 ${r.PH?r.PH.label:'—'}　·　訊號 ${r.SIG?r.SIG.label:'—'}　·　
+      累計建倉 ${fmt(r.buildAll,2)}%　·　停手 ${r.idleDays===null?'—':r.idleDays} 天
+      <button class="btn" style="font-size:11px;padding:3px 9px;margin-left:8px" id="whyOpen">看完整明細</button>
+    </div>` : ''}
+  </div>`;
+  const b = document.getElementById('whyOpen');
+  if(b) b.onclick = () => { SELECTED = R.code; showDetail(R.code);
+    document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'start'}); };
+}
+
 const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
                  '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
 function patChip(p){
@@ -3121,6 +3304,10 @@ document.getElementById('btnReset').onclick = () => {
 };
 document.getElementById('btnFbTest').onclick = fbTest;
 document.getElementById('btnFbAuto').onclick = fbAutoDetect;
+document.getElementById('btnWhy').onclick = () => renderWhy(document.getElementById('whyCode').value);
+document.getElementById('whyCode').addEventListener('keydown', e => {
+  if(e.key === 'Enter') renderWhy(document.getElementById('whyCode').value);
+});
 ['fbUrl','fbOn','fbOnly'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad(); renderVintage(); renderAlert(); }));
 document.getElementById('btnFbPush').onclick = pushAllToCloud;
