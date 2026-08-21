@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V24</title>
+<title>法人卡位選股台 V25</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -193,6 +193,14 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .tblwrap::-webkit-scrollbar{height:14px}
 .tblwrap::-webkit-scrollbar-thumb{background:#3d4b5f;border-radius:7px;border:2px solid var(--panel)}
 
+.coltip{display:none;position:absolute;z-index:99;background:#0b1017;color:var(--tx);
+  border:1px solid #3d4b5f;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.65;
+  white-space:pre-line;box-shadow:0 10px 28px rgba(0,0,0,.65);pointer-events:none}
+#tbl thead th.hashelp{cursor:help}
+#tbl thead th.hashelp::after{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:var(--dim2);vertical-align:super;margin-left:3px}
+#tbl thead th.hashelp:hover::after{background:var(--accent)}
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -229,7 +237,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V24</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V25</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -374,13 +382,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V24
+   法人卡位選股台 V25
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V24';
+const VER = 'V25';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1858,6 +1866,81 @@ const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
 
+/* ==========================================================================
+   欄位說明：滑鼠移到表頭就出現
+   ========================================================================== */
+const COL_HELP = {
+  code:'證券代號。點任一列可展開該檔的完整計分明細。',
+  name:'證券名稱。後面的小標是上市或上櫃。',
+  ind:'產業別。合理價的同業比較就是以這個分類為準。',
+  score:'卡位分 0～100。法人卡位 40 ＋ 基本面 35 ＋ 還有多少空間 25，缺資料的項目會從分母扣掉再按比例還原。',
+  sigRank:'進出訊號。刻意不看估值，只看籌碼與位階。\n可觀察＝四個條件同時成立的上車候選；\n續抱＝還在買但已漲一段；\n買盤中斷／跌破防守／投信轉賣＝進場理由消失。',
+  phaseRank:'投信現在走到哪個階段。\n剛起手→建倉中→拉抬中→結帳風險高→減碼→出貨。\n建倉中是最好的上車窗口。',
+  pattern:'股價位階型態。\n打底整理／剛突破頸線／剛站回均線＝還沒發動；\n已噴出＝距 20 日線逾 10% 或 20 日漲幅逾 20%。',
+  trustD:'投信從最新一天往回數，連續買超幾天。中斷即停。',
+  t10buy:'近 10 個交易日投信買超天數 / 賣超天數。\n看「買多賣少」比看純連買可靠——投信中間停一天調節，建倉並沒有中斷。',
+  foreignD:'外資連續買超天數，算法同投信。',
+  net5:'近 5 日外資＋投信合計買超張數。',
+  net20t:'近 20 日投信淨買超張數（買超扣掉賣超）。',
+  build20:'投信建倉% ＝ 近 20 日投信淨買超張數 ÷ 發行股數。\n\n≥3%　20 天吃掉 3% 股本，非常猛\n≥1%　明顯建倉\n≥0.3% 開始有動作\n<0.3% 幾乎沒動\n\n注意：這是「近 20 日增量」，不是「總持股比率」。\n一檔被投信長期抱著 8% 但這個月沒動作的股票，這欄會接近 0。',
+  foreignPct:'外資及陸資持股佔發行股數的比率，取自證交所每日持股統計。\n這是存量（總共抱多少），與左邊的投信建倉%（增量）不同。',
+  absorb:'吸籌強度 ＝ 近 5 日法人買超張數 ÷ 近 5 日總成交張數。\n8% 以上代表法人吃掉了近期相當比例的量，籌碼在集中。',
+  volRatio:'量能倍數 ＝ 近 5 日均量 ÷ 20 日均量。\n1.2～3 倍是溫和放大；超過 5 倍多半是短線過熱。',
+  px:'最新收盤價。',
+  trustCost:'投信建倉成本 ＝ 把每個買超日的當日均價，用當天買超張數加權平均。\n當日均價取（高＋低＋收）÷3。後面小字是幾個買超日。\n\n限制：只看得到快取範圍內（預設 25 日）的買超，投信更早建倉的部分看不到。',
+  vsTrust:'你現在進場比投信貴多少 ＝（現價 − 投信成本）÷ 投信成本。\n\n≤0%　　比投信還便宜，最好的位置\n0～3%　幾乎同價位，這才叫卡位\n3～8%　還在合理範圍\n8～15% 等回檔比較好\n≥15%　替他們抬轎',
+  instCost:'外資＋投信合計的建倉成本，算法同投信成本。',
+  vsInst:'現價相對法人合計成本的溢價。',
+  runPct:'買超期間漲幅 ＝ 從法人開始連買的前一日收盤，算到最新收盤。\n判斷「卡位」還是「追價」最直接的數字。',
+  toHigh:'距 20 日高點。負值代表還在高點下方，越負離前高越遠、空間越大。',
+  distMA20:'現價距 20 日均線的百分比。\n貼著均線（±3%）通常是剛整理完；超過 +7% 代表位階已高。',
+  epsTTM:'近四季 EPS ＝ 收盤價 ÷ 交易所本益比。\n交易所的本益比本來就用近四季累計每股盈餘計算，反推回去比自己拼四季財報可靠。',
+  pe:'交易所公布的本益比（近四季）。',
+  peVsInd:'本益比 ÷ 同業中位數。\n\n≥3.0x　市場在為未來獲利定價（轉型、題材）→ 合理價不適用\n0.45～3.0x　估值與同業在同一個世界\n≤0.45x　市場刻意折價（業外一次性獲利、控股折價、本業衰退）→ 合理價不適用\n\n標黃就代表合理價那幾欄不能看。',
+  mcap:'市值 ＝ 收盤價 × 發行股數，單位億元。',
+  fair:'合理價中值 ＝ 近四季 EPS × 同業本益比中位數。\n旁邊的 ±N% 是區間寬度。\n\n這是相對估值，回答「相對同業貴不貴」，不是「這家公司值多少錢」。',
+  fairLo:'合理價區間 ＝ 近四季 EPS ×（同業本益比 P25 ～ P75）。\n±20～30% 會淡化，±30% 以上直接顯示「太散」——\n一檔 500 元的股票給你 300～585，那沒有決策價值。',
+  prem:'溢價 ＝（現價 − 合理價中值）÷ 合理價中值。\n紅色「貴」＝相對同業偏貴，綠色「便宜」＝相對同業便宜。\n注意這裡的紅色是要小心的意思，跟漲跌顏色相反。',
+  revPeriod:'月營收所屬月份（不是公告日）。每月 10 日前公告上個月。',
+  revYoY:'月營收較去年同月增減。',
+  revMoM:'月營收較上個月增減。',
+  gm:'毛利率 ＝ 營業毛利 ÷ 營業收入。',
+  om:'營業利益率 ＝ 營業利益 ÷ 營業收入，衡量本業賺不賺錢。',
+  nm:'稅後淨利率 ＝ 本期淨利 ÷ 營業收入。',
+  triScore:'三率三升＝毛利率、營益率、淨利率同時較上一期上升。\n需要兩期財報才算得出來，工具會逐季自動累積。\n「推測」代表只有一期財報，改用營收動能給方向——那是代打不是預測。',
+  repDate:'財報出表日期。帶 ※ 代表抓不到、退回用最後交易日代替。',
+  sChip:'法人卡位軸得分（滿分 40）。',
+  sFund:'基本面軸得分（滿分 35）。顯示「—」代表整軸都沒有資料。',
+  sRoom:'還有多少空間軸得分（滿分 25）。這一軸刻意反向：越沒漲分越高。'
+};
+
+function initColHelp(){
+  let tip = document.getElementById('coltip');
+  if(!tip){
+    tip = document.createElement('div');
+    tip.id = 'coltip';
+    tip.className = 'coltip';
+    document.body.appendChild(tip);
+  }
+  document.querySelectorAll('#tbl thead th').forEach(th => {
+    const h = COL_HELP[th.dataset.k];
+    if(!h) return;
+    th.classList.add('hashelp');
+    th.onmouseenter = () => {
+      tip.textContent = h;
+      tip.style.display = 'block';
+      const r = th.getBoundingClientRect();
+      const w = Math.min(340, window.innerWidth - 24);
+      tip.style.width = w + 'px';
+      let left = r.left + r.width/2 - w/2;
+      left = Math.max(12, Math.min(left, window.innerWidth - w - 12));
+      tip.style.left = left + 'px';
+      tip.style.top = (r.bottom + window.scrollY + 8) + 'px';
+    };
+    th.onmouseleave = () => { tip.style.display = 'none'; };
+  });
+}
+
 function colInit(){
   COL_ORDER = [...document.querySelectorAll('#tbl thead th')].map(th => th.dataset.k);
   let saved = null;
@@ -2954,6 +3037,7 @@ document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); 
 cacheLoad();
 fbLoad();
 colInit();
+initColHelp();
 initHScroll();
 cacheInfo();
 renderProbe();
