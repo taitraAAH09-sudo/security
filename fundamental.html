@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V27</title>
+<title>法人卡位選股台 V29</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -237,7 +237,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V27</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V29</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -277,7 +277,12 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
     <button class="btn" id="btnReset">清除所有篩選條件</button>
-    <div class="fld"><label>投信 10 日買超天數 ≥</label><input type="number" id="fT10" value="" min="0" max="10"></div>
+    <div class="fld"><label>買賣天數統計窗口</label>
+      <select id="fWin"><option value="5">近 5 日</option>
+        <option value="10">近 10 日</option>
+        <option value="20" selected>近 20 日</option>
+        <option value="0">全部快取期間</option></select></div>
+    <div class="fld"><label>窗口內買超天數 ≥</label><input type="number" id="fT10" value="" min="0"></div>
     <div class="fld"><label>買多賣少（買−賣天數）≥</label><input type="number" id="fNetD" value=""></div>
     <div class="fld"><label>量能倍數</label>
       <select id="fVol"><option value="">不限</option>
@@ -313,7 +318,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="sRoom">空間</th>
       <th data-k="pattern">位階型態</th>
       <th data-k="trustD">投信連買</th>
-      <th data-k="t10buy">投信10日買/賣</th>
+      <th data-k="t10buy" id="thT10">投信20日買/賣</th>
       <th data-k="foreignD">外資連買</th>
       <th data-k="net5">近5日買超(張)</th>
       <th data-k="net20t">投信20日(張)</th>
@@ -383,13 +388,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V27
+   法人卡位選股台 V29
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V27';
+const VER = 'V29';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -489,6 +494,8 @@ function isFinancial(code, name, ind){
    DATA.ins   : code -> {f:[],t:[]}            外資、投信買賣超（張）
    DATA.fund  : code -> {name,ind,mkt,rev,is,bs,val}
    ========================================================================== */
+let TW_WIN = 20;          // 投信買賣天數的統計窗口（交易日）
+                          // 預設 20：作帳等級的連買可到 14~20 天，10 日窗口會把它們壓成同一個樣子
 const CACHE_KEY = 'kawei_cache_v2';
 let DATA = {dates:[], px:{}, ins:{}, fund:{}, hist:{}, fundAt:0, epAt:{}};
 let ROWS = [], PROBE = {}, SORT = {k:'score', dir:-1}, SELECTED = null;
@@ -1245,7 +1252,10 @@ function metrics(code){
     for(let i = arr.length-1; i >= 0 && out.length < k; i--) if(arr[i] !== null) out.push(arr[i]);
     return out;
   };
-  const t10 = win(q.t, 10);
+  /* 買賣天數的統計窗口可調。作帳等級的連買可以到 14~20 天，
+     10 天窗口看得出「是不是認真的」，但看不出「已經買多久了」——
+     中租連買 20 天在 10 日窗口下會顯示 10/0，跟剛連買 10 天的股票長得一樣。 */
+  const t10 = win(q.t, TW_WIN);
   const t10buy  = t10.filter(x => x > 0).length;
   const t10sell = t10.filter(x => x < 0).length;
   const recent2t = win(q.t, 2).reduce((a,b)=>a+b, 0);      // 投信最近兩個交易日淨買超
@@ -1898,7 +1908,8 @@ const COL_HELP = {
   phaseRank:'投信現在走到哪個階段。\n剛起手→建倉中→拉抬中→結帳風險高→減碼→出貨。\n建倉中是最好的上車窗口。',
   pattern:'股價位階型態。\n打底整理／剛突破頸線／剛站回均線＝還沒發動；\n已噴出＝距 20 日線逾 10% 或 20 日漲幅逾 20%。',
   trustD:'投信從最新一天往回數，連續買超幾天。中斷即停。',
-  t10buy:'近 10 個交易日投信買超天數 / 賣超天數。\n看「買多賣少」比看純連買可靠——投信中間停一天調節，建倉並沒有中斷。',
+  t10buy:'統計窗口內投信的買超天數 / 賣超天數，窗口可在上方切換（5／10／20／全期）。\n\n看「買多賣少」比看純連買可靠——投信中間停一天調節，建倉並沒有中斷。\n\n參考量級：\n3～5 天　進場甜蜜點，足以排除試單、空間還在\n10 天　　足以判斷是不是認真的\n14～20 天 作帳等級的重倉，但通常股價已反映一大段\n\n注意：窗口設 10 天時，連買 20 天的股票也只會顯示 10/0，\n跟剛連買 10 天的長得一樣。想分辨就把窗口切到 20 或全期。',
+  t10buy:'統計窗口內投信的買超天數 / 賣超天數，窗口可在上方切換（5／10／20／全期）。\n\n看「買多賣少」比看純連買可靠——投信中間停一天調節，建倉並沒有中斷。\n\n參考量級：3~5 天是進場甜蜜點；10 天足以判斷是不是認真的；\n作帳等級的重倉可以連買 14~20 天，但走到那裡股價通常已反映一大段。',
   foreignD:'外資連續買超天數，算法同投信。',
   net5:'近 5 日外資＋投信合計買超張數。',
   net20t:'近 20 日投信淨買超張數（買超扣掉賣超）。',
@@ -3034,6 +3045,13 @@ document.getElementById('btnFbTest').onclick = fbTest;
   document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad(); renderVintage(); renderAlert(); }));
 document.getElementById('btnFbPush').onclick = pushAllToCloud;
 ['fNoFin','fNoLoss'].forEach(id => document.getElementById(id).addEventListener('change', score));
+document.getElementById('fWin').addEventListener('change', () => {
+  const v = +document.getElementById('fWin').value;
+  TW_WIN = v > 0 ? v : 9999;                 // 0 代表全部快取期間
+  const th = document.getElementById('thT10');
+  if(th) th.textContent = (v > 0 ? '投信'+v+'日買/賣' : '投信全期買/賣');
+  score();
+});
 document.getElementById('btnRun').onclick = runAll;
 document.getElementById('btnFund').onclick = runFundOnly;
 document.getElementById('btnProbe').onclick = probeAll;
@@ -3052,6 +3070,12 @@ document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); 
 
 cacheLoad();
 fbLoad();
+(function syncWin(){
+  const sel = document.getElementById('fWin');
+  if(sel) sel.value = String(TW_WIN);
+  const th = document.getElementById('thT10');
+  if(th) th.textContent = '投信' + TW_WIN + '日買/賣';
+})();
 colInit();
 initColHelp();
 initHScroll();
