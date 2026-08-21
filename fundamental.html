@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V34</title>
+<title>法人卡位選股台 V35</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -215,6 +215,10 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .whystep.no .wdt{color:#ffb3b3}
 @media(max-width:760px){ .whystep{grid-template-columns:16px 1fr} .whystep .wdt{grid-column:2} }
 
+.axval{color:var(--tx);font-weight:700;margin-right:8px;font-variant-numeric:tabular-nums}
+.axval.neg{color:var(--dn)}
+.axpt{color:var(--dim2);font-weight:600;font-size:11px}
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -251,7 +255,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V34</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V35</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -411,13 +415,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V34
+   法人卡位選股台 V35
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V34';
+const VER = 'V35';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2565,14 +2569,30 @@ function sparkline(code){
       tc !== null ? `，紫色虛線是投信建倉成本 ${fmt(tc,2)} 元` : ''}</div>`;
 }
 
+/* 每一項同時顯示「實際數值」與「拿幾分」。
+   先前只顯示 x/y 的分數，使用者很容易把「0/12」讀成「數值是 0」——
+   實際上那是「營收年減所以拿 0 分」，數值可能是 -18%。 */
+const AX_UNIT = {
+  '營收年增率':'%', '營業利益率':'%', '稅後淨利率':'%', '毛利率':'%',
+  '負債比':'%', '流動比':'%', '吸籌強度（近5日買超÷成交量）':'%',
+  '買超期間漲幅':'%', '距 20 日高點':'%', '距 MA20':'%', '相對同業估值':'%',
+  '單季 EPS':' 元', '本益比':' 倍',
+  '投信連買天數':' 天', '外資連買天數':' 天'
+};
 function axBlock(title, arr, got, max){
   return `<div class="ax">
     <div class="axh"><span>${title}</span><span><b>${got}</b> / ${max}</span></div>
     <div class="parts">${arr.map(p => {
       const miss = p.pt === null;
       const w = miss ? 0 : (p.pt/p.max*100);
+      const unit = AX_UNIT[p.label] || '';
+      const hasVal = p.val !== null && p.val !== undefined && isFinite(p.val);
+      const valTxt = hasVal
+        ? `<b class="axval ${p.val<0?'neg':''}">${fmt(p.val, Math.abs(p.val)>=100?0:2)}${unit}</b>`
+        : '';
       return `<div class="part">
-        <div class="pt1"><span>${p.label}</span><em>${miss ? '<span class="na">無資料</span>' : p.pt+'/'+p.max}</em></div>
+        <div class="pt1"><span>${p.label}</span>
+          <em>${valTxt}<span class="axpt">${miss ? '<span class="na">無資料</span>' : p.pt+'/'+p.max+' 分'}</span></em></div>
         <div class="bar ${miss?'miss':''}"><i style="width:${w}%"></i></div>
         <div style="color:var(--dim2);font-size:10.5px">${p.note}</div>
       </div>`;
@@ -2595,6 +2615,8 @@ function showDetail(code){
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;
                   padding:9px 12px;margin-bottom:10px;font-size:12px">
         <b>三率三升</b>　${triChip(r.TRI)}
+        ${r.gm!==null||r.om!==null||r.nm!==null ? `<span style="color:var(--dim2);font-size:11px">
+          毛利 ${fmt(r.gm,1)}%　營益 ${fmt(r.om,1)}%　淨利 ${fmt(r.nm,1)}%</span>` : ''}
         <div style="color:var(--dim);margin-top:3px">${r.TRI ? r.TRI.why : ''}</div>
       </div>
       <div class="tags">${r.tags.map(([t,c]) => `<span class="tg ${c}">${t}</span>`).join('')}</div>
