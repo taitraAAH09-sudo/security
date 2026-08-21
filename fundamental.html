@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V29</title>
+<title>法人卡位選股台 V32</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -237,7 +237,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V29</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V32</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -369,10 +369,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   <div class="fbrow">
     <div class="fld" style="flex:1">
       <label>Firebase Realtime Database 網址（抓過的日子存這裡，換裝置不必重抓）</label>
-      <input type="text" id="fbUrl" placeholder="https://xxxx-default-rtdb.firebaseio.com">
+      <input type="text" id="fbUrl" placeholder="https://security-9481e-default-rtdb.asia-southeast1.firebasedatabase.app">
     </div>
     <label class="chk"><input type="checkbox" id="fbOn">啟用雲端快取</label>
     <label class="chk"><input type="checkbox" id="fbOnly">只讀雲端（完全不連證交所）</label>
+    <button class="btn" id="btnFbAuto">自動偵測網址</button>
     <button class="btn" id="btnFbTest">測試連線</button>
     <button class="btn pri" id="btnFbPush">把本機資料全部灌上雲端</button>
     <div id="fbState" style="font-size:12px;color:var(--dim);padding-bottom:6px"></div>
@@ -388,13 +389,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V29
+   法人卡位選股台 V32
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V29';
+const VER = 'V32';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -527,9 +528,13 @@ function cacheInfo(){
    基本面快照存 /kawei/fund。規則需允許讀寫。
    ========================================================================== */
 const FB_KEY = 'kawei_fb_v3';
-let FB = {url:'', on:false, only:false};
+/* 已確認的 Firebase 網址（新加坡區）。stock.html 用 /twstk，這支用 /kawei，兩邊不衝突。
+   沒有存過設定時直接帶入並啟用，省得每次換檔案都要重填。 */
+const FB_DEFAULT_URL = 'https://security-9481e-default-rtdb.asia-southeast1.firebasedatabase.app';
+let FB = {url: FB_DEFAULT_URL, on: true, only: false};
 function fbLoad(){
   try{ const o = JSON.parse(localStorage.getItem(FB_KEY)); if(o) FB = Object.assign(FB, o); }catch(e){}
+  if(!FB.url) { FB.url = FB_DEFAULT_URL; FB.on = true; }
   const u = document.getElementById('fbUrl'), c = document.getElementById('fbOn'),
         o2 = document.getElementById('fbOnly');
   if(u) u.value = FB.url || '';
@@ -563,6 +568,51 @@ async function fbPut(path, body){
   if(!r.ok) throw new Error('Firebase HTTP ' + r.status);
   return true;
 }
+/* 自動偵測 Firebase 網址。
+   同一個專案 ID 會因為建立區域與新舊制而有不同結尾，逐一試讀最快。
+   判定條件：能讀到 .json 且不是 HTTP 錯誤（回 null 也算通，代表資料庫存在只是該路徑空的）。 */
+const FB_PROJECTS = ['security-9481e', 'stagetool-f9ffb'];
+function fbCandidates(proj){
+  return [
+    `https://${proj}-default-rtdb.asia-southeast1.firebasedatabase.app`,
+    `https://${proj}-default-rtdb.firebaseio.com`,
+    `https://${proj}.firebaseio.com`,
+    `https://${proj}-default-rtdb.europe-west1.firebasedatabase.app`
+  ];
+}
+async function fbAutoDetect(){
+  const el = document.getElementById('fbState');
+  const btn = document.getElementById('btnFbAuto');
+  btn.disabled = true;
+
+  // 若欄位已經填了東西，只試那一個的各種變體；否則試已知的專案
+  const typed = (document.getElementById('fbUrl').value || '').trim();
+  let list = [];
+  const m = typed.match(/https:\/\/([a-z0-9-]+?)(-default-rtdb)?\./i);
+  if(m) list = fbCandidates(m[1].replace(/-default-rtdb$/,''));
+  else FB_PROJECTS.forEach(p => { list = list.concat(fbCandidates(p)); });
+
+  for(let i=0;i<list.length;i++){
+    const u = list[i];
+    el.innerHTML = `測試 ${i+1}/${list.length}：<span style="color:var(--dim2)">${u}</span>`;
+    try{
+      const r = await fetch(u + '/kawei/_ping.json', {cache:'no-store'});
+      if(!r.ok) continue;
+      await r.json();                       // 能解析就算通
+      document.getElementById('fbUrl').value = u;
+      document.getElementById('fbOn').checked = true;
+      fbSave();
+      el.innerHTML = `<span style="color:#8fe0ad">找到了</span>：${u}　—　已自動填入並啟用，建議再按一次「測試連線」確認可寫入。`;
+      btn.disabled = false;
+      renderVintage();
+      return;
+    }catch(e){ /* 這個候選不通，換下一個 */ }
+  }
+  el.innerHTML = '<span style="color:#ff9d9d">都試不通。</span>'
+    + '請用文字編輯器打開你的 stock.html、搜尋 <code>firebaseio</code>，把那個網址複製過來貼上。';
+  btn.disabled = false;
+}
+
 async function fbTest(){
   const el = document.getElementById('fbState');
   fbSave();
@@ -1030,6 +1080,34 @@ async function runAll(){
   }
   PROBE._src = {fromCloud, fromTwse};
 
+  /* 補一個缺口：本機已經有、但雲端還沒有的日子。
+     那些日子不在 need 裡（本機有就不會進抓取迴圈），所以永遠不會被上傳——
+     換裝置時雲端就是空的。這裡對照雲端索引，把差集補上去。 */
+  if(fbReady() && DATA.dates.length){
+    try{
+      const idx = await fbGet('kawei/days?shallow=true') || {};
+      const missing = DATA.dates.filter(d => !(d in idx));
+      for(let i=0;i<missing.length;i++){
+        const d = missing[i];
+        setStatus(`補傳雲端缺的日子 ${d}（${i+1}/${missing.length}）`, true, false,
+                  55 + Math.round(i/missing.length*5));
+        const at = DATA.dates.indexOf(d);
+        const ins = {}, px = {};
+        for(const c in DATA.ins){
+          const s = DATA.ins[c];
+          if(s.f[at] !== null || s.t[at] !== null) ins[c] = {f:s.f[at]||0, t:s.t[at]||0};
+        }
+        for(const c in DATA.px){
+          const s = DATA.px[c];
+          if(s.c[at] !== null) px[c] = {c:s.c[at], h:s.h[at], l:s.l[at], v:s.v[at]};
+        }
+        if(!Object.keys(ins).length || !Object.keys(px).length) continue;
+        try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`補傳 ${d}：${e.message}`); }
+      }
+      if(missing.length) PROBE._src.backfilled = missing.length;
+    }catch(e){ fails.push(`Firebase 索引：${e.message}`); }
+  }
+
   let stale = Date.now() - (DATA.fundAt||0) > 6*3600*1000;
 
   // 基本面也先問雲端。只要雲端的比本機新就收，不再要求 6 小時內——
@@ -1085,7 +1163,8 @@ async function runAll(){
 
   const s = PROBE._src || {};
   let msg = `完成。資料涵蓋 <b>${DATA.dates.length}</b> 個交易日，法人名單 <b>${ROWS.length}</b> 檔。`;
-  if(s.fromCloud) msg += ` 其中 ${s.fromCloud} 天直接取自雲端、${s.fromTwse} 天新抓。`;
+  if(s.fromCloud) msg += ` 其中 ${s.fromCloud} 天取自雲端、${s.fromTwse} 天新抓。`;
+  if(s.backfilled) msg += ` <b>補傳 ${s.backfilled} 天到雲端。</b>`;
   if(fails.length) msg += ` <span style="color:#ff9d9d">${fails.length} 項失敗，到「資料源」看細節。</span>`;
   setStatus(msg, false, !DATA.dates.length);
 }
@@ -3041,6 +3120,7 @@ document.getElementById('btnReset').onclick = () => {
   render();
 };
 document.getElementById('btnFbTest').onclick = fbTest;
+document.getElementById('btnFbAuto').onclick = fbAutoDetect;
 ['fbUrl','fbOn','fbOnly'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad(); renderVintage(); renderAlert(); }));
 document.getElementById('btnFbPush').onclick = pushAllToCloud;
