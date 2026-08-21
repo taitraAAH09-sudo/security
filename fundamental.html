@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V21</title>
+<title>法人卡位選股台 V22</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -181,9 +181,24 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 #tbl tbody tr:hover td:nth-child(1), #tbl tbody tr:hover td:nth-child(2){background:#1a222e}
 #tbl tbody tr.sel td:nth-child(1), #tbl tbody tr.sel td:nth-child(2){background:#1e2a3a}
 
+.hscroll{overflow-x:auto;overflow-y:hidden;height:16px;margin-bottom:4px;
+  background:#0f151d;border:1px solid var(--line);border-radius:8px}
+.hscroll>div{height:1px}
+.hscroll::-webkit-scrollbar{height:14px}
+.hscroll::-webkit-scrollbar-track{background:transparent}
+.hscroll::-webkit-scrollbar-thumb{background:#3d4b5f;border-radius:7px;border:2px solid #0f151d}
+.hscroll::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.hscroll{scrollbar-width:thin;scrollbar-color:#3d4b5f #0f151d}
+.tblwrap{scrollbar-width:thin;scrollbar-color:#3d4b5f #0f151d}
+.tblwrap::-webkit-scrollbar{height:14px}
+.tblwrap::-webkit-scrollbar-thumb{background:#3d4b5f;border-radius:7px;border:2px solid var(--panel)}
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
-.bhot{color:var(--up);font-weight:700}
+.b0{color:var(--dim2)}
+.b1{color:var(--tx)}
+.b2{color:var(--up);font-weight:700}
+.b3{color:var(--accent);font-weight:700}
 .pat{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap;border:1px solid}
 .pat.pb{background:#12222f;color:#7cc7ff;border-color:#1e3d55}
 .pat.pk{background:#2b2140;color:#d8b9ff;border-color:#43336b}
@@ -214,7 +229,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V21</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V22</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -224,9 +239,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div id="alert"></div>
 
 <div class="tabbar">
-  <button class="tab on" data-p="p1">🎯 卡位名單</button>
-  <button class="tab" data-p="p2">🔬 資料源</button>
-  <button class="tab" data-p="p3">📖 選股邏輯</button>
+  <button class="tab on" data-p="p1">卡位名單</button>
+  <button class="tab" data-p="p2">資料源</button>
+  <button class="tab" data-p="p3">選股邏輯</button>
 </div>
 
 <div id="status">按右上「更新並篩選」開始。第一次會抓約 25 個交易日的法人與行情，大概一兩分鐘；之後只補新的日子。</div>
@@ -270,14 +285,15 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   </div></div>
 
   <div class="colbar">
-    <button class="btn" id="btnCols">⚙ 欄位顯示</button>
+    <button class="btn" id="btnCols">欄位顯示</button>
     <span id="colCount" style="font-size:12px;color:var(--dim)"></span>
     <button class="btn" id="btnColsCore" style="font-size:12px;padding:5px 10px">精簡 13 欄</button>
     <button class="btn" id="btnColsAll" style="font-size:12px;padding:5px 10px">全部 40 欄</button>
   </div>
   <div class="colpanel" id="colPanel"></div>
 
-  <div class="tblwrap"><table id="tbl">
+  <div class="hscroll" id="hscroll" title="拖這條可以左右移動表格"><div id="hscrollInner"></div></div>
+  <div class="tblwrap" id="tblwrap"><table id="tbl">
     <thead><tr>
       <th data-k="code">代號</th>
       <th data-k="name">名稱</th>
@@ -295,6 +311,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="net5">近5日買超(張)</th>
       <th data-k="net20t">投信20日(張)</th>
       <th data-k="build20">投信建倉%</th>
+      <th data-k="foreignPct">外資持股%</th>
             <th data-k="absorb">吸籌%</th>
       <th data-k="volRatio">量倍</th>
       <th data-k="px">收盤</th>
@@ -311,7 +328,6 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="epsTTM">EPS(近4季)</th>
       <th data-k="pe">本益比</th>
       <th data-k="peVsInd">本益比/同業</th>
-      <th data-k="foreignPct">外資持股%</th>
       <th data-k="mcap">市值(億)</th>
       <th data-k="revPeriod">營收月份</th>
       <th data-k="revYoY">營收年增%</th>
@@ -358,13 +374,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V21
+   法人卡位選股台 V22
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V21';
+const VER = 'V22';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1056,7 +1072,7 @@ function renderAlert(){
   if(!fbReady() && DATA.dates.length){
     notes.push(`<div class="alertbox soft"><b>雲端快取還沒啟用</b>　資料目前只存在這台瀏覽器。
       換裝置或清快取就得整批重抓，基本面每 6 小時也會重抓一次。
-      到「🔬 資料源」分頁填 Firebase 網址並勾選啟用，抓過的日子就永遠不必再抓。</div>`);
+      到「資料源」分頁填 Firebase 網址並勾選啟用，抓過的日子就永遠不必再抓。</div>`);
   }
 
   if(fbOnlyMode()){
@@ -1813,7 +1829,7 @@ function renderVintage(){
 const COL_GROUPS = [
   ['基本', ['code','name','ind','score','sigRank','phaseRank']],
   ['三軸分數', ['sChip','sFund','sRoom']],
-  ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','absorb','volRatio']],
+  ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','foreignPct','absorb','volRatio']],
   ['價格比較（現價 vs 投信成本 vs 合理價）', ['px','trustCost','vsTrust','fair','fairLo','prem']],
   ['其他成本與位階', ['instCost','vsInst','runPct','toHigh','distMA20']],
   ['每股與估值', ['epsTTM','pe','mcap']],
@@ -1824,7 +1840,7 @@ const COL_LOCK = ['code','name','score','sigRank','phaseRank'];                 
 const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
 const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
-                  't10buy','net20t','build20','px','trustCost','vsTrust',
+                  't10buy','net20t','build20','foreignPct','px','trustCost','vsTrust',
                   'revYoY','peVsInd'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
@@ -1854,6 +1870,7 @@ function colApply(){
   const cc = document.getElementById('colCount');
   if(cc) cc.textContent = `顯示 ${shown} / ${COL_ORDER.length} 欄`;
   try{ localStorage.setItem(COL_KEY, JSON.stringify([...COL_HIDDEN])); }catch(e){}
+  if(HSCROLL_SYNC) HSCROLL_SYNC();
 }
 function colLabel(k){
   const th = [...document.querySelectorAll('#tbl thead th')].find(t => t.dataset.k === k);
@@ -1987,6 +2004,41 @@ function sigChip(s){
   return `<span class="sig ${SIG_CLS[s.k]||'so'}">${s.label}</span>`;
 }
 
+/* 投信建倉% 分級。注意這是「近 20 日增量」不是「持股比率存量」，
+   所以級距比一般看到的持股比率分級小一個量級。 */
+function bldCls(v){
+  if(v === null || v === undefined) return 'na';
+  if(v >= 3)   return 'b3';    // 20 天吃掉 3% 以上，非常猛
+  if(v >= 1)   return 'b2';    // 明顯建倉
+  if(v >= 0.3) return 'b1';    // 開始有動作
+  return 'b0';                 // 幾乎沒動
+}
+
+/* 表格上方拉桿與表格本體雙向同步捲動 */
+function initHScroll(){
+  const bar = document.getElementById('hscroll');
+  const inner = document.getElementById('hscrollInner');
+  const wrap = document.getElementById('tblwrap');
+  if(!bar || !wrap) return;
+  let lock = false;
+  const sync = () => {
+    const t = document.getElementById('tbl');
+    if(!t) return;
+    inner.style.width = t.scrollWidth + 'px';
+    bar.style.display = t.scrollWidth > wrap.clientWidth ? 'block' : 'none';
+  };
+  bar.addEventListener('scroll', () => {
+    if(lock) return; lock = true; wrap.scrollLeft = bar.scrollLeft; lock = false;
+  });
+  wrap.addEventListener('scroll', () => {
+    if(lock) return; lock = true; bar.scrollLeft = wrap.scrollLeft; lock = false;
+  });
+  window.addEventListener('resize', sync);
+  HSCROLL_SYNC = sync;
+  sync();
+}
+let HSCROLL_SYNC = null;
+
 const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
                  '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
 function patChip(p){
@@ -2022,7 +2074,8 @@ function render(){
       <td>${r.foreignD ? dots(Math.min(r.foreignD,5),5,'g')+' '+r.foreignD : '<span class="na">—</span>'}</td>
       <td class="${cls(r.net5)}">${r.net5.toLocaleString()}</td>
       <td class="${cls(r.net20t)}">${Math.round(r.net20t).toLocaleString()}</td>
-      <td class="${r.build20===null?'na':(r.build20>=2?'bhot':'')}">${fmt(r.build20,2)}</td>
+      <td class="${bldCls(r.build20)}">${fmt(r.build20,2)}</td>
+      <td>${r.foreignPct===null||r.foreignPct===undefined?'<span class="na">—</span>':fmt(r.foreignPct,1)}</td>
       <td class="${cls(r.absorb)}">${fmt(r.absorb,1)}</td>
       <td class="${r.volSpike>5?'pos':''}">${fmt(r.volRatio,2)}</td>
       <td>${fmt(r.px,2)}</td>
@@ -2051,7 +2104,6 @@ function render(){
       <td>${fmt(r.pe,1)}</td>
       <td class="${r.peVsInd===null?'na':(r.peVsInd>=3||r.peVsInd<=0.45?'warnpe':'')}">${
         r.peVsInd===null ? '—' : r.peVsInd.toFixed(2)+'x'}</td>
-      <td>${r.foreignPct===null||r.foreignPct===undefined?'<span class="na">—</span>':fmt(r.foreignPct,1)}</td>
       <td>${r.mcap===null?'<span class="na">—</span>':Math.round(r.mcap).toLocaleString()}</td>
       <td style="color:var(--dim)">${r.revPeriod ? roc2ad(r.revPeriod) : '<span class="na">—</span>'}</td>
       <td class="${cls(r.revYoY)}">${fmt(r.revYoY,1)}</td>
@@ -2068,6 +2120,7 @@ function render(){
     tr.onclick = () => { SELECTED = tr.dataset.c; render(); };
   });
   document.querySelectorAll('#tbl th').forEach(th => th.classList.toggle('sorted', th.dataset.k === SORT.k));
+  if(HSCROLL_SYNC) HSCROLL_SYNC();
   if(SELECTED) showDetail(SELECTED); else document.getElementById('detail').innerHTML = '';
   setStatus(`符合條件 <b>${rows.length}</b> 檔${rows.length>300?'（只顯示前 300）':''}。點任一列看計分明細。`);
 }
@@ -2465,7 +2518,7 @@ document.getElementById('docOut').innerHTML = `
 </ul>
 
 <h3>欄位太多看不完？</h3>
-<p>表格上方有「⚙ 欄位顯示」，可以逐欄開關，選擇會記在瀏覽器裡。
+<p>表格上方有「欄位顯示」，可以逐欄開關，選擇會記在瀏覽器裡。
 <b>第一次打開預設就是「只留核心」20 欄</b>（代號、名稱、產業、卡位分、位階、投信籌碼、營收與三率、估值）；
 按「全部顯示」把 35 欄攤開。代號、名稱、卡位分三欄鎖住不給關。</p>
 <p>沒進核心的是量倍、期間漲幅、距20日高、距MA20、吸籌%、法人分、空間分、外資連買等。
@@ -2566,7 +2619,7 @@ document.getElementById('docOut').innerHTML = `
 （詳見上一節）。<b>預設已經把它們隱藏起來</b>，免得整片「—」佔版面。</p>
 <p><b>但沒有從程式裡刪掉</b>，理由是：欄位、抓取、三率三升的季度累積邏輯都已經寫好且測過了。
 哪天端點通了（無痕視窗、換個瀏覽器、或別人用能連的網路灌進 Firebase），
-資料會自動流進來，你只要到「⚙ 欄位顯示」把「財報」那組打開就有值。
+資料會自動流進來，你只要到「欄位顯示」把「財報」那組打開就有值。
 刪掉的話這些全部要重寫，省不了什麼卻多花一輪。</p>
 <p>要確認端點通了沒，最快是按「只抓基本面」，十秒就知道結果。</p>
 
@@ -2889,6 +2942,7 @@ document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); 
 cacheLoad();
 fbLoad();
 colInit();
+initHScroll();
 cacheInfo();
 renderProbe();
 renderVintage();
