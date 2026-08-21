@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V25</title>
+<title>法人卡位選股台 V27</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -237,7 +237,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V25</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V27</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -276,8 +276,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
-    <button class="btn pri" id="btnPreset">套用「投信建倉」條件</button>
-    <button class="btn" id="btnReset">清掉條件</button>
+    <button class="btn" id="btnReset">清除所有篩選條件</button>
     <div class="fld"><label>投信 10 日買超天數 ≥</label><input type="number" id="fT10" value="" min="0" max="10"></div>
     <div class="fld"><label>買多賣少（買−賣天數）≥</label><input type="number" id="fNetD" value=""></div>
     <div class="fld"><label>量能倍數</label>
@@ -318,7 +317,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="foreignD">外資連買</th>
       <th data-k="net5">近5日買超(張)</th>
       <th data-k="net20t">投信20日(張)</th>
-      <th data-k="build20">投信建倉%</th>
+      <th data-k="build20">建倉%(20日)</th>
+      <th data-k="buildAll">累計建倉%</th>
+      <th data-k="idleDays">停手天數</th>
       <th data-k="foreignPct">外資持股%</th>
             <th data-k="absorb">吸籌%</th>
       <th data-k="volRatio">量倍</th>
@@ -382,13 +383,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V25
+   法人卡位選股台 V27
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V25';
+const VER = 'V27';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1253,6 +1254,23 @@ function metrics(code){
   const shares  = sharesOf(DATA.fund[code]);
   const build20 = shares ? net20t * 1000 / shares * 100 : null;   // 張→股，佔股本比重
 
+  /* 20 日窗口的盲點：投信如果 20 天前就吃完然後停手，build20 會趨近 0，
+     看起來像「沒人買」，其實他們早就抱了一堆。
+     所以另外算「整段快取期間的累計」與「停手幾天了」。 */
+  let netAllT = 0, tDaysAll = 0, lastBuyIdx = -1;
+  for(let i = 0; i < q.t.length; i++){
+    if(q.t[i] === null) continue;
+    netAllT += q.t[i];
+    if(q.t[i] > 0){ tDaysAll++; lastBuyIdx = i; }
+  }
+  const buildAll = shares ? netAllT * 1000 / shares * 100 : null;
+  // 停手天數：從最後一個買超日算到最新一天，中間有幾個交易日
+  let idleDays = null;
+  if(lastBuyIdx >= 0){
+    idleDays = 0;
+    for(let i = lastBuyIdx + 1; i < q.t.length; i++) if(q.t[i] !== null) idleDays++;
+  }
+
   /* --- 外資是不是在對倒 --- */
   const f5 = win(q.f, 5);
   const f5sellDays = f5.filter(x => x < 0).length;
@@ -1339,6 +1357,7 @@ function metrics(code){
   return {
     px, trustD, foreignD, net5, net5t, net5f, vol20,
     t10buy, t10sell, net20t, build20, shares, recent2t, net5tOnly,
+    netAllT, buildAll, tDaysAll, idleDays,
     tCost, fCost, iCost,
     trustCost: tCost ? tCost.cost : null,
     trustLots: tCost ? tCost.lots : null,
@@ -1703,7 +1722,8 @@ function score(){
       volRatio:m.volRatio, volSpike:m.volSpike,
       pattern:m.pattern, patNote:m.patNote,
       supName:m.supName, supPx:m.supPx, supGap:m.supGap,
-      build20:m.build20, foreignPct:(f.foreignPct===undefined?null:f.foreignPct),
+      build20:m.build20, buildAll:m.buildAll, tDaysAll:m.tDaysAll, idleDays:m.idleDays,
+      foreignPct:(f.foreignPct===undefined?null:f.foreignPct),
       trustCost:m.trustCost, trustLots:m.trustLots, trustDays:m.trustDays,
       trustLo:m.trustLo, trustHi:m.trustHi,
       instCost:m.instCost, vsTrust:m.vsTrust, vsInst:m.vsInst, vsForeign:m.vsForeign,
@@ -1849,7 +1869,7 @@ function renderVintage(){
 const COL_GROUPS = [
   ['基本', ['code','name','ind','score','sigRank','phaseRank']],
   ['三軸分數', ['sChip','sFund','sRoom']],
-  ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','foreignPct','absorb','volRatio']],
+  ['籌碼', ['pattern','trustD','t10buy','foreignD','net5','net20t','build20','buildAll','idleDays','foreignPct','absorb','volRatio']],
   ['價格比較（現價 vs 投信成本 vs 合理價）', ['px','trustCost','vsTrust','fair','fairLo','prem']],
   ['其他成本與位階', ['instCost','vsInst','runPct','toHigh','distMA20']],
   ['每股與估值', ['epsTTM','pe','mcap']],
@@ -1860,7 +1880,7 @@ const COL_LOCK = ['code','name','score','sigRank','phaseRank'];                 
 const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
 const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
-                  't10buy','net20t','build20','foreignPct','px','trustCost','vsTrust',
+                  't10buy','net20t','build20','buildAll','idleDays','px','trustCost','vsTrust',
                   'revYoY','peVsInd'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
@@ -1882,7 +1902,9 @@ const COL_HELP = {
   foreignD:'外資連續買超天數，算法同投信。',
   net5:'近 5 日外資＋投信合計買超張數。',
   net20t:'近 20 日投信淨買超張數（買超扣掉賣超）。',
-  build20:'投信建倉% ＝ 近 20 日投信淨買超張數 ÷ 發行股數。\n\n≥3%　20 天吃掉 3% 股本，非常猛\n≥1%　明顯建倉\n≥0.3% 開始有動作\n<0.3% 幾乎沒動\n\n注意：這是「近 20 日增量」，不是「總持股比率」。\n一檔被投信長期抱著 8% 但這個月沒動作的股票，這欄會接近 0。',
+  buildAll:'累計建倉% ＝ 整段快取期間投信淨買超張數 ÷ 發行股數，後面小字是共幾個買超日。\n\n用途：補 20 日窗口的盲點。投信若在 20 天前就吃完然後停手，左邊的建倉%(20日) 會趨近 0，\n但這一欄仍會顯示他們累積吃了多少。\n\n把「資料源」的回溯交易日數調到 65，這欄就涵蓋約三個月。\n注意：仍然是「這段期間的增量」，不是「總持股比率」——投信更早以前的部位看不到。',
+  idleDays:'投信距離最後一個買超日已經幾個交易日。\n\n0～2 天＝還在買（綠）\n≥10 天＝停手很久了，先前的連買段落大概結束了（紅）\n\n搭配累計建倉% 一起看：累計高但停手很久，代表籌碼已在他們手上、但近期沒有新增買盤。',
+  build20:'建倉%(20日) ＝ 近 20 日投信淨買超張數 ÷ 發行股數。\n\n≥3%　20 天吃掉 3% 股本，非常猛\n≥1%　明顯建倉\n≥0.3% 開始有動作\n<0.3% 幾乎沒動\n\n注意：這是「近 20 日增量」，不是「總持股比率」。\n一檔被投信長期抱著 8% 但這個月沒動作的股票，這欄會接近 0。',
   foreignPct:'外資及陸資持股佔發行股數的比率，取自證交所每日持股統計。\n這是存量（總共抱多少），與左邊的投信建倉%（增量）不同。',
   absorb:'吸籌強度 ＝ 近 5 日法人買超張數 ÷ 近 5 日總成交張數。\n8% 以上代表法人吃掉了近期相當比例的量，籌碼在集中。',
   volRatio:'量能倍數 ＝ 近 5 日均量 ÷ 20 日均量。\n1.2～3 倍是溫和放大；超過 5 倍多半是短線過熱。',
@@ -2147,7 +2169,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="42" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="44" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -2170,6 +2192,10 @@ function render(){
       <td class="${cls(r.net5)}">${r.net5.toLocaleString()}</td>
       <td class="${cls(r.net20t)}">${Math.round(r.net20t).toLocaleString()}</td>
       <td class="${bldCls(r.build20)}">${fmt(r.build20,2)}</td>
+      <td class="${bldCls(r.buildAll)}">${r.buildAll===null?'—':fmt(r.buildAll,2)
+        + `<span style="color:var(--dim2);font-size:10px"> ${r.tDaysAll}日</span>`}</td>
+      <td class="${r.idleDays===null?'na':(r.idleDays>=10?'neg':(r.idleDays<=2?'pos':''))}">${
+        r.idleDays===null ? '—' : (r.idleDays===0 ? '今日買' : r.idleDays)}</td>
       <td>${r.foreignPct===null||r.foreignPct===undefined?'<span class="na">—</span>':fmt(r.foreignPct,1)}</td>
       <td class="${cls(r.absorb)}">${fmt(r.absorb,1)}</td>
       <td class="${r.volSpike>5?'pos':''}">${fmt(r.volRatio,2)}</td>
@@ -2793,7 +2819,7 @@ document.getElementById('docOut').innerHTML = `
 儘管如此，它比「同業本益比推算的合理價」對卡位這件事有用得多——
 因為它衡量的是<b>你跟那個正在買的人差多遠</b>，而不是跟一群不相干的同業比。
 </div>
-<p>篩選列有「貴投信 ≤ %」，按「套用投信建倉條件」時預設會設成 <b>8%</b>。</p>
+<p>篩選列有「貴投信 ≤ %」，想避開追價的話填 <b>8</b> 是個合理的起點。</p>
 
 <h3>合理價頭尾大概差多少</h3>
 <p>合理價中值旁會標 <code>±N%</code>，並依寬度分三級：<b>±20% 以下</b>正常顯示；
@@ -2826,16 +2852,20 @@ document.getElementById('docOut').innerHTML = `
 <p>務實的用法：<b>把溢價% 當粗篩，不當進出依據。</b>大幅折價值得多看一眼，
 大幅溢價提醒你別在這裡加碼——但決定買賣的是訊號欄，不是這裡。</p>
 
-<h3>「投信建倉」那顆按鈕在做什麼</h3>
-<p>一鍵套上這組條件，用來找投信剛開始吃貨、但股價還沒發動的標的：</p>
+<h3>怎麼快速篩出「投信剛開始建倉」的標的</h3>
+<p>最快的做法是<b>把「訊號」下拉選成「可觀察」</b>。那一個條件就同時要求了四件事：</p>
 <ul>
-<li>近 10 日投信買超 ≥3 天，且買超天數比賣超天數多 ≥2 天（<b>買多賣少</b>，不是只看連買，中間斷一天不會整段作廢）</li>
-<li>買超期間漲幅 ≤8%</li>
-<li>量能溫和放大：近 5 日均量是 20 日均量的 1.2～3 倍</li>
-<li>位階限打底整理／剛突破頸線／剛站回均線</li>
-<li>排除外資對倒：近 5 日外資賣超 ≥3 天且淨賣超</li>
-<li>依「建倉%」由大到小排</li>
+<li>位階在打底整理／剛突破頸線／剛站回均線這三種之一</li>
+<li>投信買多賣少（近 10 日買超天數比賣超天數多 ≥2 天，或連買 ≥3 天）</li>
+<li>買超期間漲幅 ≤10%，還沒發動</li>
+<li>外資沒有對倒（近 5 日賣超 ≥3 天且淨賣超會被擋掉）</li>
 </ul>
+<p>想再收緊，加這幾個就好：<b>貴投信 ≤8%</b>（別買在投信成本太上面）、
+<b>量能倍數選「溫和放大」</b>（1.2～3 倍，不追爆量）、<b>投信階段選「建倉中」</b>。
+排序點「累計建倉%」或「投信20日(張)」由大到小。</p>
+<p>早期版本有一顆「套用投信建倉條件」的預設按鈕，V27 移除了——
+它做的事現在「訊號」欄已經涵蓋，維持兩套平行邏輯只會讓人搞不清楚是哪一組在生效。
+旁邊的<b>清除所有篩選條件</b>保留著，隨時可以歸零重來。</p>
 
 <h3>位階型態怎麼判的</h3>
 <table>
@@ -2988,26 +3018,12 @@ document.querySelectorAll('#tbl th').forEach(th => {
   el.addEventListener('change', render);
 });
 
-/* 一鍵套用「投信剛開始建倉、股價還沒發動」那組條件 */
+/* 原本有一顆「套用投信建倉條件」的預設按鈕，V27 移除。
+   它做的事現在由「訊號」欄涵蓋——選「可觀察」就等於同時要求
+   位階在前三種、投信買多賣少、期間漲幅不大、外資沒對倒。
+   維持兩套平行邏輯只會讓人搞不清楚是哪一組在生效。 */
 const SET = (id, v) => { const e = document.getElementById(id);
   if(e.type === 'checkbox') e.checked = v; else e.value = v; };
-document.getElementById('btnPreset').onclick = () => {
-  SET('fScore', 0);      // 分數不設限，這組條件本身就夠嚴
-  SET('fTrust', 0);
-  SET('fT10', 3);        // 近 10 日投信至少買超 3 天，排除 1-2 天試單
-  SET('fNetD', 2);       // 買多賣少
-  SET('fRun', 8);        // 買超期間漲幅 ≤8%，還沒發動
-  SET('fVol', 'mild');   // 量溫和放大，不追爆量
-  SET('fPat', '__early');// 打底 / 剛突破 / 剛站回均線
-  SET('fNoDump', true);  // 排除外資對倒
-  SET('fPrem', '');
-  SET('fVsT', 8);
-  SET('fTrustOnly', true);
-  SET('fHasFund', true);
-  SET('fSig', 'watch');
-  SORT = {k:'build20', dir:-1};
-  render();
-};
 document.getElementById('btnReset').onclick = () => {
   ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig','fVsT'].forEach(id => SET(id, ''));
   SET('fScore', 0); SET('fTrust', 0); SET('fNoDump', false); SET('fTrustOnly', false);
