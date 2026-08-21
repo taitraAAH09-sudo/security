@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V22</title>
+<title>法人卡位選股台 V23</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -229,7 +229,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V22</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V23</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">只抓基本面</button>
@@ -374,13 +374,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V22
+   法人卡位選股台 V23
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V22';
+const VER = 'V23';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -443,7 +443,8 @@ function N(v){
 }
 function rowCode(row){
   const v = K(row,'公司代號','證券代號','SecuritiesCompanyCode','CompanyCode','Code');
-  return v === undefined ? '' : String(v).trim();
+  // 證交所部分報表把代號包成 Excel 防轉換格式 ="0050"，要剝掉
+  return v === undefined ? '' : String(v).replace(/^="?|"$/g,'').trim();
 }
 function idxOf(fields, ...pats){
   for(const p of pats){
@@ -728,7 +729,8 @@ async function fetchPx(date){
    {D} 會替換成最後一個交易日。 */
 const FUND_EPS = [
   {id:'shr_L', kind:'shr', mkt:'上市', name:'上市 外資持股統計（發行股數來源）',
-   url:'https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={D}&selectType=ALL&response=json', twseRwd:true},
+   url:'https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={D}&selectType=ALLBUT0999&response=json',
+   alt:'https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={D}&selectType=ALL&response=json', twseRwd:true},
   {id:'val_L', kind:'val', mkt:'上市', name:'上市 本益比／殖利率／淨值比',
    url:'https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date={D}&selectType=ALL&response=json',
    alt:'https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL', twseRwd:true},
@@ -812,7 +814,7 @@ async function fetchFundamentals(fails, base, span){
               base + Math.round(i/FUND_EPS.length*span));
     const t0 = Date.now();
     const urls = [ep.url.replace('{D}', D)];
-    if(ep.alt) urls.push(ep.alt);
+    if(ep.alt) urls.push(ep.alt.replace('{D}', D));
     let ok = false, lastErr = null;
 
     for(const u of urls){
@@ -864,7 +866,7 @@ function ingestFund(ep, rows){
     st.coded++;
     const r = fRec(code);
     if(!r.mkt) r.mkt = ep.mkt;
-    const nm = K(row,'公司名稱','公司簡稱','CompanyName','Name');
+    const nm = K(row,'公司名稱','公司簡稱','證券名稱','CompanyName','Name');
     if(nm && !r.name) r.name = String(nm).trim();
 
     if(ep.kind === 'rev'){
