@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V23</title>
+<title>法人卡位選股台 V24</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -229,10 +229,10 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V23</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V24</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
-  <button class="btn" id="btnFund">只抓基本面</button>
+  <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
 </header>
 
@@ -374,13 +374,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V23
+   法人卡位選股台 V24
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V23';
+const VER = 'V24';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -481,7 +481,7 @@ function isFinancial(code, name, ind){
    DATA.fund  : code -> {name,ind,mkt,rev,is,bs,val}
    ========================================================================== */
 const CACHE_KEY = 'kawei_cache_v2';
-let DATA = {dates:[], px:{}, ins:{}, fund:{}, hist:{}, fundAt:0};
+let DATA = {dates:[], px:{}, ins:{}, fund:{}, hist:{}, fundAt:0, epAt:{}};
 let ROWS = [], PROBE = {}, SORT = {k:'score', dir:-1}, SELECTED = null;
 
 function cacheLoad(){
@@ -805,11 +805,21 @@ async function fetchIndustries(fails){
   return got;
 }
 
-async function fetchFundamentals(fails, base, span){
+/* 抓全部基本面端點，回傳「總共抽到幾筆有效值」；同時把逐支診斷寫進 PROBE。
+   每支端點各自記錄成功時間（DATA.epAt），只有「這支自己成功過且未過期」才跳過。
+   先前把整組綁在一起判斷，導致只要有任何一支的資料還在快取裡，
+   新加的端點就永遠不會被呼叫——投信建倉% 與外資持股% 一直空白就是這個原因。 */
+async function fetchFundamentals(fails, base, span, force){
   let valued = 0;
   const D = DATA.dates[DATA.dates.length-1] || ymd(new Date());
+  DATA.epAt = DATA.epAt || {};
+  const FRESH = 6*3600*1000;
+
   for(let i=0;i<FUND_EPS.length;i++){
     const ep = FUND_EPS[i];
+    if(!force && DATA.epAt[ep.id] && Date.now() - DATA.epAt[ep.id] < FRESH){
+      continue;                       // 這一支自己剛抓過且有抽到值，跳過
+    }
     setStatus(`抓基本面 ${i+1}/${FUND_EPS.length}：${ep.name}`, true, false,
               base + Math.round(i/FUND_EPS.length*span));
     const t0 = Date.now();
@@ -820,7 +830,6 @@ async function fetchFundamentals(fails, base, span){
     for(const u of urls){
       try{
         const {data, via, viaName, bytes} = await getJSON(u);
-        // www.twse.com.tw 的報表回的是 {stat,fields,data}，OpenAPI 回的是物件陣列
         const rows = Array.isArray(data) ? data : rwdToRows(data);
         if(!rows || !rows.length) throw new Error(Array.isArray(data) ? '回傳空陣列' : '回傳不是可用的表格');
         const st = ingestFund(ep, rows);
@@ -828,6 +837,7 @@ async function fetchFundamentals(fails, base, span){
         PROBE[ep.id] = {ok:true, via, viaName, bytes, ms:Date.now()-t0,
                         count:rows.length, sample:rows[0]||null, st, usedUrl:u};
         if(st.valued === 0) fails.push(`${ep.name}：連到了 ${st.rows} 筆，但欄位對不上，一個值都沒抽到`);
+        else DATA.epAt[ep.id] = Date.now();     // 只有真的抽到值才算成功
         ok = true;
         break;
       }catch(e){ lastErr = e; }
@@ -1023,10 +1033,10 @@ async function runAll(){
     }catch(e){ fails.push(`Firebase 讀基本面：${e.message}`); }
   }
 
-  if(stale || !fundLooksLoaded()){
+  // 一律呼叫——fetchFundamentals 內部會逐支端點判斷新鮮度，
+  // 不再因為「其他端點還在快取裡」就整組跳過。
+  {
     const got = await fetchFundamentals(fails, 60, 35);
-    // 只有真的抽到值才蓋時間戳，否則下次進來會被當成「剛抓過」而整段跳過，
-    // 一失敗就再也不重試（V3 的災情就是這樣來的）
     if(got > 0){
       DATA.fundAt = Date.now();
       if(fbReady()){
@@ -1035,7 +1045,7 @@ async function runAll(){
         catch(e){ fails.push(`Firebase 寫基本面：${e.message}`); }
       }
       await syncHist(fails);
-    }else{
+    }else if(!fundLooksLoaded()){
       DATA.fundAt = 0;
       fails.push('基本面一筆都沒抽到值，下次會自動重試');
     }
@@ -1109,7 +1119,7 @@ async function runFundOnly(){
   const btn = document.getElementById('btnFund');
   btn.disabled = true;
   const fails = [];
-  const got = await fetchFundamentals(fails, 0, 95);
+  const got = await fetchFundamentals(fails, 0, 95, true);   // force：忽略新鮮度全部重抓
   DATA.fundAt = got > 0 ? Date.now() : 0;
   if(got > 0 && fbReady()){
     setStatus('上傳基本面快照到雲端', true, false, 97);
