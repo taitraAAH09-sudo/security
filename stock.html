@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V226</title>
+<title>盤後篩選台 V228</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -160,6 +160,12 @@ a{color:var(--amber)}
 .calcell.has{cursor:pointer}
 .calcell.has:hover{border-color:var(--amber)}
 .calcell.arch{opacity:.7;border-style:dashed}
+.calcell.settled{border-color:rgba(255,255,255,.28)}
+.calcell .cd{display:flex;align-items:center;justify-content:space-between;gap:3px}
+.cdone{font-size:10px;font-weight:800;line-height:1;padding:1px 4px;border-radius:20px;background:rgba(255,255,255,.14);color:var(--paper)}
+.cdone.w{background:var(--amber);color:#1a1408}
+.cdone.l{background:transparent;color:var(--up);border:1px dashed var(--up)}
+.copen{font-size:9px;font-weight:800;line-height:1;padding:1px 5px;border-radius:20px;background:rgba(242,181,68,.18);color:var(--amber)}
 .calcell .cd{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:9px;color:var(--dim)}
@@ -284,10 +290,12 @@ a{color:var(--amber)}
 .racettl{font-size:12px;color:var(--paper);font-weight:700;margin-bottom:6px}
 .racebar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--panel2)}
 .racebar i{display:block;height:100%}
-.racebar i.a{background:var(--up)} .racebar i.b{background:var(--dn,#1F9E6E)} .racebar i.c{background:rgba(255,255,255,.14)}
+.racebar i.a{background:var(--up)} .racebar i.b{background:var(--dn,#1F9E6E)}
+.racebar i.d{background:rgba(242,181,68,.55)} .racebar i.c{background:rgba(255,255,255,.14)}
 .racelg{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:var(--dim)}
 .racelg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.racelg em.a{background:var(--up)} .racelg em.b{background:var(--dn,#1F9E6E)} .racelg em.c{background:rgba(255,255,255,.2)}
+.racelg em.a{background:var(--up)} .racelg em.b{background:var(--dn,#1F9E6E)}
+.racelg em.d{background:rgba(242,181,68,.55)} .racelg em.c{background:rgba(255,255,255,.2)}
 .racelg b{font-family:var(--mono)}
 .diagtbl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
 .diagrow{display:grid;grid-template-columns:1.05fr .5fr .5fr .72fr .72fr .72fr .9fr .8fr .95fr;gap:5px;padding:5px 2px;font-family:var(--mono);font-size:12px;align-items:center}
@@ -616,7 +624,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V226</span>
+    <h1>盤後篩選台</h1><span class="ver">V228</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4003,13 +4011,18 @@ function testCalendarHTML(){
     const key=`${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
     const rows=byDate[key], ar=arch[key];
     if(!rows && !ar){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
-    let r=0,u=0,n=0;
-    if(rows){ for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; } } n+=rows.length; }
+    let r=0,u=0,n=0,open=0;
+    if(rows){ for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; }
+      const a=e.lotA||{}, b=e.lotB||{}; if(!(a.done&&b.done))open++; } n+=rows.length; }
     if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0; }   // 已封存的日子：明細沒了，盈虧還在
     const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=n;
     const cls=tot>0?'up':tot<0?'dn':'';
     const openable=!!rows;                                       // 明細還在才點得進去
-    cells+=`<div class="calcell ${openable?'has':'arch'}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}</span>
+    // 這天推的是否已全數結案（兩張單都出場）→ 打勾標記，損益已定案
+    const allDone = (rows && rows.length && open===0) || (!rows && ar);
+    const badge = allDone ? `<span class="cdone ${tot>0?'w':tot<0?'l':''}" title="這天推的 ${n} 檔已全數出場，損益定案">✔</span>`
+                          : (open?`<span class="copen" title="還有 ${open} 檔在手上">${open}</span>`:'');
+    cells+=`<div class="calcell ${openable?'has':'arch'}${allDone?' settled':''}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}${badge}</span>
       <span class="cn">${openable?'':'🔒 '}推 ${n} 檔</span>
       <span class="cv ${cls}">${tot>0?'+':''}${Math.round(tot).toLocaleString()}</span></div>`;
   }
@@ -4020,7 +4033,7 @@ function testCalendarHTML(){
       <button class="calnav" id="calPrev" ${cur<=minD?'disabled':''}>‹ 上個月</button>
       <b>${y} / ${String(m).padStart(2,'0')}</b>
       <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
-      <span class="ihint" style="margin-left:auto">每日盈虧永久保留．明細只留兩個月，更早的標 🔒 點不進去</span>
+      <span class="ihint" style="margin-left:auto">✔＝那天推的已全數出場（金色賺、紅框賠）．數字＝還在手上幾檔．明細只留兩個月，更早的標 🔒</span>
     </div>
     <div class="calwrap"><div class="calgrid">${wk}${cells}</div></div>
     <div class="calsum">
@@ -4089,13 +4102,13 @@ function testRender(){
   // 全部推薦日的體檢表：一次看每一天的結案／勝負／停損距離，用來判斷規則要不要再調
   const dayStat=(d)=>{
     const rows=byDate[d]||[];
-    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,holding=0,provWin=0,provLose=0,lockedIn=0;
+    let closed=0,win=0,lose=0,noTouch=0,dist=0,distN=0,days=0,daysN=0,pl=0,hit5=0,hit5c=0,holding=0,provWin=0,provLose=0,lockedIn=0;
     for(const en of rows){
       const a=en.lotA||{}, b=en.lotB||{};
       if(en.entryMvStop!=null&&en.entryPx){ dist+=(en.entryPx-en.entryMvStop)/en.entryPx*100; distN++; }
       const p=testPnL(en); if(p)pl+=p.total;
       // ①真的漲到推薦價 +5% 而成交（不含被②連帶出場的那種）
-      if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))hit5++;
+      if(a.done && !(a.why&&a.why.indexOf('跟著')>=0)){ hit5++; if(a.done&&b.done)hit5c++; }
       if(!(a.done&&b.done)){ holding++;                      // 還沒結案＝還在手上
         if(p){ if(p.total>0)provWin++; else if(p.total<0)provLose++; }
         if(a.done)lockedIn++;                                 // ①已入袋，這筆至少賺回一半
@@ -4106,33 +4119,39 @@ function testRender(){
       const i0=DB.dates.indexOf(en.firstDate), i1=DB.dates.indexOf(b.date||a.date);
       if(i0>=0&&i1>=0){ days+=i1-i0; daysN++; }
     }
-    return {n:rows.length,closed,win,lose,noTouch,hit5,holding,provWin,provLose,lockedIn,
+    return {n:rows.length,closed,win,lose,noTouch,hit5,hit5c,holding,provWin,provLose,lockedIn,
             dist:distN?dist/distN:null, days:daysN?days/daysN:null, pl};
   };
   const allStat=(()=>{
     const rs=dates.map(d=>({d,...dayStat(d)})).filter(x=>x.n);
     if(!rs.length)return '';
     const T=rs.reduce((a,x)=>({closed:a.closed+x.closed,win:a.win+x.win,lose:a.lose+x.lose,
-      noTouch:a.noTouch+x.noTouch,hit5:a.hit5+x.hit5,holding:a.holding+x.holding,n:a.n+x.n,pl:a.pl+x.pl}),
-      {closed:0,win:0,lose:0,noTouch:0,hit5:0,holding:0,n:0,pl:0});
+      noTouch:a.noTouch+x.noTouch,hit5:a.hit5+x.hit5,hit5c:a.hit5c+x.hit5c,
+      holding:a.holding+x.holding,lockedIn:a.lockedIn+x.lockedIn,n:a.n+x.n,pl:a.pl+x.pl}),
+      {closed:0,win:0,lose:0,noTouch:0,hit5:0,hit5c:0,holding:0,lockedIn:0,n:0,pl:0});
     const wr=T.closed?(T.win/T.closed*100).toFixed(0):'—';
-    // 停利先 vs 停損先：每一筆只會是其中一種，未分曉＝還在跑、①也還沒摸到
-    const undec=Math.max(0, T.n-T.hit5-T.noTouch);
+    // 四段：已結案的兩種結果 + 還在跑的兩種狀態。已結案 = hit5c + noTouch
+    const running=Math.max(0, T.n-T.closed);          // 還沒結案
+    const runLocked=Math.min(T.lockedIn, running);    // ①已入袋、②還抱著
+    const runOpen=Math.max(0, running-runLocked);     // 兩張都還在場上
     const pct=v=>T.n?Math.round(v/T.n*100):0;
+    const decided=T.hit5c+T.noTouch;
     const raceBar=`<div class="racewrap">
-      <div class="racettl">先摸到 +5% ｜ 先被停損　<span style="color:var(--dim)">（每一筆只會算進其中一邊，共 ${T.n} 筆）</span></div>
+      <div class="racettl">先摸到 +5% ｜ 先被停損　<span style="color:var(--dim)">（共 ${T.n} 筆，已結案 ${T.closed} 筆）</span></div>
       <div class="racebar">
-        <i class="a" style="width:${pct(T.hit5)}%"></i>
+        <i class="a" style="width:${pct(T.hit5c)}%"></i>
         <i class="b" style="width:${pct(T.noTouch)}%"></i>
-        <i class="c" style="width:${pct(undec)}%"></i>
+        <i class="d" style="width:${pct(runLocked)}%"></i>
+        <i class="c" style="width:${pct(runOpen)}%"></i>
       </div>
       <div class="racelg">
-        <span><em class="a"></em>先摸到 +5%（①入袋）　<b class="up">${T.hit5} 筆・${pct(T.hit5)}%</b></span>
-        <span><em class="b"></em>全程沒摸到就停損　<b class="dn">${T.noTouch} 筆・${pct(T.noTouch)}%</b></span>
-        <span><em class="c"></em>還沒分曉　<b>${undec} 筆・${pct(undec)}%</b></span>
+        <span><em class="a"></em>已結案·先摸到 +5%　<b class="up">${T.hit5c} 筆・${pct(T.hit5c)}%</b></span>
+        <span><em class="b"></em>已結案·全程沒摸到　<b class="dn">${T.noTouch} 筆・${pct(T.noTouch)}%</b></span>
+        <span><em class="d"></em>還在跑·①已入袋　<b>${runLocked} 筆・${pct(runLocked)}%</b></span>
+        <span><em class="c"></em>還在跑·兩張都在　<b>${runOpen} 筆・${pct(runOpen)}%</b></span>
       </div>
-      <div class="ihint" style="margin-top:6px">這才是「推得準不準」的直接指標：先摸到 +5% 的比例越高越好。
-        已分曉的裡面，先摸到佔 <b>${(T.hit5+T.noTouch)?Math.round(T.hit5/(T.hit5+T.noTouch)*100):'—'}%</b>。</div>
+      <div class="ihint" style="margin-top:6px">評估績效請只看<b>已結案</b>那兩段（共 ${decided} 筆）：先摸到 +5% 佔
+        <b>${decided?Math.round(T.hit5c/decided*100):'—'}%</b>。還在跑的兩段只是進度，勝負未定，不能算進成績。</div>
     </div>`;
     const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
     const cls=v=>v>0?'up':v<0?'dn':'';
@@ -4299,7 +4318,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V226 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V228 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
