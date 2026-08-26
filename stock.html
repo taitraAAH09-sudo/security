@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V228</title>
+<title>盤後篩選台 V229</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -169,6 +169,8 @@ a{color:var(--amber)}
 .calcell .cd{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:9px;color:var(--dim)}
+.mrace{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:12px;background:var(--panel2)}
+.mrace .racebar{margin-top:6px}
 .calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
 .whybox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:12px;color:var(--dim)}
 .whybox input{width:150px;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--paper);font-family:var(--mono)}
@@ -292,7 +294,8 @@ a{color:var(--amber)}
 .racebar i{display:block;height:100%}
 .racebar i.a{background:var(--up)} .racebar i.b{background:var(--dn,#1F9E6E)}
 .racebar i.d{background:rgba(242,181,68,.55)} .racebar i.c{background:rgba(255,255,255,.14)}
-.racelg{display:flex;gap:16px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:var(--dim)}
+.racelg{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:6px 20px;margin-top:8px;font-size:12px;color:var(--dim)}
+@media(max-width:760px){.racelg{grid-template-columns:1fr}}
 .racelg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .racelg em.a{background:var(--up)} .racelg em.b{background:var(--dn,#1F9E6E)}
 .racelg em.d{background:rgba(242,181,68,.55)} .racelg em.c{background:rgba(255,255,255,.2)}
@@ -624,7 +627,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V228</span>
+    <h1>盤後篩選台</h1><span class="ver">V229</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4005,6 +4008,7 @@ function testCalendarHTML(){
   const wd1=new Date(y,m-1,1).getDay();           // 當月 1 號星期幾
   const dim=new Date(y,m,0).getDate();             // 當月天數
   let mReal=0,mUnreal=0,mDays=0,mStocks=0;
+  let mHit=0,mNoTouch=0,mClosed=0,mRun=0;     // 本月：已結案先摸到／已結案沒摸到／結案數／還在跑
   let cells='';
   for(let i=0;i<wd1;i++)cells+='<div class="calcell blank"></div>';
   for(let d=1;d<=dim;d++){
@@ -4013,7 +4017,11 @@ function testCalendarHTML(){
     if(!rows && !ar){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
     let r=0,u=0,n=0,open=0;
     if(rows){ for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; }
-      const a=e.lotA||{}, b=e.lotB||{}; if(!(a.done&&b.done))open++; } n+=rows.length; }
+      const a=e.lotA||{}, b=e.lotB||{};
+      if(!(a.done&&b.done)){ open++; mRun++; }
+      else { mClosed++;
+        if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))mHit++; else mNoTouch++; }
+    } n+=rows.length; }
     if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0; }   // 已封存的日子：明細沒了，盈虧還在
     const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=n;
     const cls=tot>0?'up':tot<0?'dn':'';
@@ -4036,6 +4044,24 @@ function testCalendarHTML(){
       <span class="ihint" style="margin-left:auto">✔＝那天推的已全數出場（金色賺、紅框賠）．數字＝還在手上幾檔．明細只留兩個月，更早的標 🔒</span>
     </div>
     <div class="calwrap"><div class="calgrid">${wk}${cells}</div></div>
+    ${(()=>{
+      const dec=mHit+mNoTouch;
+      const rate=dec?Math.round(mHit/dec*100):null;
+      const pc=v=>dec?Math.round(v/dec*100):0;
+      return `<div class="mrace">
+        <div class="racettl">本月推的：先摸到 +5% ｜ 全程沒摸到　<span style="color:var(--dim)">（已結案 ${dec} 筆，另有 ${mRun} 筆還在跑）</span></div>
+        <div class="racebar">
+          <i class="a" style="width:${pc(mHit)}%"></i>
+          <i class="b" style="width:${pc(mNoTouch)}%"></i>
+        </div>
+        <div class="racelg">
+          <span><em class="a"></em>先摸到 +5%（至少賺回一半）　<b class="up">${mHit} 筆・${pc(mHit)}%</b></span>
+          <span><em class="b"></em>全程沒摸到（整筆認賠）　<b class="dn">${mNoTouch} 筆・${pc(mNoTouch)}%</b></span>
+        </div>
+        <div class="ihint" style="margin-top:6px">${rate==null?'本月還沒有結案的部位。'
+          :`本月<b>不虧的占比 ${rate}%</b>${rate>50?'（先摸到 > 沒摸到，這個月的推薦是有效的）':'（先摸到 < 沒摸到，這個月推得不夠準）'}。`}</div>
+      </div>`;
+    })()}
     <div class="calsum">
       <div class="sc"><s>本月有推薦的天數</s><b>${mDays}</b></div>
       <div class="sc"><s>本月推薦檔數</s><b>${mStocks}</b></div>
@@ -4318,7 +4344,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V228 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V229 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
