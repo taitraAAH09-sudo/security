@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V39</title>
+<title>法人卡位選股台 V40</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -221,6 +221,14 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .axval.neg{color:var(--dn)}
 .axpt{color:var(--dim2);font-weight:600;font-size:11px}
 
+.pxhelp{display:none;margin-top:10px;background:#0f151d;border:1px solid var(--line);
+  border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+.pxhelp.on{display:block}
+.pxhelp b{color:var(--tx)}
+.pxhelp ol{margin:6px 0;padding-left:20px}
+.pxhelp pre{background:#0b0f15;border:1px solid var(--line);border-radius:6px;padding:10px;
+  overflow:auto;font-size:11.5px;color:#9fd3ff;margin:8px 0;white-space:pre;font-family:ui-monospace,Menlo,monospace}
+
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -259,7 +267,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V39</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V40</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -398,6 +406,18 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   </div>
   <div class="fbrow">
     <div class="fld" style="flex:1">
+      <label>自訂代理網址（openapi.twse.com.tw 沒開 CORS，公用代理在你的網路全滅，需要自己開一個）</label>
+      <input type="text" id="pxUrl" placeholder="https://你的名字.workers.dev/?url=">
+    </div>
+    <button class="btn" id="btnPxSave">儲存</button>
+    <button class="btn" id="btnPxTest">測試</button>
+    <button class="btn" id="btnPxHelp">怎麼開？</button>
+    <div id="pxState" style="font-size:12px;color:var(--dim);padding-bottom:6px"></div>
+  </div>
+  <div id="pxHelp" class="pxhelp"></div>
+
+  <div class="fbrow">
+    <div class="fld" style="flex:1">
       <label>Firebase Realtime Database 網址（抓過的日子存這裡，換裝置不必重抓）</label>
       <input type="text" id="fbUrl" placeholder="https://security-9481e-default-rtdb.asia-southeast1.firebasedatabase.app">
     </div>
@@ -419,13 +439,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V39
+   法人卡位選股台 V40
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V39';
+const VER = 'V40';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -435,8 +455,37 @@ document.title = '法人卡位選股台 ' + VER;
    - corsproxy.io 免費方案只允許 localhost / github.io 這類來源，
      直接用 file:// 開檔會被拒（Failed to fetch），且單檔上限 1MB
    所以多備幾家，並把能吃大檔的排前面。 */
+/* 自訂代理排在最前面。實測公用免費代理在使用者環境全滅：
+   corsproxy.io / codetabs / thingproxy 是 ERR_NAME_NOT_RESOLVED（DNS 層被過濾），
+   corsfix 回 403，allorigins / cors.lol / whateverorigin 連得上但沒回 CORS 標頭。
+   自己開一個 Cloudflare Worker 是唯一可靠的解法。 */
+const PROXY_KEY = 'kawei_proxy_v1';
+let MY_PROXY = '';
+function myProxyLoad(){
+  try{ MY_PROXY = localStorage.getItem(PROXY_KEY) || ''; }catch(e){}
+  const el = document.getElementById('pxUrl');
+  if(el) el.value = MY_PROXY;
+}
+function myProxySave(){
+  MY_PROXY = (document.getElementById('pxUrl').value || '').trim();
+  try{ localStorage.setItem(PROXY_KEY, MY_PROXY); }catch(e){}
+  document.getElementById('pxState').innerHTML = MY_PROXY
+    ? '<span style="color:#8fe0ad">已設定</span>，之後所有請求會優先走這裡。'
+    : '未設定，只能靠直連與公用代理。';
+}
+/* 自訂代理支援兩種寫法：
+   網址含 {URL} → 原樣替換（自行決定要不要 encode）
+   網址結尾是 ?url= 或 ?quest= 之類 → 直接把編碼後的目標接上去 */
+function applyMyProxy(u){
+  if(!MY_PROXY) return null;
+  if(MY_PROXY.indexOf('{URL}') >= 0) return MY_PROXY.replace('{URL}', encodeURIComponent(u));
+  if(/[?&](url|quest|target|q)=$/.test(MY_PROXY)) return MY_PROXY + encodeURIComponent(u);
+  return MY_PROXY.replace(/\/+$/,'') + '/?url=' + encodeURIComponent(u);
+}
+
 const PROXY = [
   u => u,
+  u => applyMyProxy(u),
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
   u => 'https://api.cors.lol/?url=' + encodeURIComponent(u),
   u => 'https://proxy.corsfix.com/?' + u,
@@ -446,14 +495,16 @@ const PROXY = [
   u => 'https://corsproxy.io/?' + encodeURIComponent(u),
   u => 'https://thingproxy.freeboard.io/fetch/' + u
 ];
-const PROXY_NAME = ['直連','allorigins','cors.lol','corsfix','corsproxy(url=)',
+const PROXY_NAME = ['直連','自訂代理','allorigins','cors.lol','corsfix','corsproxy(url=)',
                     'codetabs','whateverorigin','corsproxy(舊格式)','thingproxy'];
 async function getJSON(url){
   const notes = [];
   for(let i=0;i<PROXY.length;i++){
     const label = i===0 ? '直連' : PROXY_NAME[i];
     try{
-      const r = await fetch(PROXY[i](url), {cache:'no-store'});
+      const target = PROXY[i](url);
+      if(!target) continue;                    // 自訂代理沒設定就跳過
+      const r = await fetch(target, {cache:'no-store'});
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const txt = await r.text();
       if(!txt) throw new Error('回傳空白');
@@ -624,6 +675,102 @@ function fbCandidates(proj){
     `https://${proj}-default-rtdb.europe-west1.firebasedatabase.app`
   ];
 }
+/* 自訂代理的說明面板與測試 */
+const WORKER_CODE = [
+'export default {',
+'  async fetch(request) {',
+'    const u = new URL(request.url);',
+'    const target = u.searchParams.get("url");',
+'',
+'    // 瀏覽器的預檢請求',
+'    if (request.method === "OPTIONS") {',
+'      return new Response(null, { headers: cors() });',
+'    }',
+'    if (!target) {',
+'      return new Response("缺少 url 參數", { status: 400, headers: cors() });',
+'    }',
+'    // 只放行證交所與櫃買，避免變成別人的公開代理',
+'    const host = new URL(target).hostname;',
+'    const allow = ["openapi.twse.com.tw", "www.twse.com.tw",',
+'                   "mops.twse.com.tw", "www.tpex.org.tw"];',
+'    if (!allow.includes(host)) {',
+'      return new Response("不允許的網域: " + host, { status: 403, headers: cors() });',
+'    }',
+'',
+'    const r = await fetch(target, { headers: { "User-Agent": "Mozilla/5.0" } });',
+'    const body = await r.arrayBuffer();',
+'    return new Response(body, {',
+'      status: r.status,',
+'      headers: Object.assign(cors(), {',
+'        "Content-Type": r.headers.get("Content-Type") || "application/json",',
+'        "Cache-Control": "public, max-age=1800"',
+'      })',
+'    });',
+'  }',
+'};',
+'',
+'function cors() {',
+'  return {',
+'    "Access-Control-Allow-Origin": "*",',
+'    "Access-Control-Allow-Methods": "GET,OPTIONS",',
+'    "Access-Control-Allow-Headers": "*"',
+'  };',
+'}'
+].join('\n');
+
+function renderPxHelp(){
+  const el = document.getElementById('pxHelp');
+  if(!el) return;
+  el.innerHTML = `
+    <b>為什麼需要這個</b>
+    <div><code>openapi.twse.com.tw</code>（月營收、綜合損益表、資產負債表的來源）沒有開放跨來源存取，
+    瀏覽器不准直接讀。<code>www.twse.com.tw</code> 有開，所以法人與行情一直都正常。
+    公用免費代理在你的網路是 DNS 解不出來或不回 CORS 標頭，所以只能自己開一個。</div>
+
+    <b style="display:block;margin-top:10px">開一個 Cloudflare Worker（免費，約五分鐘）</b>
+    <ol>
+      <li>到 <code>dash.cloudflare.com</code> 註冊或登入</li>
+      <li>左側選 <b>Workers &amp; Pages</b> → <b>Create</b> → <b>Create Worker</b></li>
+      <li>取個名字（例如 <code>twse</code>），按 <b>Deploy</b></li>
+      <li>按 <b>Edit code</b>，把編輯器裡原本的內容全部刪掉，貼上下面這段，再按 <b>Deploy</b></li>
+      <li>把它的網址加上 <code>/?url=</code> 填回上面的欄位，例如
+        <code>https://twse.你的帳號.workers.dev/?url=</code></li>
+      <li>按「測試」確認通了，然後按「強制重抓基本面」</li>
+    </ol>
+    <pre id="wkCode">${WORKER_CODE.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>
+    <button class="btn" id="btnCopyWk" style="font-size:11px;padding:4px 10px">複製程式碼</button>
+    <div style="margin-top:10px;color:var(--dim2)">
+      這段程式碼只放行證交所與櫃買四個網域，不會變成別人的公開代理。
+      免費方案每天十萬次請求，這支工具一天用不到一百次。
+    </div>`;
+  const b = document.getElementById('btnCopyWk');
+  if(b) b.onclick = () => {
+    navigator.clipboard.writeText(WORKER_CODE)
+      .then(() => { b.textContent = '已複製'; setTimeout(() => b.textContent = '複製程式碼', 1500); })
+      .catch(() => { b.textContent = '複製失敗，請手動選取'; });
+  };
+}
+
+async function pxTest(){
+  myProxySave();
+  const el = document.getElementById('pxState');
+  if(!MY_PROXY){ el.innerHTML = '<span style="color:#ff9d9d">請先填網址</span>'; return; }
+  el.textContent = '測試中…';
+  const target = 'https://openapi.twse.com.tw/v1/opendata/t187ap05_L';
+  try{
+    const r = await fetch(applyMyProxy(target), {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const t = await r.text();
+    const d = JSON.parse(t);
+    if(!Array.isArray(d)) throw new Error('回傳不是陣列');
+    el.innerHTML = `<span style="color:#8fe0ad">通了</span>：月營收端點回傳 <b style="color:var(--tx)">${d.length}</b> 筆、`
+      + `${(t.length/1048576).toFixed(2)} MB。現在按「強制重抓基本面」就會有資料。`;
+  }catch(e){
+    el.innerHTML = `<span style="color:#ff9d9d">失敗：${e.message}</span>　`
+      + `檢查網址結尾有沒有 <code>/?url=</code>，以及 Worker 是否已 Deploy。`;
+  }
+}
+
 async function fbAutoDetect(){
   const el = document.getElementById('fbState');
   const btn = document.getElementById('btnFbAuto');
@@ -3501,12 +3648,20 @@ document.getElementById('btnReset').onclick = () => {
 };
 document.getElementById('btnFbTest').onclick = fbTest;
 document.getElementById('btnFbAuto').onclick = fbAutoDetect;
+document.getElementById('btnPxSave').onclick = myProxySave;
+document.getElementById('btnPxTest').onclick = pxTest;
+document.getElementById('btnPxHelp').onclick = () => {
+  const h = document.getElementById('pxHelp');
+  h.classList.toggle('on');
+  if(h.classList.contains('on') && !h.innerHTML.trim()) renderPxHelp();
+};
 document.getElementById('btnWhy').onclick = () => renderWhy(document.getElementById('whyCode').value);
 document.getElementById('whyCode').addEventListener('keydown', e => {
   if(e.key === 'Enter') renderWhy(document.getElementById('whyCode').value);
 });
 ['fbUrl','fbOn','fbOnly'].forEach(id =>
-  document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad(); renderVintage(); renderAlert(); }));
+  document.getElementById(id).addEventListener('change', () => { fbSave(); fbLoad();
+myProxyLoad(); renderVintage(); renderAlert(); }));
 document.getElementById('btnFbPush').onclick = pushAllToCloud;
 ['fNoFin','fNoLoss'].forEach(id => document.getElementById(id).addEventListener('change', score));
 document.getElementById('fWin').addEventListener('change', () => {
@@ -3534,6 +3689,8 @@ document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); 
 
 cacheLoad();
 fbLoad();
+myProxyLoad();
+myProxySave();
 (function syncWin(){
   const sel = document.getElementById('fWin');
   if(sel) sel.value = String(TW_WIN);
