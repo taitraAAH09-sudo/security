@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V43</title>
+<title>法人卡位選股台 V44</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -243,6 +243,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .pktag{font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;
   background:#1e2733;color:var(--dim);border:1px solid var(--line)}
 .pktag.hot{background:#3a1f24;color:#ffb3b3;border-color:#5c2b32}
+.sumrow{font-size:12.5px;color:var(--dim);padding:5px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sumrow b{color:var(--tx)}
 
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
@@ -282,11 +284,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V43</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V44</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
-  <button class="btn pri" id="btnHot">投信作帳強勢股</button>
+  <button class="btn" id="btnHot">強勢版 15 檔</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
 </header>
 
@@ -343,11 +345,12 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   </div></div>
 
   <div class="whybar">
-    <span style="font-size:12.5px;color:var(--dim);font-weight:600">季底作帳候選</span>
-    <button class="btn pri" id="btnPick10">產生前 10 檔</button>
-    <button class="btn" id="btnPick15">前 15 檔</button>
-    <button class="btn" id="btnPickHist">歷次名單與事後檢核</button>
-    <span style="font-size:11.5px;color:var(--dim2)">產生的名單會自動存檔，下一季可回頭對答案</span>
+    <span style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
+    <button class="btn pri" id="btnPick10">穩健版 10 檔</button>
+    <button class="btn pri" id="btnPick15">穩健版 15 檔</button>
+    <button class="btn" id="btnPickHist">歷次名單與績效檢核</button>
+    <span style="font-size:11.5px;color:var(--dim2)">
+      穩健版＝跟車成本低、位階還沒發動　·　強勢版在右上角　·　名單自動存檔，下一季回頭對答案</span>
   </div>
   <div id="pickOut"></div>
   <div id="pickHist"></div>
@@ -465,13 +468,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V43
+   法人卡位選股台 V44
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V43';
+const VER = 'V44';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2838,46 +2841,151 @@ function savePicks(list, type){
 }
 
 /* 事後檢核：拿當初存的價格跟現在比 */
+/* ==========================================================================
+   績效檢核
+   三個容易騙自己的地方，這裡都處理掉：
+   1. 只看「現在賺多少」會忽略中途曾經賺很多又跌回來 → 加最高／最低浮動
+   2. 大盤漲你也漲，那不是本事 → 減掉同期全市場中位數報酬，看超額
+   3. 一兩批名單的結果是雜訊 → 樣本太少時直接標示，不給結論
+   ========================================================================== */
+
+/* 同期市場基準：拿快取裡所有個股在同一段期間的報酬中位數。
+   用中位數而非平均，避免少數暴漲股把基準拉歪。 */
+function marketReturnSince(fromDate){
+  const at = DATA.dates.indexOf(fromDate);
+  if(at < 0) return null;
+  const rets = [];
+  for(const c in DATA.px){
+    const arr = DATA.px[c].c;
+    const a = arr[at], b = lastVal(arr);
+    if(a && b) rets.push((b - a) / a * 100);
+  }
+  if(rets.length < 30) return null;
+  rets.sort((x,y) => x - y);
+  return rets[Math.floor(rets.length / 2)];
+}
+
+/* 一檔標的從進場日到現在的走勢：最終、期間最高、期間最低 */
+function trackSince(code, fromDate, entryPx){
+  const p = DATA.px[code];
+  if(!p || !entryPx) return null;
+  const at = DATA.dates.indexOf(fromDate);
+  if(at < 0) return null;
+  let hi = null, lo = null, last = null;
+  for(let i = at; i < p.c.length; i++){
+    const c = p.c[i];
+    if(c === null) continue;
+    last = c;
+    const h = p.h[i] !== null ? p.h[i] : c;
+    const l = p.l[i] !== null ? p.l[i] : c;
+    hi = hi === null ? h : Math.max(hi, h);
+    lo = lo === null ? l : Math.min(lo, l);
+  }
+  if(last === null) return null;
+  const pc = v => (v - entryPx) / entryPx * 100;
+  return {last, ret: pc(last), mfe: hi === null ? null : pc(hi), mae: lo === null ? null : pc(lo)};
+}
+
 function pickReview(){
   const all = picksLoad();
-  const days = Object.keys(all).sort().reverse();
-  if(!days.length) return '<div style="color:var(--dim);font-size:12.5px">還沒有存過任何名單。按上方「產生季底作帳候選」就會存檔。</div>';
+  const keys = Object.keys(all).sort().reverse();
+  if(!keys.length)
+    return '<div style="color:var(--dim);font-size:12.5px">還沒有存過任何名單。按「穩健版 10 檔」或右上角「強勢版 15 檔」就會存檔。</div>';
 
-  return days.slice(0, 8).map(day => {
-    const b = all[day];
-    let done = 0, sum = 0, win = 0;
+  // 整體統計，分穩健版與強勢版
+  const agg = {dress:{n:0, sum:0, win:0, ex:0, exn:0}, momo:{n:0, sum:0, win:0, ex:0, exn:0}};
+
+  const body = keys.slice(0, 10).map(key => {
+    const b = all[key];
+    const type = b.type === 'momo' ? 'momo' : 'dress';
+    const mkt = marketReturnSince(b.tradeDate);
+    let done = 0, sum = 0, win = 0, mfeSum = 0, mfeN = 0;
+
     const rows = b.items.map(it => {
-      const cur = DATA.px[it.code] ? lastVal(DATA.px[it.code].c) : null;
-      const ret = (cur !== null && it.px) ? (cur - it.px) / it.px * 100 : null;
-      if(ret !== null){ done++; sum += ret; if(ret > 0) win++; }
+      const t = trackSince(it.code, b.tradeDate, it.px);
+      if(t){
+        done++; sum += t.ret; if(t.ret > 0) win++;
+        if(t.mfe !== null){ mfeSum += t.mfe; mfeN++; }
+      }
+      const ex = (t && mkt !== null) ? t.ret - mkt : null;
       return `<tr>
         <td class="code">${it.code}</td><td>${it.name}</td>
         <td style="text-align:right">${fmt(it.px,2)}</td>
-        <td style="text-align:right">${cur === null ? '—' : fmt(cur,2)}</td>
-        <td style="text-align:right" class="${ret === null ? 'na' : (ret > 0 ? 'pos' : 'neg')}">
-          ${ret === null ? '—' : (ret > 0 ? '+' : '') + fmt(ret,1) + '%'}</td>
+        <td style="text-align:right">${t ? fmt(t.last,2) : '—'}</td>
+        <td style="text-align:right" class="${!t ? 'na' : (t.ret > 0 ? 'pos' : 'neg')}">
+          ${t ? (t.ret > 0 ? '+' : '') + fmt(t.ret,1) + '%' : '—'}</td>
+        <td style="text-align:right" class="${ex === null ? 'na' : (ex > 0 ? 'pos' : 'neg')}">
+          ${ex === null ? '—' : (ex > 0 ? '+' : '') + fmt(ex,1) + '%'}</td>
+        <td style="text-align:right;color:var(--dim2)">${t && t.mfe !== null ? '+' + fmt(t.mfe,1) : '—'}</td>
+        <td style="text-align:right;color:var(--dim2)">${t && t.mae !== null ? fmt(t.mae,1) : '—'}</td>
         <td style="text-align:right;color:var(--dim)">${it.dress}</td>
         <td style="color:var(--dim2);font-size:10.5px">${it.pattern} ／ ${it.phase}</td>
       </tr>`;
     }).join('');
+
     const avg = done ? sum / done : null;
     const wr  = done ? win / done * 100 : null;
+    const exAvg = (avg !== null && mkt !== null) ? avg - mkt : null;
+    const mfeAvg = mfeN ? mfeSum / mfeN : null;
+    if(done){
+      agg[type].n += done; agg[type].sum += sum; agg[type].win += win;
+      if(exAvg !== null){ agg[type].ex += exAvg; agg[type].exn++; }
+    }
+
     return `<div class="pkbatch">
       <div class="pkhead">
         <b>${b.tradeDate.slice(0,4)}/${b.tradeDate.slice(4,6)}/${b.tradeDate.slice(6,8)}</b>
-        <span class="pktag ${b.type==='momo'?'hot':''}">${b.type==='momo'?'強勢版':'候選版'}</span>
+        <span class="pktag ${type==='momo'?'hot':''}">${type==='momo'?'強勢版':'穩健版'}</span>
         <span style="color:var(--dim2)">·　${b.quarter} 季底前 ${b.daysToQE} 天　·　${b.items.length} 檔</span>
         ${avg === null ? '' : `<span style="margin-left:auto">
           平均 <b class="${avg>0?'pos':'neg'}">${avg>0?'+':''}${fmt(avg,1)}%</b>
-          　勝率 <b>${Math.round(wr)}%</b>（${win}/${done}）</span>`}
+          ${mkt === null ? '' : `　同期市場 <b>${mkt>0?'+':''}${fmt(mkt,1)}%</b>
+          　超額 <b class="${exAvg>0?'pos':'neg'}">${exAvg>0?'+':''}${fmt(exAvg,1)}%</b>`}
+          　勝率 <b>${Math.round(wr)}%</b>（${win}/${done}）
+          ${mfeAvg === null ? '' : `　平均最高曾 <b class="pos">+${fmt(mfeAvg,1)}%</b>`}</span>`}
       </div>
       <table class="pktbl"><thead><tr>
-        <th>代號</th><th>名稱</th><th style="text-align:right">當時價</th>
+        <th>代號</th><th>名稱</th><th style="text-align:right">進場價</th>
         <th style="text-align:right">現價</th><th style="text-align:right">報酬</th>
-        <th style="text-align:right">當時分數</th><th>當時狀態</th>
+        <th style="text-align:right">超額</th>
+        <th style="text-align:right">期間最高</th><th style="text-align:right">期間最低</th>
+        <th style="text-align:right">分數</th><th>當時狀態</th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div>`;
   }).join('');
+
+  // 總結：樣本不足就明說，不給結論
+  const sum1 = ['dress','momo'].map(t => {
+    const a = agg[t];
+    if(!a.n) return '';
+    const avg = a.sum / a.n, wr = a.win / a.n * 100;
+    const ex = a.exn ? a.ex / a.exn : null;
+    const name = t === 'momo' ? '強勢版' : '穩健版';
+    return `<div class="sumrow">
+      <span class="pktag ${t==='momo'?'hot':''}">${name}</span>
+      共 <b>${a.n}</b> 筆　平均 <b class="${avg>0?'pos':'neg'}">${avg>0?'+':''}${fmt(avg,1)}%</b>
+      ${ex === null ? '' : `　超額 <b class="${ex>0?'pos':'neg'}">${ex>0?'+':''}${fmt(ex,1)}%</b>`}
+      　勝率 <b>${Math.round(wr)}%</b></div>`;
+  }).join('');
+
+  const total = agg.dress.n + agg.momo.n;
+  const enough = keys.length >= 8 && total >= 60;
+
+  return `<div class="pkbox">
+      <div class="pkhead"><b>歷次名單與績效檢核</b>
+        <span style="color:var(--dim2)">·　共 ${keys.length} 批、${total} 筆部位</span></div>
+      ${sum1}
+      <div class="pkwarn">
+        <b>「超額」才是重點，不是「報酬」。</b>同期市場用快取裡所有個股報酬的<b>中位數</b>當基準。
+        大盤漲 8% 你的名單漲 9%，實力是 1% 不是 9%。<br>
+        <b>期間最高／最低</b>是從進場日到現在的最大浮盈與最大浮虧——
+        如果平均最高曾 +12% 但最終只剩 +1%，代表選股沒問題、<b>是出場規則的問題</b>。<br>
+        ${enough
+          ? '樣本量已經足夠形成初步判斷。'
+          : `<b style="color:var(--accent)">樣本還太少（目前 ${keys.length} 批、${total} 筆），這些數字是雜訊，先不要下結論。</b>
+             至少要跨 3~4 個季度、累積 60 筆以上部位才看得出來。`}
+      </div>
+    </div>` + body;
 }
 
 function renderPicks(n){
