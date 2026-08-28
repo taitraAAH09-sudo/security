@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V40</title>
+<title>法人卡位選股台 V41</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -267,7 +267,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V40</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V41</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -439,13 +439,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V40
+   法人卡位選股台 V41
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V40';
+const VER = 'V41';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -898,7 +898,7 @@ async function pushAllToCloud(){
     }
     for(const c in DATA.px){
       const s = DATA.px[c];
-      if(s.c[i] !== null) px[c] = {c:s.c[i], h:s.h[i], l:s.l[i], v:s.v[i]};
+      if(s.c[i] !== null) px[c] = {o:(s.o?s.o[i]:null), c:s.c[i], h:s.h[i], l:s.l[i], v:s.v[i]};
     }
     if(!Object.keys(ins).length || !Object.keys(px).length) continue;
     try{ await fbPut('kawei/days/' + d, {ins, px}); ok++; }catch(e){ bad++; }
@@ -968,12 +968,14 @@ async function fetchPx(date){
   const f = tb.fields;
   const iCode = idxOf(f,'證券代號'), iName = idxOf(f,'證券名稱'),
         iC = idxOf(f,'收盤價'), iH = idxOf(f,'最高價'),
-        iL = idxOf(f,'最低價'), iV = idxOf(f,'成交股數');
+        iL = idxOf(f,'最低價'), iV = idxOf(f,'成交股數'),
+        iO = idxOf(f,'開盤價');
   const out = {};
   for(const r of tb.data){
     const code = String(r[iCode]).trim();
     if(!/^\d{4}$/.test(code)) continue;
-    out[code] = {c:N(r[iC]), h:N(r[iH]), l:N(r[iL]), v:(N(r[iV])||0)/1000,
+    out[code] = {o: iO>=0 ? N(r[iO]) : null,
+                 c:N(r[iC]), h:N(r[iH]), l:N(r[iL]), v:(N(r[iV])||0)/1000,
                  n: iName>=0 ? String(r[iName]).trim() : ''};
   }
   return out;
@@ -1290,7 +1292,7 @@ async function runAll(){
         }
         for(const c in DATA.px){
           const s = DATA.px[c];
-          if(s.c[at] !== null) px[c] = {c:s.c[at], h:s.h[at], l:s.l[at], v:s.v[at]};
+          if(s.c[at] !== null) px[c] = {o:(s.o?s.o[at]:null), c:s.c[at], h:s.h[at], l:s.l[at], v:s.v[at]};
         }
         if(!Object.keys(ins).length || !Object.keys(px).length) continue;
         try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`補傳 ${d}：${e.message}`); }
@@ -1430,7 +1432,7 @@ function pushDay(date, ins, px){
     at = dates.findIndex(x => x > date);
     if(at < 0) at = dates.length;
     dates.splice(at, 0, date);
-    for(const c in DATA.px){ const s = DATA.px[c]; ['c','h','l','v'].forEach(k => s[k].splice(at,0,null)); }
+    for(const c in DATA.px){ const s = DATA.px[c]; ['o','c','h','l','v'].forEach(k => { if(s[k]) s[k].splice(at,0,null); }); }
     for(const c in DATA.ins){ const s = DATA.ins[c]; ['f','t'].forEach(k => s[k].splice(at,0,null)); }
   }
   const L = dates.length;
@@ -1440,7 +1442,8 @@ function pushDay(date, ins, px){
     return obj[code];
   };
   for(const code in px){
-    const s = ensure(DATA.px, code, ['c','h','l','v']);
+    const s = ensure(DATA.px, code, ['o','c','h','l','v']);
+    s.o[at] = (px[code].o === undefined ? null : px[code].o);
     s.c[at] = px[code].c; s.h[at] = px[code].h; s.l[at] = px[code].l; s.v[at] = px[code].v;
     if(px[code].n){ const fr = fRec(code); if(!fr.name) fr.name = px[code].n; }
   }
@@ -2828,6 +2831,111 @@ function render(){
   setStatus(`符合條件 <b>${rows.length}</b> 檔${rows.length>300?'（只顯示前 300）':''}。點任一列看計分明細。`);
 }
 
+/* ==========================================================================
+   K 線圖 ＋ 投信買賣超
+   上半部畫日 K（台股慣例：收 >= 開為紅、收 < 開為綠），
+   下半部畫投信單日買賣超長條（買紅、賣綠），中間拉一條投信建倉成本線。
+   舊快取沒有開盤價，那幾天退回用前一日收盤當開盤並在說明標示。
+   ========================================================================== */
+function candleChart(code){
+  const p = DATA.px[code], q = DATA.ins[code];
+  if(!p) return '';
+  const n = p.c.length;
+  if(n < 2) return '';
+
+  // 收集有效交易日
+  const idx = [];
+  for(let i = 0; i < n; i++) if(p.c[i] !== null) idx.push(i);
+  if(idx.length < 3) return '';
+
+  const row = ROWS.find(x => x.code === code);
+  const tc = row ? row.trustCost : null;
+
+  const W = 560, HK = 130, HV = 46, GAP = 10, PAD = 6;
+  const H = HK + GAP + HV;
+
+  // 價格軸範圍（含影線與成本線）
+  let mn = Infinity, mx = -Infinity, noOpen = 0;
+  idx.forEach(i => {
+    const hi = p.h[i] !== null ? p.h[i] : p.c[i];
+    const lo = p.l[i] !== null ? p.l[i] : p.c[i];
+    if(hi > mx) mx = hi;
+    if(lo < mn) mn = lo;
+    if(!p.o || p.o[i] === null || p.o[i] === undefined) noOpen++;
+  });
+  if(tc !== null){ mn = Math.min(mn, tc); mx = Math.max(mx, tc); }
+  const rg = (mx - mn) || 1;
+  const Y = v => PAD + (mx - v) / rg * (HK - 2*PAD);
+
+  const slot = (W - 2*PAD) / idx.length;
+  const bw = Math.max(2, Math.min(9, slot * 0.62));
+
+  // K 棒
+  let ks = '';
+  idx.forEach((i, k) => {
+    const x = PAD + slot * (k + 0.5);
+    const c = p.c[i];
+    const hi = p.h[i] !== null ? p.h[i] : c;
+    const lo = p.l[i] !== null ? p.l[i] : c;
+    let o = (p.o && p.o[i] !== null && p.o[i] !== undefined) ? p.o[i] : null;
+    if(o === null) o = (k > 0) ? p.c[idx[k-1]] : c;      // 沒開盤價就用前一日收盤
+    const up = c >= o;
+    const col = up ? 'var(--up)' : 'var(--dn)';
+    const yTop = Y(Math.max(o, c)), yBot = Y(Math.min(o, c));
+    const bodyH = Math.max(1, yBot - yTop);
+    ks += `<line x1="${x.toFixed(1)}" y1="${Y(hi).toFixed(1)}" x2="${x.toFixed(1)}" y2="${Y(lo).toFixed(1)}"
+             stroke="${col}" stroke-width="1"/>`
+       +  `<rect x="${(x - bw/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}"
+             height="${bodyH.toFixed(1)}" fill="${up ? col : 'none'}"
+             stroke="${col}" stroke-width="1"/>`;
+  });
+
+  // 投信成本線
+  const costLine = tc !== null
+    ? `<line x1="${PAD}" y1="${Y(tc).toFixed(1)}" x2="${W-PAD}" y2="${Y(tc).toFixed(1)}"
+             stroke="var(--trust)" stroke-width="1" stroke-dasharray="5 4"/>
+       <text x="${W-PAD}" y="${(Y(tc)-3).toFixed(1)}" text-anchor="end"
+             font-size="9" fill="var(--trust)">投信成本 ${fmt(tc,2)}</text>`
+    : '';
+
+  // 下半部：投信單日買賣超
+  let vs = '';
+  if(q){
+    let amax = 0;
+    idx.forEach(i => { const v = q.t[i]; if(v !== null) amax = Math.max(amax, Math.abs(v)); });
+    if(amax > 0){
+      const base = HK + GAP + HV/2;
+      const scale = (HV/2 - 2) / amax;
+      idx.forEach((i, k) => {
+        const v = q.t[i];
+        if(v === null || v === 0) return;
+        const x = PAD + slot * (k + 0.5);
+        const h = Math.max(1, Math.abs(v) * scale);
+        const y = v > 0 ? base - h : base;
+        vs += `<rect x="${(x - bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}"
+                 height="${h.toFixed(1)}" fill="${v > 0 ? 'var(--up)' : 'var(--dn)'}" opacity="0.85"/>`;
+      });
+      vs += `<line x1="${PAD}" y1="${base}" x2="${W-PAD}" y2="${base}"
+               stroke="var(--line)" stroke-width="1"/>`
+         +  `<text x="${PAD}" y="${HK + GAP + 9}" font-size="9" fill="var(--dim2)">投信買賣超 最大 ${Math.round(amax).toLocaleString()} 張</text>`;
+    }
+  }
+
+  const first = DATA.dates[idx[0]] || '', last = DATA.dates[idx[idx.length-1]] || '';
+  const dfmt = d => d ? d.slice(4,6) + '/' + d.slice(6,8) : '';
+
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="100%" height="${H}"
+            preserveAspectRatio="xMidYMid meet" style="overflow:visible">
+      ${costLine}${ks}${vs}
+    </svg>
+    <div style="font-size:11px;color:var(--dim2);margin-top:2px">
+      ${dfmt(first)} ～ ${dfmt(last)}　共 ${idx.length} 個交易日　·　
+      K 棒紅漲綠跌，下方長條是投信單日買賣超（紅買綠賣）
+      ${tc !== null ? `　·　紫色虛線是投信建倉成本` : ''}
+      ${noOpen ? `　·　<span style="color:var(--accent)">有 ${noOpen} 天缺開盤價，那幾根用前一日收盤代替（重抓後會補上）</span>` : ''}
+    </div>`;
+}
+
 function sparkline(code){
   const p = DATA.px[code], q = DATA.ins[code];
   if(!p) return '';
@@ -2946,7 +3054,7 @@ function showDetail(code){
         ${axBlock('還有多少空間', s.C, r.sRoom===null?'—':r.sRoom, 25)}
       </div>
       ${valBlock(r)}
-      ${sparkline(code)}
+      ${candleChart(code)}
     </div>`;
 }
 
