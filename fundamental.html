@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V35</title>
+<title>法人卡位選股台 V36</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -215,6 +215,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .whystep.no .wdt{color:#ffb3b3}
 @media(max-width:760px){ .whystep{grid-template-columns:16px 1fr} .whystep .wdt{grid-column:2} }
 
+.fairno{font-size:10.5px;color:var(--dim2);border:1px solid var(--line);
+  border-radius:4px;padding:1px 6px;white-space:nowrap}
 .axval{color:var(--tx);font-weight:700;margin-right:8px;font-variant-numeric:tabular-nums}
 .axval.neg{color:var(--dn)}
 .axpt{color:var(--dim2);font-weight:600;font-size:11px}
@@ -236,7 +238,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .tri.t3{background:#3a1f24;color:#ffb3b3;border:1px solid #5c2b32}
 .tri.t2{background:#2f2712;color:#ffd166;border:1px solid #4a3c17}
 .tri.t0{background:#12301f;color:#8fe0ad;border:1px solid #1f4a30}
-.tri.tg{background:#1e2733;color:var(--dim);border:1px dashed #3d4b5f}
+.tri.tg2{background:#3a2b1a;color:#ffcf8f;border:1px dashed #6b4d22}
+.tri.tg1{background:#1e2733;color:var(--dim);border:1px dashed #3d4b5f}
+.tri.tg0{background:#16281f;color:#8fc3a4;border:1px dashed #2a4a37}
 .tri.tw{background:#1a1f27;color:var(--dim2);border:1px solid var(--line)}
 .prem{font-weight:700}
 .fbrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;
@@ -255,7 +259,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V35</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V36</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -415,13 +419,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V35
+   法人卡位選股台 V36
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V35';
+const VER = 'V36';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1764,7 +1768,11 @@ function triChip(t){
   if(t.state === 'three') return '<span class="tri t3">三率三升</span>';
   if(t.state === 'part')  return `<span class="tri t2">${t.up} 升</span>`;
   if(t.state === 'down')  return '<span class="tri t0">三率齊跌</span>';
-  if(t.state === 'guess') return `<span class="tri tg">推測 ${t.guessUp===2?'偏正面':t.guessUp===1?'中性':'偏負面'}</span>`;
+  if(t.state === 'guess'){
+    const lv = t.guessUp === 2 ? 'tg2' : (t.guessUp === 1 ? 'tg1' : 'tg0');
+    const w  = t.guessUp === 2 ? '偏正面' : (t.guessUp === 1 ? '中性' : '偏負面');
+    return `<span class="tri ${lv}">推測 ${w}</span>`;
+  }
   if(t.state === 'wait')  return '<span class="tri tw">待累積</span>';
   return '<span class="na">—</span>';
 }
@@ -2009,8 +2017,8 @@ const COL_LOCK = ['code','name','score','sigRank','phaseRank'];                 
 const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
 const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
-                  't10buy','net20t','build20','buildAll','idleDays','px','trustCost','vsTrust',
-                  'revYoY','peVsInd'];
+                  't10buy','buildAll','idleDays',
+                  'px','trustCost','vsTrust','fairLo','prem','revYoY'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
@@ -2202,6 +2210,33 @@ function phaseOf(m){
   return {k:'push', label:'拉抬中',
     why:`仍在買，但現價高於其成本 ${fmt(vs,1)}%，成本區已經拉開`};
 }
+/* 合理價區間那一格。空白最沒用——看不出是「算不出來」還是「還沒抓到資料」，
+   所以算不出來時改成一個短理由，算得出來但太寬時仍然把數字給出來、只是標示參考性。 */
+function fairCell(r){
+  const V = r.V;
+  if(V.lo !== null){
+    const lo = fmt(V.lo,1), hi = fmt(V.hi,1);
+    if(r.fairUseless)
+      return `<span style="color:var(--dim2)">${lo} ～ ${hi}</span>`
+           + ` <span style="color:var(--accent);font-size:10px">太散</span>`;
+    if(r.fairWide)
+      return `${lo} ～ ${hi} <span style="color:var(--accent);font-size:10px">偏寬</span>`;
+    return `<span style="color:var(--dn)">${lo}</span><span style="color:var(--dim2)"> ～ </span>`
+         + `<span style="color:var(--up)">${hi}</span>`;
+  }
+  // 算不出來：把原因濃縮成一個標籤，別留白
+  const why = V.bandWhy || '';
+  let tag = '無資料';
+  if(V.peVsInd !== null && V.peVsInd >= 3)        tag = '市場給高倍數';
+  else if(V.peVsInd !== null && V.peVsInd <= 0.45) tag = '市場給低倍數';
+  else if(why.indexOf('缺產業別') >= 0)            tag = '缺產業別';
+  else if(why.indexOf('樣本不足') >= 0)            tag = '同業樣本不足';
+  else if(why.indexOf('虧損') >= 0 || why.indexOf('非正數') >= 0) tag = '近四季虧損';
+  return `<span class="fairno">${tag}</span>`;
+}
+
+function fmt2(v){ return fmt(v,2); }
+
 const PH_CLS = {build:'ph1', start:'ph2', push:'ph3', harvest:'ph4',
                 reduce:'ph5', unload:'ph6', pause:'ph7', none:'ph0'};
 function phChip(p){
@@ -2499,10 +2534,7 @@ function render(){
         r.V.mid===null ? '<span class="na">—</span>'
         : fmt(r.V.mid,1) + (r.V.lo!==null
             ? ` <span style="font-size:10px;color:${r.fairWide?'var(--accent)':'var(--dim2)'}">±${r.fairPm}%</span>` : '')}</td>
-      <td class="fairbox${r.fairWide?' faded':''}">${r.V.lo===null ? '<span class="na">—</span>'
-        : (r.fairUseless ? '<span style="color:var(--dim2)">太散</span>' : r.fairWide
-            ? `${fmt(r.V.lo,1)} ～ ${fmt(r.V.hi,1)} <span style="color:var(--accent);font-size:10px">參考性低</span>`
-            : `<span style="color:var(--dn)">${fmt(r.V.lo,1)}</span><span style="color:var(--dim2)"> ～ </span><span style="color:var(--up)">${fmt(r.V.hi,1)}</span>`)}</td>
+      <td class="fairbox${r.fairWide?' faded':''}">${fairCell(r)}</td>
       <td class="prem ${r.prem===null?'na':(r.fairWide?'faded':(r.prem>0?'pos':'neg'))}">${
         r.prem===null ? '—'
         : (r.prem>0 ? '貴 +' : '便宜 ') + fmt(r.prem,1)}</td>
