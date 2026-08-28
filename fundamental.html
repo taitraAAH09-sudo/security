@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V36</title>
+<title>法人卡位選股台 V39</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -259,7 +259,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V36</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V39</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -419,13 +419,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V36
+   法人卡位選股台 V39
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V36';
+const VER = 'V39';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1651,7 +1651,7 @@ function scoreOne(m, f, V){
   B.push(P('營業利益率', 9, om, om===null ? null : band(om, [
     [20,9,'本業非常賺'],[12,7,'本業賺'],[6,5,'本業普通'],[2,2,'本業微利'],[0,1,'接近損益兩平'],
     [-1e9,0,'本業虧損']])));
-  B.push(P('單季 EPS', 9, eps, eps===null ? null : band(eps, [
+  B.push(P('每股盈餘', 9, eps, eps===null ? null : band(eps, [
     [5,9,'EPS ≥5 元'],[3,7,'EPS ≥3 元'],[1.5,5,'EPS ≥1.5 元'],[0,2,'小幅獲利'],[-1e9,0,'虧損']])));
   B.push(P('負債比', 5, debt, debt===null ? null : bandLow(debt, [
     [75,0,'負債比過高'],[60,1,'負債比偏高'],[45,3,'負債比中等'],[30,4,'負債比低'],[-1e9,5,'負債比很低']])));
@@ -1709,7 +1709,10 @@ function snapMargins(){
     const is = DATA.fund[c].is;
     if(!is || !is.period) continue;
     if(is.gm === null && is.om === null && is.nm === null) continue;
-    (DATA.hist[is.period] = DATA.hist[is.period] || {})[c] = {gm:is.gm, om:is.om, nm:is.nm, eps:is.eps};
+    // 三率是比率、不能相減，所以連原始金額一起存，之後才能算真正的單季三率
+    (DATA.hist[is.period] = DATA.hist[is.period] || {})[c] =
+      {gm:is.gm, om:is.om, nm:is.nm, eps:is.eps,
+       rv:is.rv, gp:is.gp, oi:is.oi, ni:is.ni};
     n++;
   }
   return n;
@@ -1725,29 +1728,110 @@ async function syncHist(fails){
   }catch(e){ if(fails) fails.push(`Firebase 三率歷史：${e.message}`); }
 }
 
+/* ==========================================================================
+   累計 vs 單季
+   MOPS 綜合損益表是「1月1日累計至本期止」，Q2 的數字是上半年合計、不是第二季。
+   把它當單季看會誤判剛轉虧為盈的公司——例如上半年累計 -0.05，
+   其實是 Q1 -0.17 加上 Q2 +0.12，第二季早就轉正了。
+   有上一季的累計數就能相減還原單季；Q1 本身累計即單季。
+   ========================================================================== */
+function prevQuarterKey(period){
+  const m = String(period||'').match(/^(\d+)Q(\d)$/);
+  if(!m) return null;
+  const y = +m[1], q = +m[2];
+  return q > 1 ? `${y}Q${q-1}` : null;      // Q1 沒有上一季可減（跨年度不相減）
+}
+function singleQ(code, f){
+  const is = f.is || {};
+  const cum = {eps:is.eps, gm:is.gm, om:is.om, nm:is.nm, rv:is.rv, gp:is.gp, oi:is.oi, ni:is.ni};
+  const period = is.period || '';
+  const m = String(period).match(/^(\d+)Q(\d)$/);
+
+  // Q1：累計就是單季
+  if(m && m[2] === '1') return Object.assign({}, cum, {basis:'單季', period, note:'第一季，累計即單季'});
+
+  const pk = prevQuarterKey(period);
+  const prev = (pk && DATA.hist && DATA.hist[pk]) ? DATA.hist[pk][code] : null;
+  if(!prev || prev.eps === null || prev.eps === undefined)
+    return Object.assign({}, cum, {basis:'累計', period,
+      note: pk ? `缺 ${pk} 的累計數，無法還原單季` : '無法判斷期別'});
+
+  const d = (a,b) => (a === null || a === undefined || b === null || b === undefined) ? null : a - b;
+
+  /* 三率是比率，不能拿累計比率相減。
+     正確作法是先把金額還原成單季，再重算比率：
+     單季毛利率 = (本期累計毛利 − 上季累計毛利) ÷ (本期累計營收 − 上季累計營收) */
+  const qRv = d(is.rv, prev.rv);
+  const qGp = d(is.gp, prev.gp);
+  const qOi = d(is.oi, prev.oi);
+  const qNi = d(is.ni, prev.ni);
+  const canRate = qRv !== null && qRv > 0;
+
+  return {
+    eps: d(is.eps, prev.eps),
+    gm: canRate ? pct(qGp, qRv) : is.gm,
+    om: canRate ? pct(qOi, qRv) : is.om,
+    nm: canRate ? pct(qNi, qRv) : is.nm,
+    rateBasis: canRate ? '單季' : '累計',
+    rv:qRv, gp:qGp, oi:qOi, ni:qNi,
+    basis:'單季', period, prevPeriod: pk,
+    cumEps: is.eps, prevEps: prev.eps,
+    note: `由 ${period} 累計 ${fmt(is.eps,2)} 減 ${pk} 累計 ${fmt(prev.eps,2)} 還原`
+      + (canRate ? '，三率也已還原成單季' : '，但缺原始金額、三率仍是累計值')
+  };
+}
+
+/* 日曆上的上一季（Q1 的上一季是去年 Q4）。
+   注意跟 prevQuarterKey() 不同：那個是給「累計相減還原單季」用的，
+   Q1 累計本來就等於單季、不能跨年度相減，所以那裡回 null。 */
+function prevQuarterCal(period){
+  const m = String(period||'').match(/^(\d+)Q(\d)$/);
+  if(!m) return null;
+  const y = +m[1], q = +m[2];
+  return q > 1 ? `${y}Q${q-1}` : `${y-1}Q4`;
+}
 function prevPeriodOf(period){
-  const keys = Object.keys(DATA.hist || {}).sort();
-  const i = keys.indexOf(period);
-  return i > 0 ? keys[i-1] : null;
+  // 先用日曆推算，只有真的存在於歷史裡才採用。
+  // 舊版是拿已存期別排序取前一個，中間缺一季就會誤抓成前兩季。
+  const cal = prevQuarterCal(period);
+  if(cal && DATA.hist && DATA.hist[cal]) return cal;
+  return null;
 }
 function triMargins(code, f){
   const is = f.is || {};
   if(!is.period) return {state:'none', why:'沒有財報資料'};
 
+  /* 拿「本季單季三率」對比「上一季單季三率」，這才是真正的 QoQ。
+     先前直接拿兩期的累計比率相減——Q2 的上半年累計對比 Q1，那不是 QoQ。 */
+  const cur  = singleQ(code, f);
   const prevP = prevPeriodOf(is.period);
-  const prev = prevP && DATA.hist[prevP] ? DATA.hist[prevP][code] : null;
+  const prev  = prevP && DATA.hist[prevP] ? DATA.hist[prevP][code] : null;
+  const pprevP = prevP ? prevQuarterKey(prevP) : null;
+  const pprev  = pprevP && DATA.hist[pprevP] ? DATA.hist[pprevP][code] : null;
 
   if(prev){
-    const d = k => (is[k] !== null && prev[k] !== null && is[k] !== undefined && prev[k] !== undefined)
-                   ? is[k] - prev[k] : null;
-    const dg = d('gm'), dm = d('om'), dn = d('nm');
+    // 上一季的單季三率：同樣要用它自己的上一季還原（Q1 則累計即單季）
+    let pg = prev.gm, po = prev.om, pn = prev.nm, pBasis = '累計';
+    const pIsQ1 = /Q1$/.test(prevP || '');
+    if(pIsQ1){ pBasis = '單季'; }
+    else if(pprev && prev.rv != null && pprev.rv != null && (prev.rv - pprev.rv) > 0){
+      const r = prev.rv - pprev.rv;
+      pg = pct(prev.gp - pprev.gp, r);
+      po = pct(prev.oi - pprev.oi, r);
+      pn = pct(prev.ni - pprev.ni, r);
+      pBasis = '單季';
+    }
+    const d = (a,b) => (a == null || b == null) ? null : a - b;
+    const dg = d(cur.gm, pg), dm = d(cur.om, po), dn = d(cur.nm, pn);
     if(dg === null || dm === null || dn === null)
       return {state:'none', why:`${prevP} 那期的三率不完整`};
     const up = [dg,dm,dn].filter(x => x > 0).length;
+    const bas = (cur.rateBasis === '單季' && pBasis === '單季') ? '單季' : '累計';
     return {
       state: up === 3 ? 'three' : (up === 0 ? 'down' : 'part'),
-      up, dg, dm, dn, prevP,
-      why: `對比 ${prevP}：毛利率 ${dg>0?'+':''}${dg.toFixed(2)}、營益率 ${dm>0?'+':''}${dm.toFixed(2)}、淨利率 ${dn>0?'+':''}${dn.toFixed(2)}（百分點）`
+      up, dg, dm, dn, prevP, basis: bas,
+      why: `${bas}對比 ${prevP}：毛利率 ${dg>0?'+':''}${dg.toFixed(2)}、營益率 ${dm>0?'+':''}${dm.toFixed(2)}、淨利率 ${dn>0?'+':''}${dn.toFixed(2)}（百分點）`
+         + (bas === '累計' ? '　※缺原始金額，用累計比率相減，僅供參考' : '')
     };
   }
 
@@ -1825,7 +1909,10 @@ function score(){
     const name = f.name || code;
     const fin = isFinancial(code, name, f.ind);
     if(noFin && fin) continue;
-    if(noLoss && f.is && f.is.eps !== null && f.is.eps !== undefined && f.is.eps <= 0) continue;
+    const SQ = singleQ(code, f);
+    // 用還原後的單季 EPS 判斷虧損。用累計會把剛轉虧為盈的公司（Q2 已轉正、
+    // 但上半年累計仍負）誤踢掉，那正好是最該看的一類
+    if(noLoss && SQ.eps !== null && SQ.eps !== undefined && SQ.eps <= 0) continue;
 
     const V = valuation(code, m.px, f);
     const s = scoreOne(m, f, V);
@@ -1870,7 +1957,9 @@ function score(){
       gm:(f.is && f.is.gm !== undefined) ? f.is.gm : null,
       om:(f.is && f.is.om !== undefined) ? f.is.om : null,
       nm:(f.is && f.is.nm !== undefined) ? f.is.nm : null,
-      eps:(f.is && f.is.eps !== undefined) ? f.is.eps : null,
+      eps: (SQ.eps === undefined ? null : SQ.eps),           // 單季（能還原就還原）
+      epsCum: (f.is && f.is.eps !== undefined) ? f.is.eps : null,
+      epsBasis: SQ.basis, epsNote: SQ.note, epsPrevP: SQ.prevPeriod || '',
       TRI, triScore:triRank, repDate, SIG, sigRank, PH, phaseRank,
       fairPm, fairWide, fairUseless, peVsInd:V.peVsInd,
       epsTTM:V.epsTTM, mcap:V.mcap, pe:V.pe, fair:V.mid, prem:V.prem,
@@ -2054,6 +2143,7 @@ const COL_HELP = {
   runPct:'買超期間漲幅 ＝ 從法人開始連買的前一日收盤，算到最新收盤。\n判斷「卡位」還是「追價」最直接的數字。',
   toHigh:'距 20 日高點。負值代表還在高點下方，越負離前高越遠、空間越大。',
   distMA20:'現價距 20 日均線的百分比。\n貼著均線（±3%）通常是剛整理完；超過 +7% 代表位階已高。',
+  eps:'每股盈餘。財報原始欄位是「1月1日累計至本期止」的累計數，\n工具會在有上一季累計數時相減還原成單季，明細會註明用的是單季還是累計。\n\n為什麼重要：Q2 累計 -0.05 可能是 Q1 -0.17 加上 Q2 +0.12，\n第二季其實已經轉虧為盈。用累計判斷會把剛翻轉的公司誤踢掉。',
   epsTTM:'近四季 EPS ＝ 收盤價 ÷ 交易所本益比。\n交易所的本益比本來就用近四季累計每股盈餘計算，反推回去比自己拼四季財報可靠。',
   pe:'交易所公布的本益比（近四季）。',
   peVsInd:'本益比 ÷ 同業中位數。\n\n≥3.0x　市場在為未來獲利定價（轉型、題材）→ 合理價不適用\n0.45～3.0x　估值與同業在同一個世界\n≤0.45x　市場刻意折價（業外一次性獲利、控股折價、本業衰退）→ 合理價不適用\n\n標黃就代表合理價那幾欄不能看。',
@@ -2177,19 +2267,39 @@ function phaseOf(m){
   const net5 = m.net5tOnly;
   const buying = m.recent2t > 0 || m.trustD > 0;
 
+  /* 季底距離會改變同一組數字的意義。
+     投信以季為評比週期，越接近季底、帳面獲利越多，落袋的誘因越強。
+     所以「結帳風險」的門檻隨著季底逼近而下修：
+       距季底 >30 天：貴成本 20% 才算高風險（還早，拉抬空間還在）
+       15~30 天    ：15%
+       ≤15 天      ：10%（進入結帳窗口，獲利了結隨時發生） */
+  const qd = quarterEnd().days;
+  const nearEnd = qd <= 15;
+  const midEnd  = qd > 15 && qd <= 30;
+  const harvestTh = nearEnd ? 10 : (midEnd ? 15 : 20);
+  const qNote = nearEnd ? `距季底僅 ${qd} 天` : (midEnd ? `距季底 ${qd} 天` : '');
+
   if(!m.trustDays) return {k:'none', label:'投信沒動作', why:'這段期間投信沒有買超紀錄'};
 
   if(net5 < 0 && vs !== null && vs > 10)
     return {k:'unload', label:'疑似出貨',
-      why:`近 5 日投信淨賣 ${Math.abs(Math.round(net5)).toLocaleString()} 張，而現價已高於其成本 ${fmt(vs,1)}%——獲利了結的樣子`};
+      why:`近 5 日投信淨賣 ${Math.abs(Math.round(net5)).toLocaleString()} 張，而現價已高於其成本 ${fmt(vs,1)}%——獲利了結的樣子`
+         + (qNote ? `（${qNote}，正是結帳窗口）` : '')};
 
   if(net5 < 0)
     return {k:'reduce', label:'投信減碼',
       why:`近 5 日投信淨賣 ${Math.abs(Math.round(net5)).toLocaleString()} 張，但現價僅高於成本 ${fmt(vs,1)}%，可能只是調節`};
 
-  if(vs !== null && vs > 20 && !buying)
+  if(vs !== null && vs > harvestTh && !buying)
     return {k:'harvest', label:'結帳風險高',
-      why:`現價已高於投信成本 ${fmt(vs,1)}%，且最近兩日沒再買——帳面獲利夠了，隨時可能落袋`};
+      why:`現價已高於投信成本 ${fmt(vs,1)}%，且最近兩日沒再買——帳面獲利夠了，隨時可能落袋`
+         + (qNote ? `。${qNote}，門檻已下修到 ${harvestTh}%` : '')};
+
+  // 已經進入結帳窗口，就算還在買也要提醒：這時候的買多半是拉抬不是建倉
+  if(nearEnd && vs !== null && vs > harvestTh && buying)
+    return {k:'push', label:'季底拉抬',
+      why:`距季底僅 ${qd} 天、現價高於投信成本 ${fmt(vs,1)}%，還在買。這是作帳拉抬的典型樣子——`
+         + `跟著上車的空間有限，而季底一過就是調節壓力`};
 
   if(vs !== null && vs > 20)
     return {k:'push', label:'拉抬中',
@@ -2205,7 +2315,8 @@ function phaseOf(m){
 
   if(vs !== null && vs <= 8)
     return {k:'build', label:'建倉中',
-      why:`買了 ${m.trustDays} 天共 ${Math.round(m.trustLots).toLocaleString()} 張，現價僅高於其成本 ${fmt(vs,1)}%——還在吃貨階段`};
+      why:`買了 ${m.trustDays} 天共 ${Math.round(m.trustLots).toLocaleString()} 張，現價僅高於其成本 ${fmt(vs,1)}%——還在吃貨階段`
+         + (nearEnd ? `。但距季底只剩 ${qd} 天，這時候才建倉的多半是下一季的部位，不是這季作帳標的` : '')};
 
   return {k:'push', label:'拉抬中',
     why:`仍在買，但現價高於其成本 ${fmt(vs,1)}%，成本區已經拉開`};
@@ -2386,13 +2497,14 @@ function whyStock(code){
   }
   pass('排除金融股', fin ? '是金融股但目前沒有勾排除' : '不是金融股');
 
-  const eps = (f.is && f.is.eps !== null && f.is.eps !== undefined) ? f.is.eps : null;
+  const sqInfo = singleQ(code, f);
+  const eps = (sqInfo.eps !== null && sqInfo.eps !== undefined) ? sqInfo.eps : null;
   if(document.getElementById('fNoLoss').checked && eps !== null && eps <= 0){
     R.verdict = 'out';
-    fail('排除虧損', `單季 EPS ${fmt(eps,2)} 元。要看的話把「排除虧損」取消勾選`);
+    fail('排除虧損', `${sqInfo.basis} EPS ${fmt(eps,2)} 元（${sqInfo.note}）。要看的話把「排除虧損」取消勾選`);
     return R;
   }
-  pass('排除虧損', eps === null ? '沒有 EPS 資料，不受此條影響' : `單季 EPS ${fmt(eps,2)} 元`);
+  pass('排除虧損', eps === null ? '沒有 EPS 資料，不受此條影響' : `${sqInfo.basis} EPS ${fmt(eps,2)} 元（${sqInfo.note}）`);
 
   // --- 到這裡應該在 ROWS 裡 ---
   const r = ROWS.find(x => x.code === code);
@@ -2608,7 +2720,7 @@ const AX_UNIT = {
   '營收年增率':'%', '營業利益率':'%', '稅後淨利率':'%', '毛利率':'%',
   '負債比':'%', '流動比':'%', '吸籌強度（近5日買超÷成交量）':'%',
   '買超期間漲幅':'%', '距 20 日高點':'%', '距 MA20':'%', '相對同業估值':'%',
-  '單季 EPS':' 元', '本益比':' 倍',
+  '每股盈餘':' 元', '本益比':' 倍',
   '投信連買天數':' 天', '外資連買天數':' 天'
 };
 function axBlock(title, arr, got, max){
@@ -2728,7 +2840,11 @@ function valBlock(r){
             V.shares ? `股數 ${(V.shares/1e8).toFixed(2)} 億股 × 收盤 ${fmt(r.px,2)}` : '缺實收資本額，算不出來')}
       ${row('近四季 EPS', fmt(V.epsTTM,2) + ' 元', V.pe ? `由交易所本益比 ${fmt(V.pe,2)} 反推：收盤 ÷ 本益比` : '')}
       ${row('每股淨值', fmt(V.bvps,2) + ' 元', V.pb ? `由股價淨值比 ${fmt(V.pb,2)} 反推` : '')}
-      ${row('單季 EPS', fmt(r.eps,2) + ' 元', r.isPeriod ? r.isPeriod + ' 財報' : '')}
+      ${row(r.epsBasis === '單季' ? '單季 EPS' : '累計 EPS（年初至今）',
+            fmt(r.eps,2) + ' 元',
+            (r.isPeriod ? r.isPeriod + ' 財報　·　' : '') + (r.epsNote || ''))}
+      ${r.epsBasis === '單季' && r.epsCum !== null && r.epsCum !== r.eps
+        ? row('累計 EPS（年初至今）', fmt(r.epsCum,2) + ' 元', '財報原始欄位就是累計數') : ''}
     </div></div></div>`;
 }
 
@@ -2861,7 +2977,7 @@ function exportCsv(){
     '近5日買超張','吸籌%','期間漲幅%','距20日高%','距MA20%','營收年增%',
     '毛利率%','營益率%','淨利率%','三率三升','財報期別','財報日期',
     '投信成本','投信買超日數','投信買超張數','貴投信%','法人成本','貴法人%',
-    '單季EPS','近4季EPS','收盤','本益比/同業','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
+    'EPS(單季或累計)','EPS基準','近4季EPS','收盤','本益比/同業','市值(億)','本益比','合理價下緣','合理價中位','合理價上緣','溢價%','標籤'];
   const TRIW = {three:'三率三升', part:'部分上升', down:'三率齊跌',
                 guess:'推測（僅一期財報）', wait:'待累積', none:''};
   const body = rows.map(r => [r.code,r.name,r.ind,r.score,
@@ -2873,7 +2989,7 @@ function exportCsv(){
     (r.TRI ? TRIW[r.TRI.state] : ''), r.isPeriod||'', (r.repDate||'').replace('※',''),
     fmt(r.trustCost,2), r.trustDays||'', r.trustLots?Math.round(r.trustLots):'',
     fmt(r.vsTrust,2), fmt(r.instCost,2), fmt(r.vsInst,2),
-    fmt(r.eps,2),fmt(r.epsTTM,2),fmt(r.px,2),fmt(r.peVsInd,2),
+    fmt(r.eps,2),r.epsBasis||'',fmt(r.epsTTM,2),fmt(r.px,2),fmt(r.peVsInd,2),
     r.mcap===null?'':Math.round(r.mcap), fmt(r.pe,2),
     fmt(r.V.lo,2),fmt(r.V.mid,2),fmt(r.V.hi,2),fmt(r.prem,2),
     r.tags.map(t=>t[0]).join(' ')].join(','));
@@ -2908,7 +3024,7 @@ document.getElementById('docOut').innerHTML = `
 <table>
 <tr><th>軸</th><th>滿分</th><th>項目</th></tr>
 <tr><td><b>法人卡位</b></td><td>40</td><td>投信連買 12／外資連買 8／吸籌強度 12／外資投信同步 8</td></tr>
-<tr><td><b>基本面</b></td><td>35</td><td>營收年增 12／營業利益率 9／單季 EPS 9／負債比 5／本益比 5</td></tr>
+<tr><td><b>基本面</b></td><td>35</td><td>營收年增 12／營業利益率 9／每股盈餘 9／負債比 5／本益比 5</td></tr>
 <tr><td><b>還有多少空間</b></td><td>25</td><td>買超期間漲幅 9／距 20 日高點 6／距 MA20 4／相對同業估值 6</td></tr>
 </table>
 <p><b>「空間」這一軸是刻意反向的。</b>買超期間漲幅越小分越高、離前高越遠分越高。
@@ -3121,6 +3237,19 @@ document.getElementById('docOut').innerHTML = `
 <tr><td><b>投信減碼</b></td><td>近 5 日淨賣，但現價僅略高於成本</td><td>可能只是調節，不一定是走人</td></tr>
 <tr><td><b>疑似出貨</b></td><td>近 5 日淨賣，且現價已高於其成本 &gt;10%</td><td>獲利了結的樣子，別接</td></tr>
 </table>
+<div class="warn">
+<b>季底距離會改變同一組數字的意義，工具已經把它算進去。</b>
+投信以季為評比週期，越接近季底、帳面獲利越多，落袋的誘因越強。
+所以「結帳風險高」的門檻會隨季底逼近而下修：
+<ul>
+<li>距季底 <b>&gt;30 天</b>：現價高於投信成本 20% 才算高風險（還早，拉抬空間還在）</li>
+<li>距季底 <b>15～30 天</b>：門檻下修到 15%</li>
+<li>距季底 <b>≤15 天</b>：下修到 10%，且此時就算投信還在買，也會標成<b>「季底拉抬」</b>——
+那是作帳拉抬的典型樣子，跟上車的空間有限，而季底一過就是調節壓力</li>
+</ul>
+同樣是「貴投信 22%」，距季底 60 天和距季底 10 天完全是兩回事。
+另外，距季底 ≤15 天才出現的「建倉中」，多半是<b>下一季</b>的部位、不是這季的作帳標的。
+</div>
 <p>頁面上方橫幅有<b>距季底天數</b>。投信季底作帳的一般節奏是建倉在季底前 4～6 週、拉抬集中在最後兩三週，
 所以「建倉中」＋「距季底還有一個多月」是比較理想的組合；
 「結帳風險高」＋「剩不到兩週」就要特別小心。</p>
