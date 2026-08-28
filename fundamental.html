@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V42</title>
+<title>法人卡位選股台 V43</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -240,6 +240,9 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .pkwarn{margin-top:10px;font-size:11.5px;line-height:1.7;color:var(--dim);
   border-left:3px solid var(--accent);background:#1e1a10;padding:9px 12px;border-radius:0 6px 6px 0}
 .pkwarn b{color:var(--tx)}
+.pktag{font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;
+  background:#1e2733;color:var(--dim);border:1px solid var(--line)}
+.pktag.hot{background:#3a1f24;color:#ffb3b3;border-color:#5c2b32}
 
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
@@ -279,10 +282,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V42</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V43</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
+  <button class="btn pri" id="btnHot">投信作帳強勢股</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
 </header>
 
@@ -314,7 +318,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <div class="fld"><label>搜尋</label><input type="text" id="fQ" placeholder="2330 或 台積電"></div>
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
-    <label class="chk"><input type="checkbox" id="fTrustOnly">只看投信有買的</label>
+    <label class="chk"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
@@ -461,13 +465,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V42
+   法人卡位選股台 V43
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V42';
+const VER = 'V43';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2812,12 +2816,13 @@ function picksLoad(){
 function picksSave(o){
   try{ localStorage.setItem(PICK_KEY, JSON.stringify(o)); }catch(e){}
 }
-function savePicks(list){
+function savePicks(list, type){
   const all = picksLoad();
   const day = DATA.dates[DATA.dates.length-1] || ymd(new Date());
   const qe = quarterEnd();
-  all[day] = {
-    at: Date.now(), tradeDate: day,
+  const key = (type === 'momo') ? day + '-強勢' : day;
+  all[key] = {
+    at: Date.now(), tradeDate: day, type: type || 'dress',
     quarter: `${qe.date.getFullYear()}Q${Math.floor(qe.date.getMonth()/3)+1}`,
     daysToQE: qe.days,
     items: list.map(r => ({
@@ -2828,7 +2833,7 @@ function savePicks(list){
     }))
   };
   picksSave(all);
-  if(fbReady()) fbPut('kawei/picks/' + day, all[day]).catch(()=>{});
+  if(fbReady()) fbPut('kawei/picks/' + key, all[key]).catch(()=>{});
   return day;
 }
 
@@ -2859,7 +2864,8 @@ function pickReview(){
     const wr  = done ? win / done * 100 : null;
     return `<div class="pkbatch">
       <div class="pkhead">
-        <b>${day.slice(0,4)}/${day.slice(4,6)}/${day.slice(6,8)}</b> 存檔
+        <b>${b.tradeDate.slice(0,4)}/${b.tradeDate.slice(4,6)}/${b.tradeDate.slice(6,8)}</b>
+        <span class="pktag ${b.type==='momo'?'hot':''}">${b.type==='momo'?'強勢版':'候選版'}</span>
         <span style="color:var(--dim2)">·　${b.quarter} 季底前 ${b.daysToQE} 天　·　${b.items.length} 檔</span>
         ${avg === null ? '' : `<span style="margin-left:auto">
           平均 <b class="${avg>0?'pos':'neg'}">${avg>0?'+':''}${fmt(avg,1)}%</b>
@@ -2916,6 +2922,136 @@ function renderPicks(n){
         七項加權成一個分數再排名——衡量的是<b>籌碼結構像不像作帳標的</b>，不是它會不會漲。<br>
         季底作帳行情本身也<b>沒有足夠統計證明有利可圖</b>，那是坊間慣例。這份名單已自動存檔，
         下一季用下方的「歷次名單與事後檢核」回頭對答案——<b>那個結果才是判斷這套邏輯有沒有用的依據。</b>
+      </div>
+    </div>`;
+  el.querySelectorAll('tr[data-c]').forEach(tr => {
+    tr.onclick = () => { SELECTED = tr.dataset.c; showDetail(tr.dataset.c);
+      document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'start'}); };
+  });
+}
+
+/* ==========================================================================
+   投信作帳強勢股（積極版）
+   跟「季底作帳候選」用同一批資料，但問的是不同問題：
+     候選版（穩）－ 我進場的成本離投信多近、位階有沒有先發動
+     強勢版（衝）－ 投信吃貨的力道多猛、量能有沒有放大、動能是不是剛起來
+   權重刻意不同：這裡對「比投信貴」的容忍度較高（放到 15%），
+   因為強勢股本來就不會停在投信成本附近等你。
+   代價是回檔風險大得多，這件事必須寫在畫面上。
+   ========================================================================== */
+function momoScore(r){
+  const parts = [];
+  const add = (label, max, pt, note) => parts.push({label, max, pt, note});
+  const m = r.M || {};
+
+  // 1. 吸籌強度：法人吃掉近期多少成交量。強勢股的核心特徵
+  const ab = r.absorb;
+  add('吸籌強度', 24,
+      ab === null ? 0 : ab >= 12 ? 24 : ab >= 8 ? 20 : ab >= 5 ? 15 : ab >= 3 ? 9 : ab > 0 ? 4 : 0,
+      ab === null ? '算不出來' : `近5日法人吃掉 ${fmt(ab,1)}% 成交量`);
+
+  // 2. 投信吃貨的絕對規模（佔股本）
+  const b = r.buildAll;
+  add('累計建倉%', 20,
+      b === null ? 0 : b >= 3 ? 20 : b >= 2 ? 17 : b >= 1 ? 13 : b >= 0.5 ? 8 : b >= 0.2 ? 4 : 0,
+      b === null ? '缺發行股數' : `累計吃了 ${fmt(b,2)}% 股本`);
+
+  // 3. 投信買超天數
+  const days = r.t10buy || 0;
+  add('投信買超天數', 16,
+      days >= 10 ? 16 : days >= 7 ? 13 : days >= 5 ? 10 : days >= 3 ? 6 : days >= 1 ? 2 : 0,
+      `窗口內買 ${days} 天 / 賣 ${r.t10sell} 天`);
+
+  // 4. 量能放大：強勢股要有量
+  const vr = r.volRatio;
+  add('量能放大', 14,
+      vr === null ? 0 : vr >= 2 && vr <= 5 ? 14 : vr >= 1.5 ? 11 : vr >= 1.2 ? 8 : vr >= 1 ? 4 : 0,
+      vr === null ? '算不出來' : `近5日均量是20日的 ${fmt(vr,2)} 倍`
+        + (m.volSpike !== null && m.volSpike > 5 ? '（單日曾爆 5 倍以上）' : ''));
+
+  // 5. 動能位階：剛突破或剛站回最好，已噴出扣重
+  const pat = r.pattern;
+  const patPt = {'剛突破頸線':14, '剛站回均線':12, '打底整理':8, '回檔測均線':7, '趨勢中':6, '已噴出':2, '均線之下':1}[pat];
+  add('動能位階', 14, patPt === undefined ? 5 : patPt, pat);
+
+  // 6. 跟車成本：容忍度比穩健版高，但超過 15% 就沒分
+  const vs = r.vsTrust;
+  add('跟車成本', 12,
+      vs === null ? 0 : vs <= 0 ? 12 : vs <= 5 ? 11 : vs <= 10 ? 8 : vs <= 15 ? 4 : 0,
+      vs === null ? '算不出投信成本' : `${vs > 0 ? '貴' : '便宜'} ${fmt(Math.abs(vs),1)}%`);
+
+  // 7. 營收動能
+  const yoy = r.revYoY, mom = r.revMoM;
+  let rp = 0, rn = [];
+  if(yoy !== null){ rp += yoy >= 30 ? 6 : yoy >= 15 ? 5 : yoy >= 0 ? 2 : 0; rn.push(`年增 ${fmt(yoy,1)}%`); }
+  if(mom !== null){ rp += mom > 0 ? 4 : 0; rn.push(`月增 ${fmt(mom,1)}%`); }
+  add('營收動能', 10, rp, rn.length ? rn.join('、') : '沒有營收資料');
+
+  const got = parts.reduce((a,p) => a + p.pt, 0);
+  const max = parts.reduce((a,p) => a + p.max, 0);
+  return {score: Math.round(got / max * 100), parts};
+}
+
+function momoPicks(n){
+  const out = [];
+  for(const r of ROWS){
+    if(r.trustD === 0 && (r.t10buy || 0) < 3) continue;        // 投信要真的在買
+    if(r.PH && (r.PH.k === 'unload' || r.PH.k === 'reduce')) continue;
+    if(r.vsTrust !== null && r.vsTrust > 15) continue;         // 已經比投信貴一成五，抬轎
+    if(r.M && r.M.vol20 !== null && r.M.vol20 < 2000) continue; // 強勢股要有量，門檻拉高
+    if(r.M && r.M.volSpike !== null && r.M.volSpike > 8) continue; // 單日爆 8 倍以上多半是一次性
+    const d = momoScore(r);
+    out.push(Object.assign({}, r, {momo: d.score, momoParts: d.parts}));
+  }
+  out.sort((a,b) => b.momo - a.momo);
+  return out.slice(0, n);
+}
+
+function renderMomo(n){
+  const el = document.getElementById('pickOut');
+  if(!el) return;
+  document.querySelector('.tab[data-p="p1"]').click();
+  if(!ROWS.length){
+    el.innerHTML = '<div style="color:var(--dim);font-size:12.5px">還沒有資料，先按「更新並篩選」。</div>';
+    return;
+  }
+  const list = momoPicks(n);
+  if(!list.length){
+    el.innerHTML = '<div style="color:var(--dim);font-size:12.5px">目前沒有符合條件的標的。強勢版的門檻比較嚴：投信要連買、量要夠、還不能比投信貴超過 15%。</div>';
+    return;
+  }
+  const qe = quarterEnd();
+  const day = savePicks(list.map(r => Object.assign({}, r, {dress: r.momo})), 'momo');
+
+  el.innerHTML = `
+    <div class="pkbox">
+      <div class="pkhead"><b>投信作帳強勢股　前 ${list.length} 檔</b>
+        <span style="color:var(--dim2)">·　資料日 ${day.slice(4,6)}/${day.slice(6,8)}　·　距季底 ${qe.days} 天　·　已存檔</span></div>
+      <table class="pktbl"><thead><tr>
+        <th>#</th><th>代號</th><th>名稱</th><th style="text-align:right">強勢分</th>
+        <th style="text-align:right">吸籌%</th><th style="text-align:right">累計建倉%</th>
+        <th style="text-align:right">量倍</th><th style="text-align:right">收盤</th>
+        <th style="text-align:right">貴投信</th><th>位階</th><th>階段</th>
+      </tr></thead><tbody>
+        ${list.map((r,i) => `<tr data-c="${r.code}" style="cursor:pointer">
+          <td style="color:var(--dim2)">${i+1}</td>
+          <td class="code">${r.code}</td><td>${r.name}</td>
+          <td style="text-align:right"><b style="color:var(--up)">${r.momo}</b></td>
+          <td style="text-align:right">${fmt(r.absorb,1)}</td>
+          <td style="text-align:right">${fmt(r.buildAll,2)}</td>
+          <td style="text-align:right">${fmt(r.volRatio,2)}</td>
+          <td style="text-align:right">${fmt(r.px,2)}</td>
+          <td style="text-align:right" class="${r.vsTrust===null?'na':(r.vsTrust>0?'pos':'neg')}">${
+            r.vsTrust===null?'—':(r.vsTrust>0?'+':'')+fmt(r.vsTrust,1)+'%'}</td>
+          <td>${patChip(r.pattern)}</td><td>${phChip(r.PH)}</td>
+        </tr>`).join('')}
+      </tbody></table>
+      <div class="pkwarn">
+        <b>這份跟「季底作帳候選」問的是不同問題。</b>候選版找的是「跟車成本低、還沒發動」；
+        這份找的是「投信吃貨力道猛、量能放大、動能剛起來」——空間可能大，<b>回檔也會大</b>。<br>
+        我沒辦法告訴你哪一檔會飆。這是把「投信吃貨強度、量能、動能位階、營收動能」七項加權排序，
+        衡量的是<b>強勢的樣子</b>，不是未來的漲幅。已存檔，用下方「歷次名單與事後檢核」對答案——
+        <b>兩份名單的實際勝率誰高，跑幾季就知道了。</b>
       </div>
     </div>`;
   el.querySelectorAll('tr[data-c]').forEach(tr => {
@@ -3977,6 +4113,7 @@ document.getElementById('btnPxHelp').onclick = () => {
   h.classList.toggle('on');
   if(h.classList.contains('on') && !h.innerHTML.trim()) renderPxHelp();
 };
+document.getElementById('btnHot').onclick = () => renderMomo(15);
 document.getElementById('btnPick10').onclick = () => renderPicks(10);
 document.getElementById('btnPick15').onclick = () => renderPicks(15);
 document.getElementById('btnPickHist').onclick = () => {
