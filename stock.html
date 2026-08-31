@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V229</title>
+<title>盤後篩選台 V231</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -627,7 +627,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V229</span>
+    <h1>盤後篩選台</h1><span class="ver">V231</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1187,6 +1187,28 @@ function trimAll(maxD){
     if(!s.c.some(x=>x!=null))delete DB.stocks[c];}
 }
 const validCount=s=>Array.isArray(s&&s.c)?s.c.reduce((a,x)=>a+(x!=null?1:0),0):0;
+// 把跟不上主資料的附屬資料一起裁掉（法人、類股、指數歷史都是按日期存的）
+function trimSideData(){
+  const keep=new Set(DB.dates||[]);
+  for(const k of ['insts','secHist','idxHist','otcHist','revHist']){
+    const o=DB[k]; if(!o||typeof o!=='object')continue;
+    for(const d in o)if(!keep.has(d))delete o[d];
+  }
+}
+// 存檔：存不下就一路瘦身重試（120→100→85→75 天），最後才放棄。
+// 5MB 是瀏覽器本機上限，雲端不受影響，所以最壞情況也只是本機少留幾天歷史。
+async function saveDB(){
+  const steps=[null,120,100,85,75];
+  for(let i=0;i<steps.length;i++){
+    if(steps[i]!=null){
+      if(DB.dates.length<=steps[i])continue;
+      trimAll(steps[i]); trimSideData();
+      log(`快取空間不足，自動精簡到 ${steps[i]} 個交易日後重試…`,'warn');
+    }
+    try{ if(await store.set(KEY,DB))return true; }catch(e){}
+  }
+  return false;
+}
 
 /* ═══ 更新流程 ═══ */
 async function runFetch(){
@@ -1324,7 +1346,7 @@ async function doFetch(){
   }
 
   trimAll(want+15);
-  if(!await store.set(KEY,DB))log('快取寫入失敗，建議匯出備份。','err');
+  if(!await saveDB())log('快取寫入失敗：即使精簡到最低天數仍存不下，建議按左下「清除本機快取」再重抓。','err');
   paintStrip(); run();
   updateStrength();   // 更新完成後刷新大盤/櫃買強度
   if(INSPECTED)drawChart(INSPECTED);   // 更新完成後，若目前正開著某檔的 K 線，自動重畫最新資料
@@ -1544,7 +1566,7 @@ async function fetchIndexCloses(which){
   if(!sane(closes)){ STR_DIAG[which]='抓到的數字不像指數（單日跳動超過 12%），端點欄位可能改版了'; return null; }
   // 存進快取，下次（含換裝置匯入雲端後）就不必再連網
   DB[HK]=DB[HK]||{}; for(const x of kept)DB[HK][x.d]=x.c;
-  try{ store.set(KEY,DB); }catch(e){}
+  try{ saveDB(); }catch(e){}
   STR_DIAG[which]='';
   const r=mkMA(closes); r.src='官方端點 '+fmtD(kept[kept.length-1].d); return r;
 }
@@ -1973,10 +1995,21 @@ function paintTable(){
   });
 }
 const QUOTA_LIMIT=5*1024*1024;   // 5MB，window.storage / localStorage 常見上限
+// 瀏覽器本機儲存是用 UTF-16 計費，一個字元算 2 bytes；中文字串更是每字 2 bytes。
+// 舊版直接用「字元數」當 bytes，等於少算一半——顯示 2.6MB 時其實已經 5.2MB，難怪存不下。
+function dbBytes(){
+  let n=0;
+  const add=o=>{ try{ n+=JSON.stringify(o).length*2; }catch(e){} };
+  add(DB);
+  try{ add(SIM); }catch(e){}
+  try{ add(TEST_TRACK); }catch(e){}
+  try{ add(RECO_HIST); }catch(e){}
+  return n;
+}
 function updateQuota(){
   const box=$('#quota'); if(!box)return;
   let bytes=0;
-  try{ bytes=JSON.stringify(DB).length; }catch(e){}
+  try{ bytes=dbBytes(); }catch(e){}
   const pct=Math.min(100,bytes/QUOTA_LIMIT*100);
   box.classList.toggle('warn',pct>=70&&pct<90);
   box.classList.toggle('danger',pct>=90);
@@ -1984,8 +2017,8 @@ function updateQuota(){
   $('#quotaBar').style.setProperty('--ok',pct>=90?'var(--up)':pct>=70?'var(--amber)':'#1F9E6E');
   $('#quotaTxt').textContent=`${(bytes/1024/1024).toFixed(1)}MB／${(QUOTA_LIMIT/1024/1024).toFixed(0)}MB（${pct.toFixed(0)}%）`;
   box.title=pct>=90
-    ? '本機快取快滿了（≥90%），建議按「清除本機快取」後再「更新並篩選」重抓一次。'
-    : '本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓。';
+    ? '本機快取快滿了（≥90%）。存不下時會自動精簡交易日數再重試；仍不行才需要按「清除本機快取」重抓。'
+    : '本機瀏覽器儲存用量（含行情快取、模擬下單、追蹤成績、推薦歷史，UTF-16 實際佔用）。';
 }
 function paintStrip(){
   $('#strip').innerHTML=[
@@ -3220,7 +3253,7 @@ async function simTombAdd(list){
   const t=simTomb(); const have=new Set(t);
   for(const x of list){ const k=simKeyOf(x); if(!have.has(k)){ t.push(k); have.add(k); } }
   DB.simTomb=t.slice(-3000);
-  try{ await store.set(KEY,DB); }catch(e){}
+  try{ await saveDB(); }catch(e){}
 }
 async function simFbPush(force){ const e=simFbEnd(); if(!e)return false;
   try{
@@ -3733,7 +3766,7 @@ async function backfillSectors(n){
       }catch(e){}
       await sleep(260);
     }
-    try{ await store.set(KEY,DB); }catch(e){}
+    try{ await saveDB(); }catch(e){}
     if(note)note.textContent = ok?`✓ 補齊 ${ok} 個交易日`:'沒抓到新資料（可能已經齊了或端點暫時不通）';
     return ok;
   } finally { SEC_BUSY=false; }
@@ -3791,7 +3824,7 @@ async function buildSectorCodes(force){
     }catch(e){}
     await sleep(240);
   }
-  try{ await store.set(KEY,DB); }catch(e){}
+  try{ await saveDB(); }catch(e){}
   if(note)note.textContent = `對照表完成：認出 ${Object.keys(DB.secCode).length} 個類股`
     + ((()=>{const u=[...new Set(unmatched.filter(Boolean))]; return u.length?`（沒對上：${u.slice(0,6).join('、')}）`:'';})());
   return DB.secCode;
@@ -4344,7 +4377,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V229 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V231 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
