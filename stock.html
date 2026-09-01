@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V232</title>
+<title>盤後篩選台 V234</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -627,7 +627,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V232</span>
+    <h1>盤後篩選台</h1><span class="ver">V234</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1202,11 +1202,17 @@ function pruneStaleStocks(uni){
   for(const c of Object.keys(DB.stocks||{}))if(!keep.has(c)){ delete DB.stocks[c]; n++; }
   return n;
 }
+const INSTS_KEEP=25;   // 法人買賣超是「全市場每檔」每天一份，最佔空間；連買判定與排行只用得到最近幾天
 function trimSideData(){
   const keep=new Set(DB.dates||[]);
   for(const k of ['insts','secHist','idxHist','otcHist','revHist']){
     const o=DB[k]; if(!o||typeof o!=='object')continue;
     for(const d in o)if(!keep.has(d))delete o[d];
+  }
+  const inst=DB.insts;
+  if(inst&&typeof inst==='object'){
+    const ds=Object.keys(inst).sort();
+    for(let i=0;i<ds.length-INSTS_KEEP;i++)delete inst[ds[i]];
   }
 }
 // 存檔：存不下就一路瘦身重試（120→100→85→75 天），最後才放棄。
@@ -1359,8 +1365,8 @@ async function doFetch(){
     }
   }
 
-  // 100 個交易日足夠算 MA60 與勝率回測，再多只是佔本機空間
-  const KEEP_MAX=100;
+  // 90 個交易日足夠算 MA60（60 天）與勝率回測，再多只是佔本機空間
+  const KEEP_MAX=90;
   const before=Object.keys(DB.stocks||{}).length;
   trimAll(Math.min(want+15, KEEP_MAX));
   const dropped=pruneStaleStocks(uni);
@@ -1901,7 +1907,9 @@ function sorted(){
   if(GROUP_FILTER)R=R.filter(r=>classify(r)===GROUP_FILTER);
   return[...R].sort((a,b)=>{const k=SORT.k;let x=a[k],y=b[k];
   if(k==='lamps'){x=a.lamps.filter(Boolean).length;y=b.lamps.filter(Boolean).length;}
-  if(k==='gap'){x=a.gap?a.gap.pct:null;y=b.gap?b.gap.pct:null;}
+  // 缺口欄依「發生日期」排序（新→舊），不是依缺口幅度；沒缺口的排最後
+  if(k==='gap'){ const dv=r=>r.gap?(r.gap.date?+String(r.gap.date):(1e8-(r.gap.ago||0))):null; x=dv(a); y=dv(b); }
+  if(k==='cont'){x=a.contD||0;y=b.contD||0;}
   if(typeof x==='string')return x.localeCompare(y)*SORT.d;
   return((x??-1e18)-(y??-1e18))*SORT.d;});}
 
@@ -4123,7 +4131,7 @@ function testCalendarHTML(){
       <div class="sc"><s>本月合計</s><b class="${cls(mTot)}">${(mTot>0?'+':'')+Math.round(mTot).toLocaleString()}</b></div>
     </div>`;
 }
-function shiftMonth(delta){
+function shiftMonth(delta){   // 換月後 testRender 會依新月份重算上方統計
   const y=+TEST_MONTH.slice(0,4), m=+TEST_MONTH.slice(4,6);
   const d=new Date(y,m-1+delta,1);
   TEST_MONTH=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -4131,8 +4139,11 @@ function shiftMonth(delta){
 }
 function testRender(){
   const box=$('#testTable'), sum=$('#testSum');
-  const ents=TEST_TRACK.entries||[];
-  if(!ents.length && TEST_VIEW!=='cal'){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
+  const all=TEST_TRACK.entries||[];
+  // 月曆檢視＝以月為單位，上方統計只算目前翻到的那個月；清單檢視維持全部
+  const ents=(TEST_VIEW==='cal'&&TEST_MONTH)
+    ? all.filter(e=>String(e.firstDate).slice(0,6)===TEST_MONTH) : all;
+  if(!all.length && TEST_VIEW!=='cal'){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
   // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主，並加總盈虧
   let aHit=0, bStop=0, bFly=0, sumReal=0, sumUnreal=0;
   for(const e of ents){
@@ -4144,7 +4155,7 @@ function testRender(){
   const sumTot=sumReal+sumUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤筆數（每筆 2 張）</s><b>${ents.length}</b></div>
+    <div class="sc"><s>追蹤筆數（每筆 2 張）${TEST_VIEW==='cal'&&TEST_MONTH?`<i style="font-style:normal;color:var(--amber)">·${TEST_MONTH.slice(0,4)}/${TEST_MONTH.slice(4)}</i>`:''}</s><b>${ents.length}</b></div>
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
@@ -4397,7 +4408,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V232 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V234 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
