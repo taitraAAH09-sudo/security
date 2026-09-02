@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V45</title>
+<title>法人卡位選股台 V46</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -284,7 +284,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V45</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V46</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -346,6 +346,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   </div></div>
 
   <div class="whybar">
+    <span style="font-size:12.5px;color:var(--dim);font-weight:600">模式</span>
+    <select id="fMode" style="background:#0f151d;color:var(--tx);border:1px solid var(--line);
+      border-radius:6px;padding:6px 9px;font-size:13px;font-family:inherit">
+      <option value="chip">卡位模式（法人＋基本面＋位階）</option>
+      <option value="fund">純基本面模式（不看籌碼）</option>
+    </select>
+    <span style="width:14px"></span>
     <span style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
     <button class="btn pri" id="btnPick10">穩健版 10 檔</button>
     <button class="btn pri" id="btnPick15">穩健版 15 檔</button>
@@ -353,6 +360,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <span style="font-size:11.5px;color:var(--dim2)">
       穩健版＝跟車成本低、位階還沒發動　·　強勢版在右上角　·　名單自動存檔，下一季回頭對答案</span>
   </div>
+  <div id="modeNote" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
   <div id="pickOut"></div>
   <div id="pickHist"></div>
 
@@ -469,13 +477,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V45
+   法人卡位選股台 V46
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V45';
+const VER = 'V46';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1936,6 +1944,71 @@ function valuation(code, px, f){
   return {pe, pb, epsTTM, bvps, shares, mcap, lo, mid, hi, prem, band, bandSrc, bandWhy, peVsInd, spread};
 }
 
+/* ==========================================================================
+   純基本面模式
+   跟卡位模式共用同一批資料與同一套解析，只換兩件事：
+     1. 不再要求「法人在買」——全市場都進來評分
+     2. 評分 100 分全部給基本面，籌碼與位階不計分
+   注意：月營收、三率、負債比都來自 openapi.twse.com.tw，那支沒開 CORS。
+   沒設好自訂代理的話，這個模式只剩本益比與淨值比可看。
+   ========================================================================== */
+let MODE = 'chip';                 // 'chip' 卡位模式 ／ 'fund' 純基本面模式
+
+function fundOnlyScore(f, V, m){
+  const B = [];
+  const g = (o,k) => (o && o[k] !== null && o[k] !== undefined && isFinite(o[k])) ? o[k] : null;
+  const rev = f.rev || {}, is = f.is || {}, bs = f.bs || {}, val = f.val || {};
+  const SQ = singleQ(f.code, f);
+
+  const yoy = g(rev,'yoy'), mom = g(rev,'mom'), cum = g(rev,'cumYoY');
+  const gm = SQ.gm, om = SQ.om, nm = SQ.nm, eps = SQ.eps;
+  const debt = g(bs,'debt'), cur = g(bs,'cur');
+  const pe = (g(val,'pe') > 0) ? val.pe : null;
+  const pb = (g(val,'pb') > 0) ? val.pb : null;
+
+  // ---- 成長 30 ----
+  B.push(P('營收年增率', 14, yoy, yoy===null ? null : band(yoy, [
+    [30,14,'年增 ≥30%'],[15,11,'年增 ≥15%'],[5,7,'年增 ≥5%'],[0,3,'年增為正'],[-1e9,0,'營收年減']])));
+  B.push(P('營收月增率', 8, mom, mom===null ? null : band(mom, [
+    [10,8,'月增 ≥10%'],[0,5,'月增為正'],[-10,2,'小幅月減'],[-1e9,0,'月減逾一成']])));
+  B.push(P('累計營收年增', 8, cum, cum===null ? null : band(cum, [
+    [20,8,'累計年增 ≥20%'],[10,6,'累計年增 ≥10%'],[0,3,'累計年增為正'],[-1e9,0,'累計衰退']])));
+
+  // ---- 獲利品質 34 ----
+  B.push(P('毛利率', 10, gm, gm===null ? null : band(gm, [
+    [40,10,'高毛利'],[25,8,'毛利率佳'],[15,5,'毛利率普通'],[8,3,'毛利率偏低'],[-1e9,1,'毛利率很低']])));
+  B.push(P('營業利益率', 12, om, om===null ? null : band(om, [
+    [20,12,'本業非常賺'],[12,9,'本業賺'],[6,6,'本業普通'],[2,3,'本業微利'],[0,1,'接近損益兩平'],
+    [-1e9,0,'本業虧損']])));
+  B.push(P('稅後淨利率', 6, nm, nm===null ? null : band(nm, [
+    [15,6,'淨利率高'],[8,5,'淨利率佳'],[4,3,'淨利率普通'],[0,1,'淨利率偏低'],[-1e9,0,'稅後虧損']])));
+  B.push(P('每股盈餘', 6, eps, eps===null ? null : band(eps, [
+    [5,6,'EPS ≥5 元'],[3,5,'EPS ≥3 元'],[1.5,3,'EPS ≥1.5 元'],[0,1,'小幅獲利'],[-1e9,0,'虧損']])));
+
+  // ---- 財務體質 18 ----
+  B.push(P('負債比', 10, debt, debt===null ? null : bandLow(debt, [
+    [75,0,'負債比過高'],[60,2,'負債比偏高'],[45,5,'負債比中等'],[30,8,'負債比低'],[-1e9,10,'負債比很低']])));
+  B.push(P('流動比', 8, cur, cur===null ? null : band(cur, [
+    [200,8,'短期償債能力強'],[150,6,'短期償債佳'],[100,4,'勉強夠'],[-1e9,1,'流動負債大於流動資產']])));
+
+  // ---- 估值 18 ----
+  B.push(P('本益比', 10, pe, pe===null ? null : bandLow(pe, [
+    [40,0,'本益比偏貴'],[25,2,'本益比略高'],[18,5,'本益比合理'],[12,8,'本益比偏低'],[-1e9,10,'本益比很低']])));
+  B.push(P('股價淨值比', 8, pb, pb===null ? null : bandLow(pb, [
+    [4,0,'淨值比偏高'],[2.5,3,'淨值比略高'],[1.5,6,'淨值比合理'],[1,7,'接近淨值'],[-1e9,8,'低於淨值']])));
+
+  let got = 0, den = 0, filled = 0;
+  for(const p of B){ if(p.pt === null) continue; got += p.pt; den += p.max; filled++; }
+  return {
+    A: [], B, C: [],
+    score: den ? Math.round(got/den*100) : null,
+    sChip: null, sFund: den ? Math.round(got/den*100) : null, sRoom: null,
+    hasFund: den > 0,
+    cmp: Math.round(filled / B.length * 100),
+    epsBasis: SQ.basis
+  };
+}
+
 function scoreOne(m, f, V){
   const A = [], B = [], C = [];
 
@@ -2215,7 +2288,8 @@ function score(){
   for(const code in DATA.ins){
     const m = metrics(code);
     if(!m) continue;
-    if(m.trustD === 0 && m.foreignD === 0 && m.net5 <= 0) continue;   // 法人沒在買
+    // 卡位模式才要求法人在買；純基本面模式全市場都進來
+    if(MODE === 'chip' && m.trustD === 0 && m.foreignD === 0 && m.net5 <= 0) continue;
     if(m.vol20 !== null && m.vol20 < 1000) continue;                  // 沿用 1000 張門檻
 
     const f = DATA.fund[code] || {rev:{},is:{},bs:{},val:{}};
@@ -2228,8 +2302,9 @@ function score(){
     if(noLoss && SQ.eps !== null && SQ.eps !== undefined && SQ.eps <= 0) continue;
 
     const V = valuation(code, m.px, f);
-    const s = scoreOne(m, f, V);
+    const s = (MODE === 'fund') ? fundOnlyScore(f, V, m) : scoreOne(m, f, V);
     if(s.score === null) continue;
+    if(MODE === 'fund' && !s.hasFund) continue;
     if(f.ind) inds.add(f.ind);
 
     const TRI = triMargins(code, f);
@@ -2415,7 +2490,9 @@ const COL_GROUPS = [
   ['月營收', ['revPeriod','revYoY','revMoM']],
   ['財報（目前抓不到，端點通了才會有值）', ['nm','triScore','repDate']]
 ];
-const COL_LOCK = ['code','name','score','sigRank','phaseRank'];                 // 這幾欄不給關
+const COL_LOCK_BASE = ['code','name','score'];
+const COL_LOCK_CHIP = ['sigRank','phaseRank'];
+let COL_LOCK = COL_LOCK_BASE.concat(COL_LOCK_CHIP);                 // 這幾欄不給關
 const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio','runPct','toHigh','distMA20','absorb','sChip','sRoom',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
 const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
@@ -2553,6 +2630,31 @@ function colPanel(){
     };
   });
 }
+/* 兩種模式各自的預設欄位。切換模式時整組換掉，
+   籌碼欄在純基本面模式下沒有意義，留著只會佔寬度。 */
+const COL_FUND = ['code','name','ind','score','px','revPeriod','revYoY','revMoM',
+                  'gm','om','nm','triScore','eps','epsTTM','pe','peVsInd','fairLo','prem','mcap'];
+function applyModeCols(){
+  // 純基本面模式下訊號與階段沒有意義，解除鎖定讓它們可以被關掉
+  COL_LOCK = (MODE === 'fund') ? COL_LOCK_BASE.slice() : COL_LOCK_BASE.concat(COL_LOCK_CHIP);
+  const want = (MODE === 'fund') ? COL_FUND : COL_CORE;
+  COL_HIDDEN = new Set(COL_ORDER.filter(k => !want.includes(k) && !COL_LOCK.includes(k)));
+  colApply(); colPanel();
+  // 純基本面模式下，籌碼相關的篩選條件會誤殺，先歸零
+  if(MODE === 'fund'){
+    ['fTrustOnly','fNoDump'].forEach(id => { const e = document.getElementById(id); if(e) e.checked = false; });
+    ['fT10','fNetD','fVsT','fRun'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+    const sg = document.getElementById('fSig'); if(sg) sg.value = '';
+    const pt = document.getElementById('fPat'); if(pt) pt.value = '';
+    const sc = document.getElementById('fScore'); if(sc) sc.value = '60';
+  }
+  const bar = document.getElementById('modeNote');
+  if(bar) bar.innerHTML = (MODE === 'fund')
+    ? '純基本面模式：全市場評分，不要求法人在買。'
+      + '<b style="color:var(--accent)">營收與三率來自 openapi.twse.com.tw，沒設自訂代理的話只剩本益比與淨值比可看。</b>'
+    : '';
+}
+
 function colSet(visible){
   COL_HIDDEN = new Set(COL_ORDER.filter(k => !visible.includes(k) && !COL_LOCK.includes(k)));
   colApply(); colPanel();
@@ -4361,9 +4463,22 @@ document.getElementById('btnPxHelp').onclick = () => {
   h.classList.toggle('on');
   if(h.classList.contains('on') && !h.innerHTML.trim()) renderPxHelp();
 };
-document.getElementById('btnHot').onclick = () => renderMomo(15);
-document.getElementById('btnPick10').onclick = () => renderPicks(10);
-document.getElementById('btnPick15').onclick = () => renderPicks(15);
+document.getElementById('fMode').addEventListener('change', () => {
+  MODE = document.getElementById('fMode').value;
+  applyModeCols();
+  score();
+});
+document.getElementById('btnHot').onclick = () => { if(requireChipMode()) renderMomo(15); };
+function requireChipMode(){
+  if(MODE === 'fund'){
+    document.getElementById('pickOut').innerHTML =
+      '<div style="color:var(--accent);font-size:12.5px">作帳名單看的是投信籌碼，請先把模式切回「卡位模式」。</div>';
+    return false;
+  }
+  return true;
+}
+document.getElementById('btnPick10').onclick = () => { if(requireChipMode()) renderPicks(10); };
+document.getElementById('btnPick15').onclick = () => { if(requireChipMode()) renderPicks(15); };
 document.getElementById('btnPickHist').onclick = () => {
   const el = document.getElementById('pickHist');
   el.innerHTML = el.innerHTML.trim() ? '' : pickReview();
@@ -4411,6 +4526,7 @@ myProxySave();
   if(th) th.textContent = '投信' + TW_WIN + '日買/賣';
 })();
 colInit();
+applyModeCols();
 initColHelp();
 initHScroll();
 cacheInfo();
