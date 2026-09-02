@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V234</title>
+<title>盤後篩選台 V236</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -169,6 +169,16 @@ a{color:var(--amber)}
 .calcell .cd{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
 .calcell .cn{font-size:9px;color:var(--dim)}
+.rzbox{border:1px dashed var(--line);border-radius:9px;padding:9px 12px;margin-top:10px;font-size:12px;color:var(--dim)}
+.rzbox>summary{cursor:pointer;list-style:none;line-height:1.8}
+.rzbox>summary::-webkit-details-marker{display:none}
+.rzbox>summary::before{content:'▸ ';color:var(--amber)}
+.rzbox[open]>summary::before{content:'▾ '}
+.rzhd{margin:8px 0 4px;font-weight:700;color:var(--paper)}
+.rzrow{display:grid;grid-template-columns:1.4fr .8fr 1.6fr .9fr;gap:8px;padding:4px 2px;font-family:var(--mono);font-size:12px;align-items:center}
+.rzrow>span:last-child{text-align:right;font-weight:800}
+.rzrow .rzd,.rzrow .rzw{color:var(--dim);font-size:11px}
+@media(max-width:760px){.rzrow{grid-template-columns:1fr 1fr}.rzrow .rzw{display:none}}
 .mrace{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:12px;background:var(--panel2)}
 .mrace .racebar{margin-top:6px}
 .calsum{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
@@ -627,7 +637,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V234</span>
+    <h1>盤後篩選台</h1><span class="ver">V236</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4123,6 +4133,28 @@ function testCalendarHTML(){
           :`本月<b>不虧的占比 ${rate}%</b>${rate>50?'（先摸到 > 沒摸到，這個月的推薦是有效的）':'（先摸到 < 沒摸到，這個月推得不夠準）'}。`}</div>
       </div>`;
     })()}
+    ${(()=>{
+      // 已實現損益是怎麼來的：把本月每一筆的已實現拆開，列出前 5 大賺與前 5 大賠
+      const rows=[];
+      for(const d in byDate){ if(TEST_MONTH && d.slice(0,6)!==TEST_MONTH)continue;
+        for(const e of (byDate[d]||[])){ const pl=testPnL(e); if(!pl||!pl.realized)continue;
+          rows.push({code:e.code,name:e.name||'',date:d,v:pl.realized,
+            a:e.lotA||{}, b:e.lotB||{}, entry:e.entryPx}); } }
+      if(!rows.length)return '';
+      const money=v=>`${v>0?'+':''}${Math.round(v).toLocaleString()}`;
+      const win=rows.filter(r=>r.v>0).sort((a,b)=>b.v-a.v).slice(0,5);
+      const lose=rows.filter(r=>r.v<0).sort((a,b)=>a.v-b.v).slice(0,5);
+      const tot=rows.reduce((a,r)=>a+r.v,0);
+      const line=r=>`<div class="rzrow"><span>${r.code} ${r.name}</span>
+        <span class="rzd">${fmtD(r.date)} 推</span>
+        <span class="rzw">${r.a.done?`①${(+r.a.px).toFixed(2)}`:''}${r.b.done?`　②${(+r.b.px).toFixed(2)}`:''}　進 ${r.entry!=null?(+r.entry).toFixed(2):'—'}</span>
+        <span class="${r.v>0?'up':'dn'}">${money(r.v)}</span></div>`;
+      return `<details class="rzbox"><summary>💰 本月已實現 <b class="${tot>0?'up':'dn'}">${money(tot)}</b> 是怎麼來的？<span class="rptmore">（點開看前 5 大賺賠）</span></summary>
+        <div class="rzhd">賺最多的 5 筆</div>${win.map(line).join('')||'<div class="ihint">沒有</div>'}
+        <div class="rzhd">賠最多的 5 筆</div>${lose.map(line).join('')||'<div class="ihint">沒有</div>'}
+        <div class="ihint" style="margin-top:6px">已實現＝已經賣出的那幾張的損益（①賣出價−推薦價、②賣出價−推薦價，各 ×1000 股）。還沒賣的算未實現，不在這裡。</div>
+      </details>`;
+    })()}
     <div class="calsum">
       <div class="sc"><s>本月有推薦的天數</s><b>${mDays}</b></div>
       <div class="sc"><s>本月推薦檔數</s><b>${mStocks}</b></div>
@@ -4140,9 +4172,11 @@ function shiftMonth(delta){   // 換月後 testRender 會依新月份重算上�
 function testRender(){
   const box=$('#testTable'), sum=$('#testSum');
   const all=TEST_TRACK.entries||[];
-  // 月曆檢視＝以月為單位，上方統計只算目前翻到的那個月；清單檢視維持全部
-  const ents=(TEST_VIEW==='cal'&&TEST_MONTH)
-    ? all.filter(e=>String(e.firstDate).slice(0,6)===TEST_MONTH) : all;
+  // 統計一律以「月」為單位：月曆看目前翻到的月份，清單看目前選到那天所屬的月份；選「全部」才是全部
+  const curMon = (TEST_VIEW==='cal')
+    ? TEST_MONTH
+    : (TEST_SEL_DATE && TEST_SEL_DATE!=='ALL' ? String(TEST_SEL_DATE).slice(0,6) : null);
+  const ents = curMon ? all.filter(e=>String(e.firstDate).slice(0,6)===curMon) : all;
   if(!all.length && TEST_VIEW!=='cal'){ box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">還沒有追蹤紀錄。<br>按左上「更新並篩選」跑完，或按上面「↻ 立即同步今天推薦」，今天新手看盤推薦的股票就會自動進來。</div>'; sum.innerHTML=''; return; }
   // 每檔兩張單：A=停利單、B=移動單。統計以「單」為主，並加總盈虧
   let aHit=0, bStop=0, bFly=0, sumReal=0, sumUnreal=0;
@@ -4155,7 +4189,7 @@ function testRender(){
   const sumTot=sumReal+sumUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤筆數（每筆 2 張）${TEST_VIEW==='cal'&&TEST_MONTH?`<i style="font-style:normal;color:var(--amber)">·${TEST_MONTH.slice(0,4)}/${TEST_MONTH.slice(4)}</i>`:''}</s><b>${ents.length}</b></div>
+    <div class="sc"><s>追蹤筆數（每筆 2 張）<i style="font-style:normal;color:var(--amber)">${curMon?`·${curMon.slice(0,4)}/${curMon.slice(4)}`:'·全部'}</i></s><b>${ents.length}</b></div>
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
     <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
@@ -4408,7 +4442,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V234 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V236 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
