@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V236</title>
+<title>盤後篩選台 V237</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -144,6 +144,9 @@ a{color:var(--amber)}
 @media(max-width:760px){.secrow{grid-template-columns:24px 88px 1fr 62px 62px;}.secma{display:none}}
 .calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .calhd b{font-family:var(--mono);font-size:17px}
+.calmode{display:flex;gap:4px;margin-left:10px}
+.calmode button{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.calmode button.on{background:var(--amber);color:var(--ink);border-color:var(--amber)}
 .calnav{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--paper);border-radius:6px;cursor:pointer;font-size:13px}
 .calnav:disabled{opacity:.35;cursor:not-allowed}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
@@ -637,7 +640,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V236</span>
+    <h1>盤後篩選台</h1><span class="ver">V237</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4059,7 +4062,7 @@ function testPnL(en){
   else if(px!=null)        unreal   += (px-entry)*LOT;
   return {realized, unreal, total:realized+unreal, cost:entry*2*LOT};
 }
-let TEST_VIEW='list', TEST_MONTH=null;   // 月曆：'YYYYMM'
+let TEST_VIEW='list', TEST_MONTH=null, TEST_CAL_MODE='total';   // 月曆格子顯示：total／real／unreal   // 月曆：'YYYYMM'
 // 以「推薦日」為格子的月曆：那天推的那批股票，到現在（或全部結案後）合計賺賠多少
 function testCalendarHTML(){
   const ents=TEST_TRACK.entries||[];
@@ -4095,7 +4098,8 @@ function testCalendarHTML(){
     } n+=rows.length; }
     if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0; }   // 已封存的日子：明細沒了，盈虧還在
     const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=n;
-    const cls=tot>0?'up':tot<0?'dn':'';
+    const shown = TEST_CAL_MODE==='real'?r : TEST_CAL_MODE==='unreal'?u : tot;
+    const cls=shown>0?'up':shown<0?'dn':'';
     const openable=!!rows;                                       // 明細還在才點得進去
     // 這天推的是否已全數結案（兩張單都出場）→ 打勾標記，損益已定案
     const allDone = (rows && rows.length && open===0) || (!rows && ar);
@@ -4103,7 +4107,7 @@ function testCalendarHTML(){
                           : (open?`<span class="copen" title="還有 ${open} 檔在手上">${open}</span>`:'');
     cells+=`<div class="calcell ${openable?'has':'arch'}${allDone?' settled':''}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}${badge}</span>
       <span class="cn">${openable?'':'🔒 '}推 ${n} 檔</span>
-      <span class="cv ${cls}">${tot>0?'+':''}${Math.round(tot).toLocaleString()}</span></div>`;
+      <span class="cv ${cls}" title="合計 ${Math.round(tot).toLocaleString()}／已實現 ${Math.round(r).toLocaleString()}／未實現 ${Math.round(u).toLocaleString()}">${shown>0?'+':''}${Math.round(shown).toLocaleString()}</span></div>`;
   }
   const mTot=mReal+mUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
@@ -4112,6 +4116,11 @@ function testCalendarHTML(){
       <button class="calnav" id="calPrev" ${cur<=minD?'disabled':''}>‹ 上個月</button>
       <b>${y} / ${String(m).padStart(2,'0')}</b>
       <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
+      <span class="calmode">
+        <button data-m="total" class="${TEST_CAL_MODE==='total'?'on':''}">合計</button>
+        <button data-m="real" class="${TEST_CAL_MODE==='real'?'on':''}">已實現</button>
+        <button data-m="unreal" class="${TEST_CAL_MODE==='unreal'?'on':''}">未實現</button>
+      </span>
       <span class="ihint" style="margin-left:auto">✔＝那天推的已全數出場（金色賺、紅框賠）．數字＝還在手上幾檔．明細只留兩個月，更早的標 🔒</span>
     </div>
     <div class="calwrap"><div class="calgrid">${wk}${cells}</div></div>
@@ -4160,7 +4169,7 @@ function testCalendarHTML(){
       <div class="sc"><s>本月推薦檔數</s><b>${mStocks}</b></div>
       <div class="sc"><s>已實現</s><b class="${cls(mReal)}">${(mReal>0?'+':'')+Math.round(mReal).toLocaleString()}</b></div>
       <div class="sc"><s>未實現</s><b class="${cls(mUnreal)}">${(mUnreal>0?'+':'')+Math.round(mUnreal).toLocaleString()}</b></div>
-      <div class="sc"><s>本月合計</s><b class="${cls(mTot)}">${(mTot>0?'+':'')+Math.round(mTot).toLocaleString()}</b></div>
+      <div class="sc"><s>本月合計（已實現＋未實現）</s><b class="${cls(mTot)}">${(mTot>0?'+':'')+Math.round(mTot).toLocaleString()}</b></div>
     </div>`;
 }
 function shiftMonth(delta){   // 換月後 testRender 會依新月份重算上方統計
@@ -4200,6 +4209,7 @@ function testRender(){
   if(TEST_VIEW==='cal'){
     box.innerHTML=testCalendarHTML();
     const pv=$('#calPrev'), nx=$('#calNext');
+    box.querySelectorAll('.calmode button').forEach(b=>b.onclick=()=>{ TEST_CAL_MODE=b.dataset.m; testRender(); });
     if(pv)pv.onclick=()=>shiftMonth(-1);
     if(nx)nx.onclick=()=>shiftMonth(1);
     box.querySelectorAll('.calcell.has').forEach(c=>c.onclick=()=>{
@@ -4442,7 +4452,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V236 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V237 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
