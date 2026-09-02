@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V44</title>
+<title>法人卡位選股台 V45</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -284,7 +284,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V44</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V45</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -321,6 +321,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
     <label class="chk"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
+    <label class="chk"><input type="checkbox" id="fOTC">一併抓上櫃（需先設好自訂代理）</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
@@ -468,13 +469,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V44
+   法人卡位選股台 V45
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V44';
+const VER = 'V45';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -593,6 +594,13 @@ function idxOf(fields, ...pats){
   return -1;
 }
 /* 股數：優先用 MI_QFIIS 的發行股數，沒有才用實收資本額÷面額推算 */
+/* 沒有基本面資料時，用代號區間粗估市場別。
+   上櫃常見於 1xxx~9xxx 的特定區段，無法完全準確，只當顯示用。 */
+function guessMkt(code){
+  const n = +code;
+  if(n >= 3000 && n <= 3999) return '—';     // 這段上市上櫃都有，不猜
+  return '上市';
+}
 function sharesOf(f){
   if(!f || !f.co) return null;
   if(f.co.shares > 0) return f.co.shares;
@@ -1010,6 +1018,120 @@ async function fetchPx(date){
   return out;
 }
 
+/* ==========================================================================
+   上櫃（櫃買中心 TPEx）
+   TPEx 網站改版過數次，端點路徑不穩，所以每一種資料都列多個候選網址依序試，
+   哪一個回得出可解析的表格就用哪一個。第一次跑完可以到「資料源」看實際用了哪支。
+   注意：www.tpex.org.tw 沒開 CORS，所以上櫃一定要先設好自訂代理（Cloudflare Worker）。
+   ========================================================================== */
+function rocDate(ymdStr){                     // 20260828 → 115/08/28
+  const y = +ymdStr.slice(0,4) - 1911;
+  return `${y}/${ymdStr.slice(4,6)}/${ymdStr.slice(6,8)}`;
+}
+
+const TPEX_INST_URLS = [
+  d => `https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=${rocDate(d)}&response=json`,
+  d => `https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&se=EW&t=D&d=${rocDate(d)}&o=json`,
+  d => `https://www.tpex.org.tw/openapi/v1/tpex_3itrade_hedge`
+];
+const TPEX_PX_URLS = [
+  d => `https://www.tpex.org.tw/www/zh-tw/afterTrading/otc?date=${rocDate(d)}&type=EW&response=json`,
+  d => `https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?l=zh-tw&d=${rocDate(d)}&o=json`,
+  d => `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes`
+];
+
+/* TPEx 各版格式不一：新站是 {tables:[{fields,data}]}，舊站是 {aaData:[...]}，
+   OpenAPI 是物件陣列。統一攤平成 {fields, rows} 再交給後面處理。 */
+function tpexRows(data){
+  if(!data) return null;
+  if(Array.isArray(data)){                    // OpenAPI 物件陣列
+    if(!data.length) return null;
+    const fields = Object.keys(data[0]);
+    return {fields, rows: data.map(o => fields.map(k => o[k])), objMode: true, objs: data};
+  }
+  if(Array.isArray(data.tables)){
+    for(const t of data.tables){
+      if(Array.isArray(t.data) && t.data.length && Array.isArray(t.fields))
+        return {fields: t.fields, rows: t.data};
+    }
+  }
+  if(Array.isArray(data.aaData) && data.aaData.length)
+    return {fields: data.fields || [], rows: data.aaData};
+  if(Array.isArray(data.data) && data.data.length)
+    return {fields: data.fields || [], rows: data.data};
+  return null;
+}
+
+async function tryUrls(list, date, parse, label){
+  let lastErr = null;
+  for(const mk of list){
+    const u = mk(date);
+    try{
+      const {data} = await getJSON(u);
+      const out = parse(data, u);
+      if(out && Object.keys(out).length){
+        TPEX_USED[label] = u;
+        return out;
+      }
+      lastErr = new Error('回傳無可用資料');
+    }catch(e){ lastErr = e; }
+  }
+  if(lastErr) throw lastErr;
+  return null;
+}
+const TPEX_USED = {};
+
+/* 上櫃法人買賣超。TPEx 的單位是「股」，與 T86 一致，除以 1000 換張。 */
+async function fetchInstOTC(date){
+  return tryUrls(TPEX_INST_URLS, date, (data) => {
+    const t = tpexRows(data);
+    if(!t) return null;
+    const f = t.fields.map(x => String(x));
+    const iCode = idxOf(f,'代號','證券代號','SecuritiesCompanyCode','公司代號');
+    const iFor  = idxOf(f,'外資及陸資買賣超股數','外資買賣超股數','外陸資買賣超股數','外資及陸資(不含外資自營商)買賣超股數');
+    const iTru  = idxOf(f,'投信買賣超股數','投信買賣超');
+    if(iCode < 0 || iFor < 0 || iTru < 0)
+      throw new Error('上櫃法人欄位對不上：' + f.slice(0,14).join(' / '));
+    const out = {};
+    for(const r of t.rows){
+      const code = String(r[iCode]).replace(/^="?|"$/g,'').trim();
+      if(!/^\d{4}$/.test(code)) continue;
+      out[code] = {f:(N(r[iFor])||0)/1000, t:(N(r[iTru])||0)/1000};
+    }
+    return out;
+  }, 'inst');
+}
+
+/* 上櫃收盤行情 */
+async function fetchPxOTC(date){
+  return tryUrls(TPEX_PX_URLS, date, (data) => {
+    const t = tpexRows(data);
+    if(!t) return null;
+    const f = t.fields.map(x => String(x));
+    const iCode = idxOf(f,'代號','證券代號','SecuritiesCompanyCode');
+    const iName = idxOf(f,'名稱','證券名稱','CompanyName');
+    const iC = idxOf(f,'收盤','收盤價','Close');
+    const iO = idxOf(f,'開盤','開盤價','Open');
+    const iH = idxOf(f,'最高','最高價','High');
+    const iL = idxOf(f,'最低','最低價','Low');
+    const iV = idxOf(f,'成交股數','成交量(股)','TradingShares');
+    if(iCode < 0 || iC < 0)
+      throw new Error('上櫃行情欄位對不上：' + f.slice(0,14).join(' / '));
+    const out = {};
+    for(const r of t.rows){
+      const code = String(r[iCode]).replace(/^="?|"$/g,'').trim();
+      if(!/^\d{4}$/.test(code)) continue;
+      const c = N(r[iC]);
+      if(c === null) continue;
+      out[code] = {o: iO>=0 ? N(r[iO]) : null, c,
+                   h: iH>=0 ? N(r[iH]) : null, l: iL>=0 ? N(r[iL]) : null,
+                   v: iV>=0 ? (N(r[iV])||0)/1000 : 0,
+                   n: iName>=0 ? String(r[iName]).trim() : ''};
+    }
+    return out;
+  }, 'px');
+}
+
 /* ---------- 基本面端點（OpenAPI 快照） ---------- */
 /* alt = 備援網址。實測 openapi.twse.com.tw 與 www.tpex.org.tw 在使用者網路被擋
    （連直連都 Failed to fetch），但 www.twse.com.tw 是通的（T86／MI_INDEX 都靠它）。
@@ -1267,7 +1389,7 @@ async function runAll(){
   const have = new Set(DATA.dates);
   const need = want.filter(d => !have.has(d));
 
-  let fromCloud = 0, fromTwse = 0;
+  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcBad = 0;
 
   let done = 0;
   for(const d of need){
@@ -1293,6 +1415,17 @@ async function runAll(){
     }
     try{ px = await fetchPx(d); }catch(e){ fails.push(`MI_INDEX ${d}：${e.message}`); }
     if(!px) continue;
+
+    // 上櫃：同一天合併進來。抓不到不影響上市，只記一筆失敗
+    if(document.getElementById('fOTC').checked){
+      setStatus(`抓 ${d} 的上櫃資料（${done}/${need.length}）`, true, false, p);
+      try{
+        const insO = await fetchInstOTC(d);
+        const pxO  = await fetchPxOTC(d);
+        if(insO && pxO){ Object.assign(ins, insO); Object.assign(px, pxO); otcOK++; }
+      }catch(e){ fails.push(`上櫃 ${d}：${e.message}`); otcBad++; }
+    }
+
     pushDay(d, ins, px);
     fromTwse++;
     if(fbReady()){
@@ -1300,7 +1433,7 @@ async function runAll(){
       try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`Firebase 寫 ${d}：${e.message}`); }
     }
   }
-  PROBE._src = {fromCloud, fromTwse};
+  PROBE._src = {fromCloud, fromTwse, otcOK, otcBad};
 
   /* 補一個缺口：本機已經有、但雲端還沒有的日子。
      那些日子不在 need 裡（本機有就不會進抓取迴圈），所以永遠不會被上傳——
@@ -1387,6 +1520,7 @@ async function runAll(){
   let msg = `完成。資料涵蓋 <b>${DATA.dates.length}</b> 個交易日，法人名單 <b>${ROWS.length}</b> 檔。`;
   if(s.fromCloud) msg += ` 其中 ${s.fromCloud} 天取自雲端、${s.fromTwse} 天新抓。`;
   if(s.backfilled) msg += ` <b>補傳 ${s.backfilled} 天到雲端。</b>`;
+  if(s.otcOK || s.otcBad) msg += ` 上櫃：${s.otcOK} 天成功${s.otcBad ? `、${s.otcBad} 天失敗` : ''}。`;
   if(fails.length) msg += ` <span style="color:#ff9d9d">${fails.length} 項失敗，到「資料源」看細節。</span>`;
   setStatus(msg, false, !DATA.dates.length);
 }
@@ -2116,7 +2250,7 @@ function score(){
     const triRank = {three:4, part:3, guess:2, wait:1, down:0, none:-1}[TRI.state];
 
     ROWS.push({
-      code, name, ind: f.ind || '—', mkt: f.mkt || '上市', fin,
+      code, name, ind: f.ind || '—', mkt: f.mkt || guessMkt(code), fin,
       score:s.score, sChip:s.sChip, sFund:s.sFund, sRoom:s.sRoom, cmp:s.cmp,
       hasFund:s.hasFund, S:s, M:m, V,
       trustD:m.trustD, foreignD:m.foreignD, net5:Math.round(m.net5),
@@ -3598,7 +3732,13 @@ function renderProbe(){
     {name:'全市場每日收盤行情（可指定日期）', url:'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=YYYYMMDD&type=ALL&response=json'}
   ];
   const fails = PROBE._fails || [];
-  out.innerHTML =
+  const otcInfo = (TPEX_USED.inst || TPEX_USED.px)
+    ? `<div class="ep"><h4>上櫃（TPEx）實際採用的網址 <span class="pill ok">已連通</span></h4>
+        <div class="epurl">法人：${TPEX_USED.inst || '（尚未成功）'}</div>
+        <div class="epurl">行情：${TPEX_USED.px || '（尚未成功）'}</div>
+        <div style="font-size:12px;color:var(--dim)">TPEx 端點路徑不穩，程式會依序試多個候選，這裡顯示這次真正用到的。</div></div>`
+    : '';
+  out.innerHTML = otcInfo +
     (fails.length ? `<div class="ep"><h4>上次執行的失敗訊息 <span class="pill bad">${fails.length}</span></h4>
       <div class="kv">${fails.slice(0,50).map(x=>`<b>·</b><span>${x}</span>`).join('')}</div></div>` : '') +
     live.map(ep => `<div class="ep">
