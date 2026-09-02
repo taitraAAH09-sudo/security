@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V46</title>
+<title>法人卡位選股台 V47</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -132,6 +132,8 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .vi .v{font-size:14px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums}
 .vi .s{font-size:10.5px;color:var(--dim)}
 .vi.warnv .v{color:var(--accent)}
+.vi.stale{background:#2a1518}
+.vi.stale .v{color:#ff9d9d}
 .colbar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
 .colpanel{display:none;background:var(--panel);border:1px solid var(--line);border-radius:9px;
   padding:12px;margin-bottom:10px}
@@ -284,7 +286,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V46</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V47</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -438,6 +440,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <div class="fld"><label>回溯交易日數</label><input type="number" id="fDays" value="25" min="10" max="70"></div>
     <button class="btn pri" id="btnProbe">探測所有端點</button>
     <button class="btn" id="btnClear">清空本機快取</button>
+    <button class="btn" id="btnFixHoliday">清除雲端的「非交易日」誤標</button>
     <div style="color:var(--dim);font-size:12px;padding-bottom:6px;max-width:500px">
       逐支端點呼叫一次，顯示能不能直連（CORS）、回傳幾筆、第一筆的真實欄位名稱。欄位對不上時把這裡的 key 回報給我。
     </div>
@@ -477,13 +480,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V46
+   法人卡位選股台 V47
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V46';
+const VER = 'V47';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1397,7 +1400,7 @@ async function runAll(){
   const have = new Set(DATA.dates);
   const need = want.filter(d => !have.has(d));
 
-  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcBad = 0;
+  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcBad = 0, holidays = 0, noData = 0;
 
   let done = 0;
   for(const d of need){
@@ -1405,20 +1408,31 @@ async function runAll(){
     const p = Math.round(done/Math.max(need.length,1)*60);
 
     // 先問雲端，抓過的日子不再跟證交所要
+    const ageDays = Math.floor((Date.now() - new Date(
+      d.slice(0,4) + '-' + d.slice(4,6) + '-' + d.slice(6,8) + 'T00:00:00').getTime()) / 86400000);
     if(fbReady()){
       setStatus(`雲端找 ${d}（${done}/${need.length}）`, true, false, p);
       try{
         const day = await fbGet('kawei/days/' + d);
         if(day && day.ins && day.px){ pushDay(d, day.ins, day.px); fromCloud++; continue; }
-        if(day === 'holiday') continue;                   // 已知非交易日，直接跳過
+        // 「非交易日」標記只信任 10 天以前的。
+        // 近期的可能是當初抓取失敗（網路抖動、或當天收盤資料還沒公告）被誤標，要重驗
+        if(day === 'holiday' && ageDays > 10) continue;
       }catch(e){ fails.push(`Firebase 讀 ${d}：${e.message}`); }
     }
 
     setStatus(`抓 ${d} 的法人買賣超與行情（${done}/${need.length}）`, true, false, p);
-    let ins = null, px = null;
-    try{ ins = await fetchInst(d); }catch(e){ fails.push(`T86 ${d}：${e.message}`); }
+    let ins = null, px = null, instErr = null;
+    try{ ins = await fetchInst(d); }catch(e){ instErr = e; fails.push(`T86 ${d}：${e.message}`); }
     if(!ins){
-      if(fbReady()){ try{ await fbPut('kawei/days/' + d, 'holiday'); }catch(e){} }
+      /* 只有「連得上、但證交所明確說這天沒有資料」才標非交易日。
+         連不上（instErr）絕不標——先前不分青紅皂白一律標成 holiday，
+         導致一次網路抖動就讓那天永久被跳過，資料從此停在那裡不動。
+         另外當天與前一天也不標，因為收盤資料要下午才公告。 */
+      if(fbReady() && !instErr && ageDays >= 2){
+        try{ await fbPut('kawei/days/' + d, 'holiday'); }catch(e){}
+      }
+      if(instErr) noData++; else holidays++;
       continue;
     }
     try{ px = await fetchPx(d); }catch(e){ fails.push(`MI_INDEX ${d}：${e.message}`); }
@@ -1441,7 +1455,7 @@ async function runAll(){
       try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`Firebase 寫 ${d}：${e.message}`); }
     }
   }
-  PROBE._src = {fromCloud, fromTwse, otcOK, otcBad};
+  PROBE._src = {fromCloud, fromTwse, otcOK, otcBad, holidays, noData};
 
   /* 補一個缺口：本機已經有、但雲端還沒有的日子。
      那些日子不在 need 裡（本機有就不會進抓取迴圈），所以永遠不會被上傳——
@@ -1529,6 +1543,7 @@ async function runAll(){
   if(s.fromCloud) msg += ` 其中 ${s.fromCloud} 天取自雲端、${s.fromTwse} 天新抓。`;
   if(s.backfilled) msg += ` <b>補傳 ${s.backfilled} 天到雲端。</b>`;
   if(s.otcOK || s.otcBad) msg += ` 上櫃：${s.otcOK} 天成功${s.otcBad ? `、${s.otcBad} 天失敗` : ''}。`;
+  if(s.noData) msg += ` <span style="color:#ff9d9d">${s.noData} 天連不上（下次會再試）。</span>`;
   if(fails.length) msg += ` <span style="color:#ff9d9d">${fails.length} 項失敗，到「資料源」看細節。</span>`;
   setStatus(msg, false, !DATA.dates.length);
 }
@@ -2456,12 +2471,27 @@ function renderVintage(){
   const atS  = at ? `${at.getMonth()+1}/${at.getDate()} ${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}` : '—';
   const withFund = ROWS.filter(r => r.hasFund).length;
   const qe = quarterEnd();
+  // 最新一筆資料落後幾個交易日（不含週末）
+  let lagDays = 0;
+  {
+    const cur = new Date();
+    const got = new Date(last.slice(0,4) + '-' + last.slice(4,6) + '-' + last.slice(6,8) + 'T00:00:00');
+    for(let t = new Date(got.getTime() + 86400000); t <= cur; t.setDate(t.getDate() + 1)){
+      const w = t.getDay();
+      if(w !== 0 && w !== 6) lagDays++;
+    }
+    // 當天收盤資料下午才公告，所以今天不算落後
+    if(lagDays > 0 && cur.getHours() < 16) lagDays--;
+  }
   const staleFund = !Object.keys(DATA.fund).length ||
                     !Object.values(DATA.fund).some(f => f.is && f.is.eps !== undefined);
 
   el.innerHTML = `
-    <div class="vi"><div class="k">法人與行情</div><div class="v">${d}</div>
-      <div class="s">共 ${DATA.dates.length} 個交易日</div></div>
+    <div class="vi ${lagDays >= 2 ? 'stale' : ''}"><div class="k">法人與行情</div>
+      <div class="v">${d}</div>
+      <div class="s">${lagDays >= 2
+        ? `<b style="color:#ff9d9d">落後 ${lagDays} 個交易日</b>，按「更新並篩選」補抓`
+        : `共 ${DATA.dates.length} 個交易日`}</div></div>
     <div class="vi"><div class="k">月營收</div><div class="v">${roc2ad(revP)}</div>
       <div class="s">每月 10 日前公告</div></div>
     <div class="vi ${staleFund?'warnv':''}"><div class="k">財報</div><div class="v">${isP || '—'}</div>
@@ -3059,6 +3089,18 @@ function savePicks(list, type){
   const all = picksLoad();
   const day = DATA.dates[DATA.dates.length-1] || ymd(new Date());
   const qe = quarterEnd();
+  // 最新一筆資料落後幾個交易日（不含週末）
+  let lagDays = 0;
+  {
+    const cur = new Date();
+    const got = new Date(last.slice(0,4) + '-' + last.slice(4,6) + '-' + last.slice(6,8) + 'T00:00:00');
+    for(let t = new Date(got.getTime() + 86400000); t <= cur; t.setDate(t.getDate() + 1)){
+      const w = t.getDay();
+      if(w !== 0 && w !== 6) lagDays++;
+    }
+    // 當天收盤資料下午才公告，所以今天不算落後
+    if(lagDays > 0 && cur.getHours() < 16) lagDays--;
+  }
   const key = (type === 'momo') ? day + '-強勢' : day;
   all[key] = {
     at: Date.now(), tradeDate: day, type: type || 'dress',
@@ -3237,6 +3279,18 @@ function renderPicks(n){
     return;
   }
   const qe = quarterEnd();
+  // 最新一筆資料落後幾個交易日（不含週末）
+  let lagDays = 0;
+  {
+    const cur = new Date();
+    const got = new Date(last.slice(0,4) + '-' + last.slice(4,6) + '-' + last.slice(6,8) + 'T00:00:00');
+    for(let t = new Date(got.getTime() + 86400000); t <= cur; t.setDate(t.getDate() + 1)){
+      const w = t.getDay();
+      if(w !== 0 && w !== 6) lagDays++;
+    }
+    // 當天收盤資料下午才公告，所以今天不算落後
+    if(lagDays > 0 && cur.getHours() < 16) lagDays--;
+  }
   const day = savePicks(list);
 
   el.innerHTML = `
@@ -3365,6 +3419,18 @@ function renderMomo(n){
     return;
   }
   const qe = quarterEnd();
+  // 最新一筆資料落後幾個交易日（不含週末）
+  let lagDays = 0;
+  {
+    const cur = new Date();
+    const got = new Date(last.slice(0,4) + '-' + last.slice(4,6) + '-' + last.slice(6,8) + 'T00:00:00');
+    for(let t = new Date(got.getTime() + 86400000); t <= cur; t.setDate(t.getDate() + 1)){
+      const w = t.getDay();
+      if(w !== 0 && w !== 6) lagDays++;
+    }
+    // 當天收盤資料下午才公告，所以今天不算落後
+    if(lagDays > 0 && cur.getHours() < 16) lagDays--;
+  }
   const day = savePicks(list.map(r => Object.assign({}, r, {dress: r.momo})), 'momo');
 
   el.innerHTML = `
@@ -4503,6 +4569,35 @@ document.getElementById('btnRun').onclick = runAll;
 document.getElementById('btnFund').onclick = runFundOnly;
 document.getElementById('btnProbe').onclick = probeAll;
 document.getElementById('btnCsv').onclick = exportCsv;
+/* 清掉雲端被誤標成 holiday 的日子。
+   舊版只要抓取失敗一次就會把那天標成非交易日、之後永久跳過，
+   資料因此會停在某一天不再前進。這顆按鈕把近期的誤標清掉重抓。 */
+document.getElementById('btnFixHoliday').onclick = async () => {
+  const el = document.getElementById('fbState');
+  if(!fbReady()){ el.innerHTML = '<span style="color:#ff9d9d">請先啟用雲端快取</span>'; return; }
+  el.textContent = '檢查中…';
+  try{
+    const idx = await fbGet('kawei/days') || {};
+    const bad = [];
+    for(const d in idx){
+      if(idx[d] !== 'holiday') continue;
+      const t = new Date(d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)+'T00:00:00');
+      const w = t.getDay();
+      // 週末本來就不是交易日，那是正確的標記；只清平日的誤標
+      if(w === 0 || w === 6) continue;
+      bad.push(d);
+    }
+    if(!bad.length){ el.innerHTML = '沒有發現平日被誤標成非交易日的紀錄。'; return; }
+    for(const d of bad){
+      await fetch(`${FB.url}/kawei/days/${d}.json`, {method:'DELETE'});
+    }
+    el.innerHTML = `已清掉 <b style="color:var(--tx)">${bad.length}</b> 個平日的誤標（${bad.slice(0,6).join('、')}${bad.length>6?'…':''}）。`
+      + '現在按「更新並篩選」會重新抓那幾天。';
+  }catch(e){
+    el.innerHTML = `<span style="color:#ff9d9d">失敗：${e.message}</span>`;
+  }
+};
+
 document.getElementById('btnClear').onclick = () => {
   if(!confirm('清空本機快取？下次執行會重新抓一次。')) return;
   try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
