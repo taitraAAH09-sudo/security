@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V53</title>
+<title>法人卡位選股台 V54</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -248,6 +248,10 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .sumrow{font-size:12.5px;color:var(--dim);padding:5px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sumrow b{color:var(--tx)}
 
+.chiponly.hide-mode{display:none !important}
+.modebox{background:#121a24;border:1px solid #2a3a4d;border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0;padding:9px 12px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+.modebox b{color:var(--tx)}
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -286,11 +290,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V53</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V54</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
-  <button class="btn" id="btnHot">強勢版 15 檔</button>
+  <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
 </header>
 
@@ -309,12 +313,12 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="pane on" id="p1">
   <div class="filters"><div class="frow">
     <div class="fld"><label>最低總分</label><input type="number" id="fScore" value="55" min="0" max="100"></div>
-    <div class="fld"><label>投信連買 ≥ 日</label><input type="number" id="fTrust" value="0" min="0"></div>
-    <div class="fld"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
+    <div class="fld chiponly"><label>投信連買 ≥ 日</label><input type="number" id="fTrust" value="0" min="0"></div>
+    <div class="fld chiponly"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
     <div class="fld"><label>營收年增 ≥ %</label><input type="number" id="fYoY" value=""></div>
-    <div class="fld"><label>貴投信 ≤ %</label><input type="number" id="fVsT" value=""></div>
+    <div class="fld chiponly"><label>貴投信 ≤ %</label><input type="number" id="fVsT" value=""></div>
     <div class="fld"><label>溢價 ≤ %</label><input type="number" id="fPrem" value=""></div>
-    <div class="fld"><label>訊號</label><select id="fSig"><option value="">全部</option>
+    <div class="fld chiponly"><label>訊號</label><select id="fSig"><option value="">全部</option>
       <option value="watch">可觀察（上車候選）</option><option value="hold">續抱</option>
       <option value="warn">警戒</option><option value="late">已發動</option>
       <option value="exit">離場</option></select></div>
@@ -322,29 +326,29 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <div class="fld"><label>搜尋</label><input type="text" id="fQ" placeholder="2330 或 台積電"></div>
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
-    <label class="chk"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
+    <label class="chk chiponly"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
     <label class="chk"><input type="checkbox" id="fOTC">上市＋上櫃一起抓（V51 起預設關，因為你的網路沒設代理連不上上櫃；只查上市不用勾，想連上櫃再勾＋設代理）</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
     <button class="btn" id="btnReset">清除所有篩選條件</button>
-    <div class="fld"><label>買賣天數統計窗口</label>
+    <div class="fld chiponly"><label>買賣天數統計窗口</label>
       <select id="fWin"><option value="5">近 5 日</option>
         <option value="10">近 10 日</option>
         <option value="20" selected>近 20 日</option>
         <option value="0">全部快取期間</option></select></div>
-    <div class="fld"><label>窗口內買超天數 ≥</label><input type="number" id="fT10" value="" min="0"></div>
-    <div class="fld"><label>買多賣少（買−賣天數）≥</label><input type="number" id="fNetD" value=""></div>
-    <div class="fld"><label>量能倍數</label>
+    <div class="fld chiponly"><label>窗口內買超天數 ≥</label><input type="number" id="fT10" value="" min="0"></div>
+    <div class="fld chiponly"><label>買多賣少（買−賣天數）≥</label><input type="number" id="fNetD" value=""></div>
+    <div class="fld chiponly"><label>量能倍數</label>
       <select id="fVol"><option value="">不限</option>
         <option value="mild">溫和放大 1.2～3 倍</option>
         <option value="nospike">排除爆量（單日 &gt;5 倍）</option></select></div>
-    <div class="fld"><label>位階型態</label><select id="fPat"><option value="">全部</option>
+    <div class="fld chiponly"><label>位階型態</label><select id="fPat"><option value="">全部</option>
       <option value="打底整理">打底整理</option><option value="剛突破頸線">剛突破頸線</option>
       <option value="剛站回均線">剛站回均線</option><option value="回檔測均線">回檔測均線</option>
       <option value="__early">前三種（尚未發動）</option>
       <option value="已噴出">已噴出</option></select></div>
-    <label class="chk"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
+    <label class="chk chiponly"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
   </div></div>
 
   <div class="whybar">
@@ -355,11 +359,11 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <option value="fund">純基本面模式（不看籌碼）</option>
     </select>
     <span style="width:14px"></span>
-    <span style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
-    <button class="btn pri" id="btnPick10">穩健版 10 檔</button>
-    <button class="btn pri" id="btnPick15">穩健版 15 檔</button>
-    <button class="btn" id="btnPickHist">歷次名單與績效檢核</button>
-    <span style="font-size:11.5px;color:var(--dim2)">
+    <span class="chiponly" style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
+    <button class="btn pri" id="btnPick10" data-chiponly="1">穩健版 10 檔</button>
+    <button class="btn pri" id="btnPick15" data-chiponly="1">穩健版 15 檔</button>
+    <button class="btn" id="btnPickHist" data-chiponly="1">歷次名單與績效檢核</button>
+    <span class="chiponly" style="font-size:11.5px;color:var(--dim2)">
       穩健版＝跟車成本低、位階還沒發動　·　強勢版在右上角　·　名單自動存檔，下一季回頭對答案</span>
   </div>
   <div id="modeNote" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
@@ -480,13 +484,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V53
+   法人卡位選股台 V54
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V53';
+const VER = 'V54';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2802,10 +2806,23 @@ function applyModeCols(){
     const pt = document.getElementById('fPat'); if(pt) pt.value = '';
     const sc = document.getElementById('fScore'); if(sc) sc.value = '60';
   }
+  /* 籌碼相關的控制項在純基本面模式下整組隱藏。
+     先前只是把值歸零，控制項還留在畫面上——看起來像沒生效，
+     而且會讓人以為那些條件仍在作用。 */
+  const hideChip = (MODE === 'fund');
+  document.querySelectorAll('.chiponly').forEach(el => el.classList.toggle('hide-mode', hideChip));
+  document.querySelectorAll('[data-chiponly]').forEach(el => el.classList.toggle('hide-mode', hideChip));
+
   const bar = document.getElementById('modeNote');
   if(bar) bar.innerHTML = (MODE === 'fund')
-    ? '純基本面模式：全市場評分，不要求法人在買。'
-      + '<b style="color:var(--accent)">營收與三率來自 openapi.twse.com.tw，沒設自訂代理的話只剩本益比與淨值比可看。</b>'
+    ? '<div class="modebox">'
+      + '<b>純基本面模式</b>：全市場評分，不看籌碼、不要求法人在買。籌碼相關的篩選與作帳名單已隱藏。'
+      + (fundLooksLoaded()
+          ? ''
+          : '<br><b style="color:var(--accent)">目前抓不到營收與三率</b>（來源 openapi.twse.com.tw 沒開 CORS），'
+            + '這個模式只剩本益比、股價淨值比、近四季 EPS 三項有值，100 分裡只有 28 分算得出來。'
+            + '到「資料源」分頁按「怎麼開？」設一個自訂代理就會補齊。')
+      + '</div>'
     : '';
 }
 
