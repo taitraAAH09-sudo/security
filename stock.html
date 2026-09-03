@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V238</title>
+<title>盤後篩選台 V239</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -640,7 +640,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V238</span>
+    <h1>盤後篩選台</h1><span class="ver">V239</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1226,6 +1226,35 @@ function applyExDiv(date,recs){
   if(n)log(`偵測到 ${n} 檔除權息，已把之前的價格還原（均線／缺口／停損不受假跳空影響）`,'ok');
   return n;
 }
+// 回頭掃整段歷史，補救「已經抓進來、但沒被還原」的除權息／減資。
+// 判準非常硬：台股單日跌幅上限 10%，凡是「今收比昨收低超過 12%」，就不可能是正常下跌，
+// 只會是除權息、無償配股或減資（例：緯穎 6265 → 2610，1 股變近 3 股）。
+// 還原係數優先用當日開盤（最接近參考價），沒有才用收盤。
+function backfillExDiv(){
+  DB.adj=DB.adj||{};
+  let n=0;
+  for(const code of Object.keys(DB.stocks||{})){
+    const s=DB.stocks[code]; if(!s||!s.c)continue;
+    for(let i=1;i<s.c.length;i++){
+      const prev=s.c[i-1], cur=s.c[i];
+      if(prev==null||cur==null||prev<=0)continue;
+      if(cur >= prev*0.88)continue;                 // 跌幅未超過 12% → 正常波動
+      const date=DB.dates[i];
+      const key=code+'|'+date;
+      if(DB.adj[key])continue;
+      const ref=(s.o&&s.o[i]!=null&&s.o[i]>0)?s.o[i]:cur;
+      const k=ref/prev;
+      if(!(k>0&&k<0.95))continue;
+      for(let j=0;j<i;j++)
+        for(const f of ['c','h','l','o']){ const a=s[f]; if(a&&a[j]!=null)a[j]=+(a[j]*k).toFixed(2); }
+      DB.adj[key]={k:+k.toFixed(6),div:+(prev-ref).toFixed(2),by:'斷崖回補'};
+      DB.adjVer=(DB.adjVer||0)+1;
+      n++;
+    }
+  }
+  if(n)log(`回頭補正 ${n} 檔除權息／減資造成的價格斷崖，歷史價格已還原`,'ok');
+  return n;
+}
 function commitDay(date,recs){
   ensureDate(date);
   for(const r of recs)put(r.code,r.name,r.mkt,date,r.c,r.q,r.h,r.l,r.o);
@@ -1421,6 +1450,7 @@ async function doFetch(){
   const KEEP_MAX=90;
   const before=Object.keys(DB.stocks||{}).length;
   trimAll(Math.min(want+15, KEEP_MAX));
+  try{ backfillExDiv(); }catch(e){}
   const dropped=pruneStaleStocks(uni);
   trimSideData();
   if(dropped)log(`清掉 ${dropped} 檔用不到的股票（掉出名單、也沒在追蹤或模擬持有），剩 ${before-dropped} 檔`,'ok');
@@ -3737,6 +3767,7 @@ function testRefreshStatus(){
 // 每次更新並篩選後自動呼叫：把今天推薦併入、重算狀態、存檔（含雲端）
 // 用現在的規則把推薦日快照與追蹤紀錄整批重算（規則改版時自動觸發）
 async function recalcAll(){
+  try{ backfillExDiv(); }catch(e){}
   purgeBeforeStart();
   purgeFinancials();
   purgeLowVolume(); purgeHighPrice();
@@ -4492,7 +4523,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V238 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V239 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
