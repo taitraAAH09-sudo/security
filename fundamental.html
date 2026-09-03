@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V57</title>
+<title>法人卡位選股台 V58</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -293,7 +293,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V57</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V58</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -363,11 +363,10 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     </select>
     <span style="width:14px"></span>
     <span class="chiponly" style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
-    <button class="btn pri" id="btnPick10" data-chiponly="1">穩健版 10 檔</button>
-    <button class="btn pri" id="btnPick15" data-chiponly="1">穩健版 15 檔</button>
+    <button class="btn pri" id="btnSaveToday" data-chiponly="1">存今天前 10 檔</button>
     <button class="btn" id="btnPickHist" data-chiponly="1">歷次名單與績效檢核</button>
     <span class="chiponly" style="font-size:11.5px;color:var(--dim2)">
-      穩健版＝跟車成本低、位階還沒發動　·　強勢版在右上角　·　名單自動存檔，下一季回頭對答案</span>
+      主表已依作帳分排序，最上面那幾檔就是名單　·　存檔後下一季可回頭對答案</span>
   </div>
   <div id="modeNote" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
   <div id="pickOut"></div>
@@ -395,7 +394,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="code">代號</th>
       <th data-k="name">名稱</th>
       <th data-k="ind">產業</th>
-      <th data-k="score">卡位分</th>
+      <th data-k="score">作帳分</th>
       <th data-k="sigRank">訊號</th>
       <th data-k="phaseRank">投信階段</th>
       <th data-k="sChip">法人</th>
@@ -488,13 +487,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V57
+   法人卡位選股台 V58
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V57';
+const VER = 'V58';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2574,6 +2573,21 @@ function score(){
     });
   }
 
+  /* 卡位模式的主分數統一用「作帳分」。
+     先前主表用三軸卡位分、名單用作帳分，兩套排序並存，
+     使用者看到 96 與 87 無法對應。統一成一套之後只剩一個排序邏輯。
+     選作帳分的理由：①它是為「跟投信作帳」寫的 ②基本面只佔 10 分，
+     受抓不到的資料影響最小（卡位分基本面佔 35 分）③22 分壓在跟投信的成本差距。 */
+  if(MODE !== 'fund'){
+    for(const r of ROWS){
+      const d = dressScore(r);
+      r.axes = {chip:r.sChip, fund:r.sFund, room:r.sRoom};   // 三軸留著給明細參考
+      r.score = d.score;
+      r.dress = d.score;
+      r.dressParts = d.parts;
+    }
+  }
+
   const sel = document.getElementById('fInd');
   const keep = sel.value;
   sel.innerHTML = '<option value="">全部</option>' + [...inds].sort().map(i=>`<option>${i}</option>`).join('');
@@ -2742,7 +2756,8 @@ const COL_HELP = {
   code:'證券代號。點任一列可展開該檔的完整計分明細。',
   name:'證券名稱。後面的小標是上市或上櫃。',
   ind:'產業別。合理價的同業比較就是以這個分類為準。',
-  score:'卡位分 0～100。法人卡位 40 ＋ 基本面 35 ＋ 還有多少空間 25，缺資料的項目會從分母扣掉再按比例還原。',
+  score:'作帳分 0～100。衡量「這檔的籌碼結構有多像投信正在為季底作帳建倉，而且你現在進場的成本跟他們差不多」。\n\n七項加權：相對投信成本 22／投信買超天數 20／累計建倉% 18／買盤延續性 12／位階 12／基本面 10／流動性 6。\n\n注意：這是排序不是預測，高分只代表值得先點開看，不代表現在該買——該不該動看「訊號」欄。\n\n（舊版的卡位分 ＝ 法人40＋基本面35＋空間25，已停用；三軸明細仍保留在展開的卡片裡。）',
+  scoreOLD:'卡位分 0～100。法人卡位 40 ＋ 基本面 35 ＋ 還有多少空間 25，缺資料的項目會從分母扣掉再按比例還原。',
   sigRank:'進出訊號。刻意不看估值，只看籌碼與位階。\n可觀察＝四個條件同時成立的上車候選；\n續抱＝還在買但已漲一段；\n買盤中斷／跌破防守／投信轉賣＝進場理由消失。',
   phaseRank:'投信現在走到哪個階段。\n剛起手→建倉中→拉抬中→結帳風險高→減碼→出貨。\n建倉中是最好的上車窗口。',
   pattern:'股價位階型態。\n打底整理／剛突破頸線／剛站回均線＝還沒發動；\n已噴出＝距 20 日線逾 10% 或 20 日漲幅逾 20%。',
@@ -3228,7 +3243,7 @@ function whyStock(code){
    ========================================================================== */
 function dressScore(r){
   const parts = [];
-  const add = (label, max, pt, note) => parts.push({label, max, pt, note});
+  const add = (label, max, pt, note) => parts.push({label, max, pt, note, val:null});
 
   // 1. 投信是不是真的在吃貨（不是一兩天試單）
   const days = r.t10buy || 0;
@@ -4008,10 +4023,18 @@ function showDetail(code){
         </div>
       </div>
       <div class="axes">
-        ${axBlock('法人卡位', s.A, r.sChip===null?'—':r.sChip, 40)}
-        ${axBlock('基本面', s.B, r.sFund===null?'—':r.sFund, 35)}
-        ${axBlock('還有多少空間', s.C, r.sRoom===null?'—':r.sRoom, 25)}
+        ${r.dressParts ? axBlock('作帳分明細', r.dressParts, r.score, 100) : ''}
+        ${axBlock('基本面（參考）', s.B, r.sFund===null?'—':r.sFund, 35)}
       </div>
+      <details style="margin-bottom:12px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--dim2)">
+          展開舊版三軸卡位分（法人／基本面／空間）</summary>
+        <div class="axes" style="margin-top:8px">
+          ${axBlock('法人卡位', s.A, r.sChip===null?'—':r.sChip, 40)}
+          ${axBlock('基本面', s.B, r.sFund===null?'—':r.sFund, 35)}
+          ${axBlock('還有多少空間', s.C, r.sRoom===null?'—':r.sRoom, 25)}
+        </div>
+      </details>
       ${valBlock(r)}
     </div>`;
 }
@@ -4814,8 +4837,19 @@ function requireChipMode(){
   }
   return true;
 }
-document.getElementById('btnPick10').onclick = () => { if(requireChipMode()) renderPicks(10); };
-document.getElementById('btnPick15').onclick = () => { if(requireChipMode()) renderPicks(15); };
+document.getElementById('btnSaveToday').onclick = () => {
+  if(!requireChipMode()) return;
+  const el = document.getElementById('pickOut');
+  const list = filtered().slice(0, 10);
+  if(!list.length){ el.innerHTML = '<div style="color:var(--dim);font-size:12.5px">目前沒有可存的標的。</div>'; return; }
+  const day = savePicks(list.map(r => Object.assign({}, r, {dress: r.score})), 'dress');
+  el.innerHTML = `<div class="pkbox"><div class="pkhead">
+      <b>已存檔　${day.slice(0,4)}/${day.slice(4,6)}/${day.slice(6,8)}　前 ${list.length} 檔</b>
+      <span style="color:var(--dim2)">·　${list.map(r=>r.code).join('、')}</span></div>
+    <div class="pknote">存的是<b>目前主表排序後的前 10 檔</b>，也就是套用了你畫面上篩選條件之後的結果。
+      下一季按「歷次名單與績效檢核」回頭看它們的超額報酬——<b>那才是判斷這套排序有沒有用的依據</b>。</div>
+  </div>`;
+};
 document.getElementById('btnPickHist').onclick = () => {
   const el = document.getElementById('pickHist');
   el.innerHTML = el.innerHTML.trim() ? '' : pickReview();
