@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V55</title>
+<title>法人卡位選股台 V56</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -290,7 +290,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V55</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V56</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -485,13 +485,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V55
+   法人卡位選股台 V56
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V55';
+const VER = 'V56';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -4070,6 +4070,57 @@ function renderBands(){
     </div></div>`;
 }
 
+/* 失敗訊息同因合併。
+   八支端點因為同一件事失敗，逐條列出來會像八個災難，
+   其實是一個原因被印了八次——這對判斷「該修什麼」是反效果。 */
+function failCause(msg){
+  // 先把代理名稱拿掉再判斷，否則 "cors.lol"、"corsproxy" 這些名字會被誤判成 CORS 錯誤
+  const m = String(msg).replace(/cors\.lol|corsproxy\(?[^)；]*\)?|corsfix/gi, '');
+  if(/Access-Control-Allow-Origin/i.test(m))                 return ['cors', '該網域沒有開放跨來源存取（CORS）'];
+  if(/欄位對不上/.test(m))                                     return ['field','連到了但欄位名稱對不上'];
+  // Failed to fetch 與 CORS 在瀏覽器裡是同一件事的兩種說法，合成一類
+  if(/Failed to fetch/i.test(m))                             return ['cors', '瀏覽器擋下（該網域沒開 CORS）'];
+  if(/ERR_NAME_NOT_RESOLVED/i.test(m))                       return ['dns',  '網域名稱解析不到（DNS 層被過濾）'];
+  if(/逾時|AbortError/i.test(m))                              return ['slow', '請求逾時'];
+  if(/HTTP 4\d\d/.test(m))                                   return ['deny', '對方拒絕（HTTP 4xx）'];
+  return ['other', '其他'];
+}
+function renderFails(fails){
+  const groups = {};
+  for(const f of fails){
+    // 每筆訊息可能串了多個代理的結果，取最能代表的那個原因
+    const [k, label] = failCause(f);
+    (groups[k] = groups[k] || {label, items:[]}).items.push(f);
+  }
+  const keys = Object.keys(groups);
+  const body = keys.map(k => {
+    const g = groups[k];
+    const names = g.items.map(x => String(x).split('：')[0]).filter((v,i,a) => a.indexOf(v)===i);
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:12.5px;color:var(--tx)">
+        <b>${g.label}</b>
+        <span style="color:var(--dim2)">　影響 ${g.items.length} 項</span></div>
+      <div style="font-size:11.5px;color:var(--dim);margin-top:2px">${names.join('、')}</div>
+    </div>`;
+  }).join('');
+
+  const corsOnly = keys.length === 1 && keys[0] === 'cors';
+  const hint = corsOnly
+    ? `<div style="margin-top:6px;font-size:12px;color:var(--dim);border-left:3px solid var(--accent);
+         background:#1e1a10;padding:8px 11px;border-radius:0 6px 6px 0">
+        <b style="color:var(--tx)">這 ${fails.length} 項是同一個原因，不是 ${fails.length} 個問題。</b>
+        設一個自訂代理就會全部一起解決——上方「怎麼開？」有步驟。</div>`
+    : '';
+
+  return `<div class="ep">
+    <h4>上次執行的失敗 <span class="pill bad">${fails.length} 項／${keys.length} 種原因</span></h4>
+    ${body}${hint}
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--dim2)">展開完整訊息</summary>
+      <div class="kv" style="margin-top:6px">${fails.slice(0,50).map(x=>`<b>·</b><span>${x}</span>`).join('')}</div>
+    </details></div>`;
+}
+
 function renderProbe(){
   const out = document.getElementById('probeOut');
   const live = [
@@ -4084,8 +4135,7 @@ function renderProbe(){
         <div style="font-size:12px;color:var(--dim)">TPEx 端點路徑不穩，程式會依序試多個候選，這裡顯示這次真正用到的。</div></div>`
     : '';
   out.innerHTML = otcInfo +
-    (fails.length ? `<div class="ep"><h4>上次執行的失敗訊息 <span class="pill bad">${fails.length}</span></h4>
-      <div class="kv">${fails.slice(0,50).map(x=>`<b>·</b><span>${x}</span>`).join('')}</div></div>` : '') +
+    (fails.length ? renderFails(fails) : '') +
     live.map(ep => `<div class="ep">
       <h4>${ep.name} <span class="pill ${DATA.dates.length?'ok':'wait'}">${DATA.dates.length?'已取得 '+DATA.dates.length+' 天':'未執行'}</span></h4>
       <div class="epurl">${ep.url}</div></div>`).join('') +
