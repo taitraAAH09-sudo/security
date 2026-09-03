@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V51</title>
+<title>法人卡位選股台 V52</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -286,7 +286,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V51</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V52</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -480,13 +480,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V51
+   法人卡位選股台 V52
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V51';
+const VER = 'V52';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1433,7 +1433,7 @@ function ingestFund(ep, rows){
 /* ==========================================================================
    主流程
    ========================================================================== */
-async function runAll(){
+async function runAllInner(){
   const btn = document.getElementById('btnRun');
   btn.disabled = true;
   fbSave();
@@ -1646,6 +1646,26 @@ async function runAll(){
   setStatus(msg, false, !DATA.dates.length);
 }
 
+/* V52：runAll 本體完全沒接 try/catch，任何一個沒預料到的例外
+   （像剛剛那個 ensure() 對 undefined 讀 .length）都會讓整個 async function
+   直接 reject、卡在最後一次 setStatus 的畫面，按鈕也解不開鎖，
+   使用者看起來就是「一直卡住」，其實主控台早就報錯了、只是沒人接住。
+   包一層在最外面：不管以後在裡面哪裡炸掉，都會解鎖按鈕、把錯誤訊息印在畫面上，
+   不會再需要開 F12 才知道發生什麼事。 */
+async function runAll(){
+  const btn = document.getElementById('btnRun');
+  try{
+    await runAllInner();
+  }catch(e){
+    console.error(e);
+    btn.disabled = false;
+    setStatus(
+      `<span style="color:#ff9d9d">程式跑到一半發生未預期的錯誤，已停止：${e.message}</span>　`
+      + `按 F12 開主控台可以看到完整錯誤堆疊；修好後按「更新並篩選」可以繼續（已經抓到的天數不會遺失）。`,
+      false, true);
+  }
+}
+
 /* 基本面掛掉時直接在第一頁頂端喊，不要藏在另一個分頁裡 */
 function renderAlert(){
   const el = document.getElementById('alert');
@@ -1717,12 +1737,18 @@ function pushDay(date, ins, px){
     if(at < 0) at = dates.length;
     dates.splice(at, 0, date);
     for(const c in DATA.px){ const s = DATA.px[c]; ['o','c','h','l','v'].forEach(k => { if(s[k]) s[k].splice(at,0,null); }); }
-    for(const c in DATA.ins){ const s = DATA.ins[c]; ['f','t'].forEach(k => s[k].splice(at,0,null)); }
+    for(const c in DATA.ins){ const s = DATA.ins[c]; ['f','t'].forEach(k => { if(s[k]) s[k].splice(at,0,null); }); }
   }
   const L = dates.length;
   const ensure = (obj, code, keys) => {
-    if(!obj[code]){ obj[code] = {}; keys.forEach(k => obj[code][k] = new Array(L).fill(null)); }
-    keys.forEach(k => { while(obj[code][k].length < L) obj[code][k].push(null); });
+    // V52 修正：舊版假設「obj[code] 存在＝所有欄位都在」，但舊快取或雲端快照
+    // 可能缺某個欄位（例如沒有開盤價 o），這裡改成逐一欄位檢查、缺哪個補哪個，
+    // 不會再對 undefined 讀 .length 而整支程式當掉、卡在「1/8」不動。
+    if(!obj[code]) obj[code] = {};
+    keys.forEach(k => {
+      if(!obj[code][k]) obj[code][k] = new Array(L).fill(null);
+      while(obj[code][k].length < L) obj[code][k].push(null);
+    });
     return obj[code];
   };
   for(const code in px){
