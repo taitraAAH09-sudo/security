@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V49</title>
+<title>法人卡位選股台 V50</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -286,7 +286,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V49</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V50</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -480,13 +480,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V49
+   法人卡位選股台 V50
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V49';
+const VER = 'V50';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -551,7 +551,7 @@ const KNOWN_BLOCKED_HOSTS = ['tpex.org.tw', 'openapi.twse.com.tw'];
 function hostOf(url){ try{ return new URL(url).hostname; }catch(e){ return ''; } }
 async function fetchWithTimeout(url, ms){
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), ms || 9000);
+  const timer = setTimeout(() => ctl.abort(), ms || 6000);
   try{ return await fetch(url, {cache:'no-store', signal: ctl.signal}); }
   finally{ clearTimeout(timer); }
 }
@@ -569,7 +569,7 @@ async function getJSON(url){
     try{
       const target = PROXY[i](url);
       if(!target) continue;                    // 自訂代理沒設定就跳過
-      const r = await fetchWithTimeout(target, 9000);
+      const r = await fetchWithTimeout(target, 6000);
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const txt = await r.text();
       if(!txt) throw new Error('回傳空白');
@@ -581,7 +581,7 @@ async function getJSON(url){
         try{ data = JSON.parse(data.contents); }catch(e2){}
       }
       return {data, via: i===0 ? 'direct' : 'proxy'+i, viaName: label, bytes: txt.length};
-    }catch(e){ notes.push(`${label}→${e.name === 'AbortError' ? '逾時(9秒)' : e.message}`); }
+    }catch(e){ notes.push(`${label}→${e.name === 'AbortError' ? '逾時(6秒)' : e.message}`); }
   }
   throw new Error(notes.join('；'));
 }
@@ -1465,6 +1465,19 @@ async function runAll(){
 
   let fromCloud = 0, fromTwse = 0, otcOK = 0, otcFallback = 0, otcBad = 0, otcSkipped = 0, holidays = 0, noData = 0;
   let otcGiveUp = false;
+
+  // V49：上櫃連線探測。之前的版本要等「第一天」inst+px 各 3 個候選網址都試完
+  // （最差 6 家×6 秒＝快 1 分鐘）才知道連不上。這裡先只打 1 支網址、只等 1 次逾時，
+  // 沒設自訂代理又連不上，就直接放棄整批上櫃，不用陪它算完第一天。
+  if(document.getElementById('fOTC').checked && need.length){
+    setStatus('探測上櫃連線…', true);
+    try{
+      await getJSON(TPEX_INST_URLS[0](need[0]));
+    }catch(e){
+      otcGiveUp = true;
+      fails.push(`上櫃連線探測：連不上，之後 ${need.length} 天已跳過上櫃（${e.message}）`);
+    }
+  }
 
   let done = 0;
   for(const d of need){
