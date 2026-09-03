@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V48</title>
+<title>法人卡位選股台 V49</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -538,11 +538,17 @@ const PROXY = [
 ];
 const PROXY_NAME = ['直連','自訂代理','allorigins','cors.lol','corsfix','corsproxy(url=)',
                     'codetabs','whateverorigin','corsproxy(舊格式)','thingproxy'];
-/* V48：每一次嘗試都給 9 秒逾時。
-   舊版 fetch 沒設 timeout，被擋的網域（openapi.twse.com.tw／www.tpex.org.tw）
-   連 TCP 都握不上，瀏覽器要等到自己的預設逾時（常常 60~120 秒）才會放棄，
-   10 家代理接力試下去，一天的上櫃資料就可能卡好幾分鐘，看起來像當機。
-   加 AbortController 讓每一家最多等 9 秒就換下一家，卡住的觀感就會消失。 */
+/* V48b：光是「每家等 9 秒才換下一家」還不夠——程式自己的註解早就寫明白，
+   corsproxy.io / codetabs / thingproxy 在這個使用者的網路是 DNS 被擋，
+   corsfix 回 403，allorigins / cors.lol / whateverorigin 連得上但沒有 CORS 標頭，
+   全部「已知會失敗」，卻還是每次都陪它們等到逾時才放棄。
+   一天要抓上櫃 2 支端點、每支最多試 3 個候選網址，10 家代理 x 9 秒，
+   算下來一天最差可以卡快 9 分鐘、8 天就是超過一小時——這才是「一直卡住」的真正原因。
+   對 tpex.org.tw／openapi.twse.com.tw 這兩個已知被擋的網域，
+   沒設自訂代理就直接跳過那些已知會失敗的公用代理，只試「直連」，
+   失敗就馬上進降級／放棄，不要陪它們等。 */
+const KNOWN_BLOCKED_HOSTS = ['tpex.org.tw', 'openapi.twse.com.tw'];
+function hostOf(url){ try{ return new URL(url).hostname; }catch(e){ return ''; } }
 async function fetchWithTimeout(url, ms){
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), ms || 9000);
@@ -551,7 +557,14 @@ async function fetchWithTimeout(url, ms){
 }
 async function getJSON(url){
   const notes = [];
+  const skipDeadProxies = !MY_PROXY && KNOWN_BLOCKED_HOSTS.some(h => hostOf(url).endsWith(h));
   for(let i=0;i<PROXY.length;i++){
+    // 已知這個網域公用代理全滅、又沒設自訂代理：試完「直連」就直接放棄，
+    // 不要浪費好幾分鐘陪那些注定失敗的公用代理等逾時。
+    if(skipDeadProxies && i >= 1){
+      notes.push('（沒設自訂代理，已知公用代理對這個網域全滅，跳過不試）');
+      break;
+    }
     const label = i===0 ? '直連' : PROXY_NAME[i];
     try{
       const target = PROXY[i](url);
@@ -572,6 +585,7 @@ async function getJSON(url){
   }
   throw new Error(notes.join('；'));
 }
+
 
 function K(row, ...pats){
   if(!row) return undefined;
@@ -1449,7 +1463,8 @@ async function runAll(){
   const have = new Set(DATA.dates);
   const need = want.filter(d => !have.has(d));
 
-  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcFallback = 0, otcBad = 0, holidays = 0, noData = 0;
+  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcFallback = 0, otcBad = 0, otcSkipped = 0, holidays = 0, noData = 0;
+  let otcGiveUp = false;
 
   let done = 0;
   for(const d of need){
@@ -1490,13 +1505,25 @@ async function runAll(){
     // 上市＋上櫃一起抓。V48：完整合併抓不到（逾時、代理被擋、欄位對不上都算）
     // 就自動退成「只留投信買超前 50 檔」，資料量小很多，成功率也高很多，
     // 至少卡位表上還看得到上櫃這 50 檔，而不是整天上櫃都空白。
+    // V48b：如果沒設自訂代理、且第一天上櫃就整個抓不到（inst 都拿不到），
+    // 之後每一天注定用一樣的方式失敗——不要再陪它試 7 次，直接放棄剩下的天數，
+    // 這樣「卡住」的觀感就不會累加成好幾分鐘。
     if(document.getElementById('fOTC').checked){
-      setStatus(`抓 ${d} 的上櫃資料（${done}/${need.length}）`, true, false, p);
-      const r = await mergeOtcDay(d, ins, px);
-      if(r.ok) otcOK++;
-      else if(r.fallback) otcFallback++;
-      else otcBad++;
-      if(r.err) fails.push(`上櫃 ${d}：${r.err}`);
+      if(otcGiveUp){
+        otcSkipped++;
+      }else{
+        setStatus(`抓 ${d} 的上櫃資料（${done}/${need.length}）`, true, false, p);
+        const r = await mergeOtcDay(d, ins, px);
+        if(r.ok) otcOK++;
+        else if(r.fallback) otcFallback++;
+        else{
+          otcBad++;
+          if(!MY_PROXY && otcOK === 0 && otcFallback === 0){
+            otcGiveUp = true;
+          }
+        }
+        if(r.err) fails.push(`上櫃 ${d}：${r.err}`);
+      }
     }
 
     pushDay(d, ins, px);
@@ -1506,7 +1533,7 @@ async function runAll(){
       try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`Firebase 寫 ${d}：${e.message}`); }
     }
   }
-  PROBE._src = {fromCloud, fromTwse, otcOK, otcFallback, otcBad, holidays, noData};
+  PROBE._src = {fromCloud, fromTwse, otcOK, otcFallback, otcBad, otcSkipped, otcGiveUp, holidays, noData};
 
   /* 補一個缺口：本機已經有、但雲端還沒有的日子。
      那些日子不在 need 裡（本機有就不會進抓取迴圈），所以永遠不會被上傳——
@@ -1597,6 +1624,9 @@ async function runAll(){
     msg += ` 上櫃：${s.otcOK} 天完整`
          + (s.otcFallback ? `、${s.otcFallback} 天降級成前 50 檔投信買超` : '')
          + (s.otcBad ? `、${s.otcBad} 天失敗` : '') + '。';
+  }
+  if(s.otcGiveUp){
+    msg += ` <span style="color:#ff9d9d">沒設自訂代理、第一天上櫃就整個連不上，之後 ${s.otcSkipped} 天已跳過上櫃（不會一直卡）。要拿到上櫃資料請照「資料源」分頁的說明設一個自訂代理。</span>`;
   }
   if(s.noData) msg += ` <span style="color:#ff9d9d">${s.noData} 天連不上（下次會再試）。</span>`;
   if(fails.length) msg += ` <span style="color:#ff9d9d">${fails.length} 項失敗，到「資料源」看細節。</span>`;
