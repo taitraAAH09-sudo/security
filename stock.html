@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V237</title>
+<title>盤後篩選台 V238</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -640,7 +640,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V237</span>
+    <h1>盤後篩選台</h1><span class="ver">V238</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1093,14 +1093,19 @@ async function fetchTse(d,keep){
   const iC=F.indexOf('證券代號'),iN=F.indexOf('證券名稱'),
     iV=F.findIndex(f=>/成交股數/.test(f)),iP=F.findIndex(f=>/收盤價/.test(f)),
     iH=F.findIndex(f=>/最高價/.test(f)),iL=F.findIndex(f=>/最低價/.test(f)),
-    iO=F.findIndex(f=>/開盤價/.test(f));
+    iO=F.findIndex(f=>/開盤價/.test(f)),
+    iS=F.findIndex(f=>/漲跌\(\+\/-\)|漲跌\(±\)/.test(String(f))),
+    iD=F.findIndex(f=>/漲跌價差/.test(String(f)));
   const out=[];
   for(const r of D){
     const code=String(r[iC]).trim();
     if(!keep.has(code))continue;
     const c=num(r[iP]),v=num(r[iV]); if(c==null)continue;
+    // 官方漲跌（帶正負號）→ 參考價 = 今收 − 漲跌。除權息當天參考價會低於昨收，差額就是配息值
+    let dv=iD>=0?num(String(r[iD]).replace(/,/g,'')):null;
+    if(dv!=null&&iS>=0&&/-/.test(String(r[iS])))dv=-Math.abs(dv);
     out.push({code,name:String(r[iN]).trim(),mkt:'上市',c,q:v==null?0:Math.round(v/1000),
-      h:iH>=0?num(r[iH]):null,l:iL>=0?num(r[iL]):null,o:iO>=0?num(r[iO]):null});
+      h:iH>=0?num(r[iH]):null,l:iL>=0?num(r[iL]):null,o:iO>=0?num(r[iO]):null,dv});
   }
   return out;
 }
@@ -1191,7 +1196,41 @@ function put(code,name,mkt,date,c,q,h,l,o){
   while(s.c.length<L){s.c.push(null);s.q.push(null);s.h.push(null);s.l.push(null);s.o.push(null);}
   s.c[idx]=c; s.q[idx]=q; s.h[idx]=h??null; s.l[idx]=l??null; s.o[idx]=o??null;
 }
-function commitDay(date,recs){ensureDate(date);for(const r of recs)put(r.code,r.name,r.mkt,date,r.c,r.q,r.h,r.l,r.o);}
+// 除權息還原：官方漲跌是拿「除權息參考價」算的，所以
+//   參考價 = 今收 − 官方漲跌。正常日子參考價 ≒ 昨收；除權息當天會低一截，那個差就是配息（含配股）影響。
+// 偵測到就把「該日以前」的開高低收全部乘上 k = 參考價 / 昨收，讓價格序列連續，
+// 均線、缺口、停損、損益就不會被人為的跳空騙到。成交量不動。
+function applyExDiv(date,recs){
+  const idx=DB.dates.indexOf(date); if(idx<1)return 0;
+  DB.adj=DB.adj||{};
+  let n=0;
+  for(const r of recs){
+    if(r.dv==null||r.c==null)continue;
+    const s=DB.stocks[r.code]; if(!s||!s.c)continue;
+    const prev=s.c[idx-1]; if(prev==null||prev<=0)continue;
+    const ref=r.c-r.dv;                       // 除權息參考價
+    if(!(ref>0))continue;
+    const gapv=prev-ref;
+    if(gapv<=tickSize(prev)*1.5)continue;      // 差一兩檔是四捨五入，不是除權息
+    const k=ref/prev;
+    if(k<=0||k>=1)continue;
+    const key=r.code+'|'+date;
+    if(DB.adj[key])continue;                   // 同一天只還原一次
+    for(let i=0;i<idx;i++){
+      for(const f of ['c','h','l','o']){ const a=s[f]; if(a&&a[i]!=null)a[i]=+(a[i]*k).toFixed(2); }
+    }
+    DB.adj[key]={k:+k.toFixed(6),div:+gapv.toFixed(2)};
+    DB.adjVer=(DB.adjVer||0)+1;
+    n++;
+  }
+  if(n)log(`偵測到 ${n} 檔除權息，已把之前的價格還原（均線／缺口／停損不受假跳空影響）`,'ok');
+  return n;
+}
+function commitDay(date,recs){
+  ensureDate(date);
+  for(const r of recs)put(r.code,r.name,r.mkt,date,r.c,r.q,r.h,r.l,r.o);
+  try{ applyExDiv(date,recs); }catch(e){}
+}
 function trimAll(maxD){
   const ex=DB.dates.length-maxD;
   if(ex>0){DB.dates.splice(0,ex);for(const c in DB.stocks){const s=DB.stocks[c];
@@ -3739,6 +3778,7 @@ async function testAutoSync(){
     await recalcAll();
     TEST_TRACK.rulesVer=RULES_VER;
   }
+  applyAdjToTracking();   // 除權息還原後同步縮放追蹤紀錄的推薦價與停損
   reconcileEntryPx();     // 推薦價對帳，避免剛推薦就出現盈虧
   purgeBeforeStart();     // 清掉系統開始記錄之前的資料
   purgeFinancials();      // 清掉金融／銀行股的舊紀錄
@@ -4452,7 +4492,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V237 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V238 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
@@ -4889,6 +4929,23 @@ function scanEasyPicks(off){
 // 推薦價對帳：快照當時可能抓到的是尚未定案的價（盤中／資料還沒補齊），
 // 之後那天的收盤被更新，推薦價就跟實際收盤對不起來 → 剛推薦當天就冒出盈虧。
 // 這裡把 RECO_HIST 與追蹤紀錄的 entryPx 校正回「那一天真正的收盤價」。
+// 除權息還原後，追蹤紀錄裡凍結的推薦價／停損也要同步縮放，否則損益會憑空多出一段
+function applyAdjToTracking(){
+  const A=DB.adj; if(!A)return 0;
+  let n=0;
+  const scale=(code,firstDate)=>{ let k=1;
+    for(const key in A){ const [c,d]=key.split('|');
+      if(c===code && d>firstDate) k*=A[key].k; }
+    return k; };
+  for(const en of ((TEST_TRACK&&TEST_TRACK.entries)||[])){
+    if(en.adjV===DB.adjVer)continue;
+    const k=scale(en.code,en.firstDate);
+    if(k!==1&&en.entryPx!=null){ en.entryPx=+(en.entryPx*k).toFixed(2);
+      if(en.mvStop!=null)en.mvStop=+(en.mvStop*k).toFixed(2); n++; }
+    en.adjV=DB.adjVer;
+  }
+  return n;
+}
 function reconcileEntryPx(){
   if(!DB.dates||!DB.dates.length)return 0;
   const closeOn=(code,d)=>{ const st=DB.stocks&&DB.stocks[code]; if(!st||!st.c)return null;
