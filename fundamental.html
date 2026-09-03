@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V50</title>
+<title>法人卡位選股台 V51</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -286,7 +286,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V50</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V51</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -323,7 +323,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
     <label class="chk"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
-    <label class="chk"><input type="checkbox" id="fOTC" checked>上市＋上櫃一起抓（V48 預設開，抓不到就自動退成前 50 檔投信買超）</label>
+    <label class="chk"><input type="checkbox" id="fOTC">上市＋上櫃一起抓（V51 起預設關，因為你的網路沒設代理連不上上櫃；只查上市不用勾，想連上櫃再勾＋設代理）</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
@@ -480,13 +480,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V50
+   法人卡位選股台 V51
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V50';
+const VER = 'V51';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
