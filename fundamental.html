@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V47</title>
+<title>法人卡位選股台 V48</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -286,7 +286,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V47</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V48</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -323,7 +323,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     <label class="chk"><input type="checkbox" id="fNoFin" checked>排除金融股</label>
     <label class="chk"><input type="checkbox" id="fNoLoss" checked>排除虧損</label>
     <label class="chk"><input type="checkbox" id="fTrustOnly" checked>只看投信有買的</label>
-    <label class="chk"><input type="checkbox" id="fOTC">一併抓上櫃（需先設好自訂代理）</label>
+    <label class="chk"><input type="checkbox" id="fOTC" checked>上市＋上櫃一起抓（V48 預設開，抓不到就自動退成前 50 檔投信買超）</label>
     <label class="chk"><input type="checkbox" id="fHasFund" checked>只看基本面有資料的</label>
   </div>
   <div class="frow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
@@ -480,13 +480,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V47
+   法人卡位選股台 V48
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V47';
+const VER = 'V48';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -538,6 +538,17 @@ const PROXY = [
 ];
 const PROXY_NAME = ['直連','自訂代理','allorigins','cors.lol','corsfix','corsproxy(url=)',
                     'codetabs','whateverorigin','corsproxy(舊格式)','thingproxy'];
+/* V48：每一次嘗試都給 9 秒逾時。
+   舊版 fetch 沒設 timeout，被擋的網域（openapi.twse.com.tw／www.tpex.org.tw）
+   連 TCP 都握不上，瀏覽器要等到自己的預設逾時（常常 60~120 秒）才會放棄，
+   10 家代理接力試下去，一天的上櫃資料就可能卡好幾分鐘，看起來像當機。
+   加 AbortController 讓每一家最多等 9 秒就換下一家，卡住的觀感就會消失。 */
+async function fetchWithTimeout(url, ms){
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms || 9000);
+  try{ return await fetch(url, {cache:'no-store', signal: ctl.signal}); }
+  finally{ clearTimeout(timer); }
+}
 async function getJSON(url){
   const notes = [];
   for(let i=0;i<PROXY.length;i++){
@@ -545,7 +556,7 @@ async function getJSON(url){
     try{
       const target = PROXY[i](url);
       if(!target) continue;                    // 自訂代理沒設定就跳過
-      const r = await fetch(target, {cache:'no-store'});
+      const r = await fetchWithTimeout(target, 9000);
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const txt = await r.text();
       if(!txt) throw new Error('回傳空白');
@@ -557,7 +568,7 @@ async function getJSON(url){
         try{ data = JSON.parse(data.contents); }catch(e2){}
       }
       return {data, via: i===0 ? 'direct' : 'proxy'+i, viaName: label, bytes: txt.length};
-    }catch(e){ notes.push(`${label}→${e.message}`); }
+    }catch(e){ notes.push(`${label}→${e.name === 'AbortError' ? '逾時(9秒)' : e.message}`); }
   }
   throw new Error(notes.join('；'));
 }
@@ -1143,6 +1154,44 @@ async function fetchPxOTC(date){
   }, 'px');
 }
 
+/* 從一天的上櫃法人買賣超裡，挑投信買超（t）最高的前 N 檔代號。
+   降級模式只留這些，資料量小、成功率高，卡位表至少看得到上櫃熱門股。 */
+function topNByTrust(insMap, n){
+  return Object.keys(insMap)
+    .sort((a,b) => (insMap[b].t||0) - (insMap[a].t||0))
+    .slice(0, n);
+}
+
+/* V48：上市＋上櫃一起追蹤的合併邏輯。
+   先試完整版（全上櫃法人＋全上櫃行情都合併進來）；
+   只要任一支逾時、代理被擋、或欄位對不上，就自動退成「投信買超前 50 檔」，
+   而不是整天上櫃都放棄——這是使用者要求的降級策略。
+   回傳 {ok, fallback, err}：ok=完整成功；fallback=降級成功；兩者皆非=整天失敗。 */
+async function mergeOtcDay(date, ins, px){
+  let insO = null, pxO = null, err = null;
+  try{ insO = await fetchInstOTC(date); }catch(e){ err = e.message; }
+  try{ pxO  = await fetchPxOTC(date); }catch(e){ err = err || e.message; }
+
+  if(insO && pxO){
+    Object.assign(ins, insO);
+    Object.assign(px, pxO);
+    return {ok:true};
+  }
+  // 完整版至少要有法人資料（insO）才排得出「投信買超前 50」；
+  // 兩邊都沒有就真的沒救，這天上櫃只能整個跳過。
+  if(!insO) return {ok:false, fallback:false, err: err || '上櫃法人與行情皆抓不到'};
+
+  const top50 = topNByTrust(insO, 50);
+  let kept = 0;
+  for(const code of top50){
+    ins[code] = insO[code];
+    if(pxO && pxO[code]){ px[code] = pxO[code]; kept++; }
+  }
+  // 連價格都完全拿不到的話，這 50 檔也顯示不出收盤價，一樣算失敗。
+  if(!kept) return {ok:false, fallback:false, err: err || '上櫃行情抓不到，前 50 檔也無法顯示'};
+  return {ok:false, fallback:true, err: kept < top50.length ? `僅 ${kept}/${top50.length} 檔有行情` : null};
+}
+
 /* ---------- 基本面端點（OpenAPI 快照） ---------- */
 /* alt = 備援網址。實測 openapi.twse.com.tw 與 www.tpex.org.tw 在使用者網路被擋
    （連直連都 Failed to fetch），但 www.twse.com.tw 是通的（T86／MI_INDEX 都靠它）。
@@ -1400,7 +1449,7 @@ async function runAll(){
   const have = new Set(DATA.dates);
   const need = want.filter(d => !have.has(d));
 
-  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcBad = 0, holidays = 0, noData = 0;
+  let fromCloud = 0, fromTwse = 0, otcOK = 0, otcFallback = 0, otcBad = 0, holidays = 0, noData = 0;
 
   let done = 0;
   for(const d of need){
@@ -1438,14 +1487,16 @@ async function runAll(){
     try{ px = await fetchPx(d); }catch(e){ fails.push(`MI_INDEX ${d}：${e.message}`); }
     if(!px) continue;
 
-    // 上櫃：同一天合併進來。抓不到不影響上市，只記一筆失敗
+    // 上市＋上櫃一起抓。V48：完整合併抓不到（逾時、代理被擋、欄位對不上都算）
+    // 就自動退成「只留投信買超前 50 檔」，資料量小很多，成功率也高很多，
+    // 至少卡位表上還看得到上櫃這 50 檔，而不是整天上櫃都空白。
     if(document.getElementById('fOTC').checked){
       setStatus(`抓 ${d} 的上櫃資料（${done}/${need.length}）`, true, false, p);
-      try{
-        const insO = await fetchInstOTC(d);
-        const pxO  = await fetchPxOTC(d);
-        if(insO && pxO){ Object.assign(ins, insO); Object.assign(px, pxO); otcOK++; }
-      }catch(e){ fails.push(`上櫃 ${d}：${e.message}`); otcBad++; }
+      const r = await mergeOtcDay(d, ins, px);
+      if(r.ok) otcOK++;
+      else if(r.fallback) otcFallback++;
+      else otcBad++;
+      if(r.err) fails.push(`上櫃 ${d}：${r.err}`);
     }
 
     pushDay(d, ins, px);
@@ -1455,7 +1506,7 @@ async function runAll(){
       try{ await fbPut('kawei/days/' + d, {ins, px}); }catch(e){ fails.push(`Firebase 寫 ${d}：${e.message}`); }
     }
   }
-  PROBE._src = {fromCloud, fromTwse, otcOK, otcBad, holidays, noData};
+  PROBE._src = {fromCloud, fromTwse, otcOK, otcFallback, otcBad, holidays, noData};
 
   /* 補一個缺口：本機已經有、但雲端還沒有的日子。
      那些日子不在 need 裡（本機有就不會進抓取迴圈），所以永遠不會被上傳——
@@ -1542,7 +1593,11 @@ async function runAll(){
   let msg = `完成。資料涵蓋 <b>${DATA.dates.length}</b> 個交易日，法人名單 <b>${ROWS.length}</b> 檔。`;
   if(s.fromCloud) msg += ` 其中 ${s.fromCloud} 天取自雲端、${s.fromTwse} 天新抓。`;
   if(s.backfilled) msg += ` <b>補傳 ${s.backfilled} 天到雲端。</b>`;
-  if(s.otcOK || s.otcBad) msg += ` 上櫃：${s.otcOK} 天成功${s.otcBad ? `、${s.otcBad} 天失敗` : ''}。`;
+  if(s.otcOK || s.otcFallback || s.otcBad){
+    msg += ` 上櫃：${s.otcOK} 天完整`
+         + (s.otcFallback ? `、${s.otcFallback} 天降級成前 50 檔投信買超` : '')
+         + (s.otcBad ? `、${s.otcBad} 天失敗` : '') + '。';
+  }
   if(s.noData) msg += ` <span style="color:#ff9d9d">${s.noData} 天連不上（下次會再試）。</span>`;
   if(fails.length) msg += ` <span style="color:#ff9d9d">${fails.length} 項失敗，到「資料源」看細節。</span>`;
   setStatus(msg, false, !DATA.dates.length);
@@ -2906,7 +2961,7 @@ function whyStock(code){
   // --- 資料層 ---
   if(!DATA.ins[code]){
     R.verdict = 'out';
-    fail('法人資料', `這 ${DATA.dates.length} 個交易日的三大法人日報裡完全沒有 ${code}。可能是上櫃股（本工具目前只接上市）、或這段期間沒有任何法人進出`);
+    fail('法人資料', `這 ${DATA.dates.length} 個交易日的三大法人日報裡完全沒有 ${code}。可能是上櫃股但當時降級成只留投信買超前 50 檔（沒排進前 50 就不會有資料）、「上市＋上櫃一起抓」沒勾選、或這段期間沒有任何法人進出`);
     return R;
   }
   pass('法人資料', '有這一檔的法人進出紀錄');
@@ -4476,7 +4531,7 @@ document.getElementById('docOut').innerHTML = `
 
 <h3>目前的限制</h3>
 <ul>
-<li>T86 與 MI_INDEX 只有<b>上市</b>。上櫃的法人與行情要另接 TPEx 端點，V2 還沒做，所以上櫃股票目前沒有法人分數、會被濾掉。這是下一步最該補的。</li>
+<li>T86 與 MI_INDEX 只有<b>上市</b>。上櫃另外接 TPEx 端點，V48 起「上市＋上櫃一起抓」預設打開；完整合併抓不到時會自動退成只留<b>投信買超前 50 檔</b>，不會整天上櫃都空白，但沒排進前 50 的上櫃股當天仍然沒有法人分數。</li>
 <li>損益表只涵蓋「一般業」，金控／保險／證券／異業各有各的端點（反正預設排除金融股）。</li>
 <li>MA60 需要 60 個交易日，預設只抓 25 天，所以「季線之下」這個標籤在天數不足時不會出現。要用就把回溯天數調到 65。</li>
 <li>沒有券商分點資料，做不到「主力集中度」，那不是公開資料。</li>
