@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V54</title>
+<title>法人卡位選股台 V55</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -290,7 +290,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V54</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V55</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -456,6 +456,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
     </div>
     <button class="btn" id="btnPxSave">儲存</button>
     <button class="btn" id="btnPxTest">測試</button>
+    <button class="btn" id="btnFinTest">測 FinMind（可能不用代理）</button>
     <button class="btn" id="btnPxHelp">怎麼開？</button>
     <div id="pxState" style="font-size:12px;color:var(--dim);padding-bottom:6px"></div>
   </div>
@@ -484,13 +485,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V54
+   法人卡位選股台 V55
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V54';
+const VER = 'V55';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -826,6 +827,77 @@ function renderPxHelp(){
       .then(() => { b.textContent = '已複製'; setTimeout(() => b.textContent = '複製程式碼', 1500); })
       .catch(() => { b.textContent = '複製失敗，請手動選取'; });
   };
+}
+
+/* ==========================================================================
+   FinMind 連通測試
+   FinMind 是台灣的開放金融資料平台，有我們缺的三個資料集：
+     TaiwanStockMonthRevenue / TaiwanStockFinancialStatements / TaiwanStockBalanceSheet
+   如果它有開 CORS，就完全不需要自訂代理。
+   兩個未知數要一起測：①瀏覽器能不能直接讀（CORS）②能不能一次拿全市場（不帶 data_id）
+   ========================================================================== */
+const FINMIND = 'https://api.finmindtrade.com/api/v4/data';
+
+function finRecentMonth(){
+  // 月營收以「月」為單位，取上個月一號當起點
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+}
+
+async function finTest(){
+  const el = document.getElementById('pxState');
+  const btn = document.getElementById('btnFinTest');
+  btn.disabled = true;
+  const lines = [];
+  const start = finRecentMonth();
+
+  const probe = async (label, qs) => {
+    const url = `${FINMIND}?${qs}`;
+    try{
+      const ctl = new AbortController();
+      const tm = setTimeout(() => ctl.abort(), 15000);
+      let r;
+      try{ r = await fetch(url, {cache:'no-store', signal: ctl.signal}); }
+      finally{ clearTimeout(tm); }
+      if(!r.ok) return {ok:false, msg:`HTTP ${r.status}`};
+      const j = await r.json();
+      const n = (j && Array.isArray(j.data)) ? j.data.length : 0;
+      const codes = n ? new Set(j.data.map(x => x.stock_id)).size : 0;
+      return {ok:n > 0, msg: n ? `${n} 筆／${codes} 檔` : (j && j.msg ? j.msg : '回傳 0 筆'), n, codes};
+    }catch(e){
+      const m = (e.name === 'AbortError') ? '逾時' : e.message;
+      return {ok:false, msg:m, cors:/Failed to fetch|NetworkError|CORS/i.test(m)};
+    }
+  };
+
+  el.textContent = '測試 FinMind…（單檔查詢）';
+  const single = await probe('單檔', `dataset=TaiwanStockMonthRevenue&data_id=2330&start_date=${start}`);
+  lines.push(`單檔查詢（2330 月營收）：${single.ok ? '<span style="color:#8fe0ad">通</span>' : '<span style="color:#ff9d9d">失敗</span>'} ${single.msg}`);
+
+  let bulk = {ok:false, msg:'（前一項失敗，未測）'};
+  if(single.ok){
+    el.textContent = '測試 FinMind…（全市場查詢）';
+    bulk = await probe('全市場', `dataset=TaiwanStockMonthRevenue&start_date=${start}`);
+    lines.push(`全市場查詢（不帶代號）：${bulk.ok ? '<span style="color:#8fe0ad">通</span>' : '<span style="color:#ff9d9d">失敗</span>'} ${bulk.msg}`);
+  }
+
+  let verdict;
+  if(!single.ok && single.cors){
+    verdict = '<b style="color:#ff9d9d">FinMind 也沒開 CORS</b>，這條路不通，還是得設自訂代理。';
+  }else if(!single.ok){
+    verdict = `<b style="color:#ff9d9d">連不上 FinMind</b>（${single.msg}）。可能是被 DNS 攔截器擋掉，或服務暫時異常。`;
+  }else if(bulk.ok && bulk.codes > 100){
+    verdict = '<b style="color:#8fe0ad">好消息：CORS 有開、而且能一次拿全市場。</b>'
+            + '把這個結果告訴我，我把月營收與財報改走 FinMind，你就不必設代理了。';
+  }else if(single.ok){
+    verdict = '<b style="color:var(--accent)">CORS 有開，但一次只能查一檔。</b>'
+            + `全市場一千多檔要跑一千多次請求，而 FinMind 免註冊是每小時 600 次——不夠用。`
+            + '不過可以只查你關注的那幾十檔，這仍然有價值。把結果告訴我，我做成「只補關注名單的基本面」。';
+  }
+
+  el.innerHTML = lines.map(x => `<div>${x}</div>`).join('') + `<div style="margin-top:6px">${verdict}</div>`;
+  btn.disabled = false;
 }
 
 async function pxTest(){
@@ -4629,6 +4701,7 @@ document.getElementById('btnFbTest').onclick = fbTest;
 document.getElementById('btnFbAuto').onclick = fbAutoDetect;
 document.getElementById('btnPxSave').onclick = myProxySave;
 document.getElementById('btnPxTest').onclick = pxTest;
+document.getElementById('btnFinTest').onclick = finTest;
 document.getElementById('btnPxHelp').onclick = () => {
   const h = document.getElementById('pxHelp');
   h.classList.toggle('on');
