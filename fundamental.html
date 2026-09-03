@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V58</title>
+<title>法人卡位選股台 V59</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -177,7 +177,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   position:sticky; left:0; z-index:3; background:var(--panel);
   box-shadow:none}
 #tbl th:nth-child(2), #tbl td:nth-child(2){
-  position:sticky; left:58px; z-index:3; background:var(--panel);
+  position:sticky; left:var(--c1w, 58px); z-index:3; background:var(--panel);
   box-shadow:6px 0 8px -6px rgba(0,0,0,.75)}
 #tbl thead th:nth-child(1), #tbl thead th:nth-child(2){z-index:5; background:var(--panel2)}
 #tbl tbody tr:hover td:nth-child(1), #tbl tbody tr:hover td:nth-child(2){background:#1a222e}
@@ -255,6 +255,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .modebox{background:#121a24;border:1px solid #2a3a4d;border-left:3px solid var(--accent);
   border-radius:0 8px 8px 0;padding:9px 12px;font-size:12.5px;line-height:1.7;color:var(--dim)}
 .modebox b{color:var(--tx)}
+.indcell{color:var(--dim);max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .faded{opacity:.42}
 .warnpe{color:var(--accent);font-weight:700}
 .b0{color:var(--dim2)}
@@ -293,7 +294,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V58</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V59</span>
   <div class="hspace"></div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
   <button class="btn" id="btnFund">強制重抓基本面</button>
@@ -487,13 +488,13 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <script>
 /* ==========================================================================
-   法人卡位選股台 V58
+   法人卡位選股台 V59
    主題：找「法人正在買、基本面確實好、但股價還沒噴出去」的股票。
    資料全自動抓，不需要手動輸入任何數字。
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V58';
+const VER = 'V59';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2854,6 +2855,7 @@ function colApply(){
   if(cc) cc.textContent = `顯示 ${shown} / ${COL_ORDER.length} 欄`;
   try{ localStorage.setItem(COL_KEY, JSON.stringify([...COL_HIDDEN])); }catch(e){}
   if(HSCROLL_SYNC) HSCROLL_SYNC();
+  syncStickyOffset();
 }
 function colLabel(k){
   const th = [...document.querySelectorAll('#tbl thead th')].find(t => t.dataset.k === k);
@@ -3084,6 +3086,15 @@ function bldCls(v){
 }
 
 /* 表格上方拉桿與表格本體雙向同步捲動 */
+/* 第二個凍結欄的左位移原本寫死 58px，代號欄寬度一變就會錯位、
+   讓第三欄（產業）看起來被切掉一半。改成量測實際寬度後寫進 CSS 變數。 */
+function syncStickyOffset(){
+  const th = document.querySelector('#tbl thead th:nth-child(1)');
+  if(!th) return;
+  const w = Math.round(th.getBoundingClientRect().width);
+  if(w > 0) document.documentElement.style.setProperty('--c1w', w + 'px');
+}
+
 function initHScroll(){
   const bar = document.getElementById('hscroll');
   const inner = document.getElementById('hscrollInner');
@@ -3717,6 +3728,25 @@ function renderWhy(code){
     document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'start'}); };
 }
 
+/* 產業簡稱。證交所的分類名稱最長到八個字（電腦及週邊設備業），
+   在表格裡既佔寬度又容易被凍結的名稱欄蓋掉，顯示時縮短、滑鼠移上去看全名。
+   篩選下拉與同業本益比計算仍用全名，不受影響。 */
+const IND_SHORT = {
+  '電腦及週邊設備業':'電腦週邊', '電子零組件業':'電子零件', '其他電子業':'其他電子',
+  '電子通路業':'電子通路', '資訊服務業':'資訊服務', '通信網路業':'通信網路',
+  '半導體業':'半導體', '光電業':'光電', '生技醫療業':'生技醫療',
+  '油電燃氣業':'油電燃氣', '農業科技業':'農業科技', '文化創意業':'文化創意',
+  '玻璃陶瓷':'玻璃陶瓷', '造紙工業':'造紙', '橡膠工業':'橡膠', '鋼鐵工業':'鋼鐵',
+  '汽車工業':'汽車', '水泥工業':'水泥', '食品工業':'食品', '塑膠工業':'塑膠',
+  '化學工業':'化學', '紡織纖維':'紡織', '電機機械':'電機機械', '電器電纜':'電器電纜',
+  '建材營造':'建材營造', '航運業':'航運', '觀光餐旅':'觀光餐旅', '貿易百貨':'貿易百貨',
+  '金融保險':'金融保險', '其他業':'其他'
+};
+function shortInd(v){
+  if(!v || v === '—') return '—';
+  return IND_SHORT[v] || (v.length > 4 ? v.replace(/(工業|產業|業)$/,'') : v);
+}
+
 const PAT_CLS = {'打底整理':'pb','剛突破頸線':'pk','剛站回均線':'pk','回檔測均線':'pm',
                  '已噴出':'px','均線之下':'pd','趨勢中':'pn'};
 function patChip(p){
@@ -3739,7 +3769,7 @@ function render(){
     <tr data-c="${r.code}" class="${SELECTED===r.code?'sel':''}">
       <td class="code">${r.code}</td>
       <td>${r.name} <span class="mk">${r.mkt}</span></td>
-      <td style="color:var(--dim)">${r.ind}</td>
+      <td class="indcell" title="${r.ind}">${shortInd(r.ind)}</td>
       <td><span class="sc ${r.score>=70?'s1':(r.score>=55?'s2':'s3')}">${r.score}</span></td>
       <td>${sigChip(r.SIG)}</td>
       <td>${phChip(r.PH)}</td>
@@ -3800,6 +3830,7 @@ function render(){
   });
   document.querySelectorAll('#tbl th').forEach(th => th.classList.toggle('sorted', th.dataset.k === SORT.k));
   if(HSCROLL_SYNC) HSCROLL_SYNC();
+  syncStickyOffset();
   if(SELECTED) showDetail(SELECTED); else document.getElementById('detail').innerHTML = '';
   setStatus(`符合條件 <b>${rows.length}</b> 檔${rows.length>300?'（只顯示前 300）':''}。點任一列看計分明細。`);
 }
