@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V64</title>
+<title>法人卡位選股台 V65</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -301,6 +301,28 @@ table.bt th{background:#151c26;color:var(--dim);padding:6px 8px;text-align:right
 table.bt td{padding:5px 8px;text-align:right;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 table.bt th.l,table.bt td.l{text-align:left}
 table.bt tr:hover td{background:rgba(255,255,255,.03)}
+#guide{margin-bottom:10px}
+.gd{background:#141b25;border:1px solid var(--line);border-radius:8px;padding:12px 15px}
+.gdhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.gdhead b{font-size:13.5px;color:var(--tx)}
+.gdnext{background:rgba(245,158,11,.12);border-left:3px solid var(--accent);
+  border-radius:6px;padding:8px 11px;font-size:12.5px;line-height:1.6;margin-bottom:10px}
+.gstep{display:flex;gap:10px;align-items:flex-start;padding:7px 0;
+  border-top:1px dashed rgba(255,255,255,.07)}
+.gstep:first-of-type{border-top:0}
+.gnum{flex:0 0 21px;height:21px;border-radius:50%;background:#2a3646;color:var(--dim);
+  text-align:center;line-height:21px;font-size:11.5px;font-weight:700;margin-top:1px}
+.gstep.on .gnum{background:var(--accent);color:#0f151d}
+.gstep.done .gnum{background:#1f4a33;color:#6ee7a8}
+.gtxt{font-size:12.5px;line-height:1.65;color:var(--dim)}
+.gtxt b{color:var(--tx)}
+.gstep.on .gtxt{color:var(--tx)}
+.gwhere{display:inline-block;background:rgba(255,255,255,.06);border-radius:4px;
+  padding:0 6px;font-size:11px;color:var(--dim2);margin-left:4px}
+.spot{outline:2px solid var(--accent)!important;outline-offset:3px;border-radius:6px;
+  animation:spotp 1.5s ease-in-out infinite}
+@keyframes spotp{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.45)}
+  50%{box-shadow:0 0 0 7px rgba(245,158,11,0)}}
 .momobox{border-left:3px solid var(--accent);background:rgba(255,255,255,.03);
   padding:8px 11px;border-radius:6px;font-size:12.5px;line-height:1.65;margin-bottom:8px}
 </style>
@@ -315,9 +337,11 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
   <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
+  <button class="btn" id="btnGuide">使用說明</button>
 </header>
 
 <div id="alert"></div>
+<div id="guide"></div>
 
 <div class="tabbar">
   <button class="tab on" data-p="p1">卡位名單</button>
@@ -325,7 +349,7 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
   <button class="tab" data-p="p3">選股邏輯</button>
 </div>
 
-<div id="status">按右上「更新並篩選」開始。第一次會抓約 25 個交易日的法人與行情，大概一兩分鐘；之後只補新的日子。</div>
+<div id="status">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
 
 <div id="vintage" class="vint"></div>
 
@@ -550,7 +574,7 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V64';
+const VER = 'V65';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2421,6 +2445,111 @@ function momoBacktest(){
     </div>`;
 
   out.innerHTML = html;
+}
+
+
+/* ==========================================================================
+   開場指引（V65）
+   不是靜態說明書，是看目前狀態決定「下一步該按哪裡」。
+   使用者反覆卡在同一件事：改了預設天數，但沒再按一次「更新並篩選」，
+   所以動能欄位一直是空的——那不是 bug，是沒人告訴他還要按一次。
+   ========================================================================== */
+const GUIDE_KEY = 'kawei_guide_v1';
+function guideOn(){ return localStorage.getItem(GUIDE_KEY) !== 'off'; }
+
+function guideState(){
+  const n = DATA.dates.length;
+  if(!n)                 return {step:1, key:'nodata'};
+  if(n < MOMO_NEED)      return {step:1, key:'short'};
+  if(MODE === 'chip')    return {step:2, key:'ready'};
+  return {step:3, key:'ready'};
+}
+
+/* 把該按的地方框起來。使用者自己截圖用紅框圈的就是這兩個。 */
+function guideSpot(){
+  const on = guideOn();
+  const st = guideState();
+  const run  = document.getElementById('btnRun');
+  const mode = document.getElementById('fMode');
+  if(run)  run.classList.toggle('spot',  on && st.step === 1);
+  if(mode) mode.classList.toggle('spot', on && st.step === 2);
+}
+
+function renderGuide(){
+  const el = document.getElementById('guide');
+  if(!el) return;
+  if(!guideOn()){ el.innerHTML = ''; guideSpot(); return; }
+
+  const n  = DATA.dates.length;
+  const st = guideState();
+
+  /* 「下一步」只講一件事。列一串待辦事項等於沒講。 */
+  let next;
+  if(st.key === 'nodata'){
+    next = '<b>下一步：按右上角的「更新並篩選」。</b>'
+         + '第一次會抓約 60 個交易日的法人買賣超與行情，大概兩三分鐘。'
+         + '抓過的日子存在你的瀏覽器裡，之後只補新的。';
+  } else if(st.key === 'short'){
+    next = `<b>下一步：再按一次右上角的「更新並篩選」。</b>`
+         + `目前快取只有 ${n} 個交易日，動能那幾欄會是空的——`
+         + `MACD 要 26+9=35 根 K 棒才收斂，加上 MA20 與暖機至少要 ${MOMO_NEED} 天。`
+         + `V63 起回溯天數預設已經改成 60，但<b>改預設值不會自己去補抓</b>，`
+         + `要再按一次才會把缺的那 ${Math.max(0, 60-n)} 天補回來。`;
+  } else if(MODE === 'chip'){
+    next = '<b>資料夠了，動能欄位已經有值。</b>'
+         + '現在是卡位模式——回答的是「投信在買誰、我進場的成本跟他們差多遠」。'
+         + '想改看技術面，用下面的「模式」下拉切到動能趨勢模式。';
+  } else if(MODE === 'momo'){
+    next = '<b>目前是動能趨勢模式。</b>'
+         + '想做動能 × 籌碼雙擊：把「只看動能四關通過」和「只看投信有買的」一起勾起來，'
+         + '再點「綜合分」欄排序。不確定該用哪組參數就按「跑回測」，用你自己的資料決定。';
+  } else {
+    next = '<b>目前是純基本面模式。</b>不看籌碼、不要求法人在買，全市場照營收獲利與估值評分。'
+         + '要注意月營收與三率仍卡在 CORS，沒設自訂代理的話這個模式只剩本益比與淨值比有值。';
+  }
+
+  const step = (i, title, where, body) => {
+    const cls = st.step === i ? 'on' : (st.step > i ? 'done' : '');
+    return `<div class="gstep ${cls}"><div class="gnum">${st.step > i ? '✓' : i}</div>
+      <div class="gtxt"><b>${title}</b><span class="gwhere">${where}</span><br>${body}</div></div>`;
+  };
+
+  el.innerHTML = `<div class="gd">
+    <div class="gdhead"><b>怎麼用這個工具</b>
+      <span style="color:var(--dim2);font-size:11.5px">四步，每步只做一件事</span>
+      <div class="hspace" style="flex:1"></div>
+      <button class="btn" id="btnGuideOff" style="font-size:11.5px;padding:3px 9px">不再顯示</button>
+    </div>
+    <div class="gdnext">${next}</div>
+    ${step(1, '抓資料', '右上角', 
+      '「更新並篩選」。抓法人買賣超（T86）與行情（MI_INDEX），這兩支不需要代理。'
+      + '天數在「資料源」分頁調，預設 60。<b>改完天數要再按一次這顆</b>才會去補抓。')}
+    ${step(2, '選模式', '下面的「模式」下拉',
+      '三種模式回答三個不同的問題，欄位與篩選會整組跟著換：<br>'
+      + '<b>卡位模式</b>　投信在買誰、我的成本跟他們差多遠。主分數是作帳分<br>'
+      + '<b>純基本面模式</b>　不看籌碼，只看營收獲利與估值<br>'
+      + '<b>動能趨勢模式</b>　不看法人，只看技術面四關有沒有轉強。主分數換成動能分')}
+    ${step(3, '設條件', '篩選面板最下面那排「動能趨勢」',
+      '勾<b>「只看動能四關通過」</b>＋<b>「只看投信有買的」</b>就是動能 × 籌碼雙擊，'
+      + '再點「綜合分」欄排序（動能 60% ＋ 作帳 40%）。<br>'
+      + '這兩個一起勾才有意義——KD、RSI、MACD 三個都是同一串收盤價推導的，'
+      + '四關全過比較接近同一件事確認三次；投信買賣超是唯一不從價格推導的維度。')}
+    ${step(4, '決定參數', '模式列下面「動能回測」',
+      '不確定該勾哪些條件就按「跑回測」。它把快取裡每一根 K 棒都當成「今天」重判一次四關，'
+      + '比較六種設定的勝率、超額報酬與期間回撤。<b>用你自己的資料決定，不是用網路上的數字。</b>')}
+    <div class="gstep"><div class="gnum" style="background:#2a3646">·</div>
+      <div class="gtxt">另外兩個地方：<br>
+      <b>表頭滑鼠移上去</b>有那一欄的說明，包括數字到多少代表什麼<br>
+      <b>「查某一檔：為什麼在／不在名單」</b>會逐關告訴你它卡在哪一條、以及當時的數字</div></div>
+  </div>`;
+
+  const off = document.getElementById('btnGuideOff');
+  if(off) off.onclick = () => {
+    localStorage.setItem(GUIDE_KEY, 'off');
+    renderGuide();
+    setStatus('已關閉使用說明。要再打開按右上角的「使用說明」。', false);
+  };
+  guideSpot();
 }
 
 function momoChip(r){
@@ -4566,6 +4695,7 @@ function patChip(p){
 
 function render(){
   syncScoreHeader();
+  renderGuide();
   renderVintage();
   renderAlert();
   const rows = filtered();
@@ -5711,7 +5841,13 @@ document.getElementById('fMode').addEventListener('change', () => {
   momoClearCache();
   applyModeCols();
   score();
+  renderGuide();
 });
+document.getElementById('btnGuide').onclick = () => {
+  localStorage.setItem(GUIDE_KEY, guideOn() ? 'off' : 'on');
+  renderGuide();
+  if(guideOn()) window.scrollTo({top:0, behavior:'smooth'});
+};
 document.getElementById('btnHot').onclick = () => { if(requireChipMode()) renderMomo(15); };
 function requireChipMode(){
   if(MODE === 'fund'){
