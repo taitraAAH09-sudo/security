@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V61</title>
+<title>法人卡位選股台 V62</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -288,6 +288,15 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
   table{font-size:11.5px} th,td{padding:6px 5px}
   .fld input[type=text]{width:110px}
 }
+
+/* --- 動能趨勢（V62） --- */
+.mochip{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;line-height:17px;white-space:nowrap}
+.mochip.g{background:rgba(74,222,128,.14);color:#6ee7a8}
+.mochip.y{background:rgba(251,191,36,.14);color:#fbbf24}
+.mochip.r{background:rgba(248,113,113,.13);color:#f87171}
+.mochip.d{background:rgba(148,163,184,.13);color:var(--dim2)}
+.momobox{border-left:3px solid var(--accent);background:rgba(255,255,255,.03);
+  padding:8px 11px;border-radius:6px;font-size:12.5px;line-height:1.65;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -353,6 +362,24 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <option value="__early">前三種（尚未發動）</option>
       <option value="已噴出">已噴出</option></select></div>
     <label class="chk chiponly"><input type="checkbox" id="fNoDump">排除外資對倒（5 日賣 ≥3 天且淨賣）</label>
+  </div>
+  <div class="frow momorow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+    <span style="font-size:12px;color:var(--dim);font-weight:600;align-self:center">動能趨勢</span>
+    <label class="chk"><input type="checkbox" id="fMomoPass">只看動能四關通過</label>
+    <div class="fld"><label>最低動能分</label><input type="number" id="fMomoMin" value="" min="0" max="100"></div>
+    <div class="fld"><label>型態</label><select id="fMomoType"><option value="">全部</option>
+      <option value="健康帶">健康帶（剛起步）</option>
+      <option value="高檔鈍化">高檔鈍化（強勢股）</option></select></div>
+    <div class="fld"><label>KD 健康帶下緣</label><input type="number" id="fMomoKdLo" value="50"></div>
+    <div class="fld"><label>KD 上緣／鈍化門檻</label><input type="number" id="fMomoKdHi" value="80"></div>
+    <div class="fld"><label>鈍化連續天數</label><input type="number" id="fMomoBlunt" value="3" min="1"></div>
+    <div class="fld"><label>RSI 門檻</label><input type="number" id="fMomoRsi" value="50"></div>
+    <div class="fld"><label>乖離上限 %</label><input type="number" id="fMomoBias" value="12"></div>
+    <label class="chk"><input type="checkbox" id="fMomoHistRise" checked>正柱需比前一根長</label>
+    <label class="chk"><input type="checkbox" id="fMomoBreakOn">需突破近 N 日高</label>
+    <div class="fld"><label>N＝</label><input type="number" id="fMomoBreakN" value="20" min="5"></div>
+    <span style="font-size:11.5px;color:var(--dim2);align-self:center">
+      勾「只看動能四關通過」＋「只看投信有買的」＝ 動能與籌碼雙擊</span>
   </div></div>
 
   <div class="whybar">
@@ -361,6 +388,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       border-radius:6px;padding:6px 9px;font-size:13px;font-family:inherit">
       <option value="chip">卡位模式（法人＋基本面＋位階）</option>
       <option value="fund">純基本面模式（不看籌碼）</option>
+      <option value="momo">動能趨勢模式（技術面轉強）</option>
     </select>
     <span style="width:14px"></span>
     <span class="chiponly" style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
@@ -436,6 +464,15 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
       <th data-k="nm">淨利率%</th>
       <th data-k="triScore">三率三升</th>
       <th data-k="repDate">財報日期</th>
+      <th data-k="momo">動能分</th>
+      <th data-k="mix">綜合分</th>
+      <th data-k="momoType">動能型態</th>
+      <th data-k="histState">柱狀體</th>
+      <th data-k="kv">K</th>
+      <th data-k="dv">D</th>
+      <th data-k="rsi6">RSI6</th>
+      <th data-k="rsi12">RSI12</th>
+      <th data-k="momoPass">動能四關</th>
     </tr></thead>
     <tbody id="tb"></tbody>
   </table></div>
@@ -444,7 +481,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 
 <div class="pane" id="p2">
   <div class="filters"><div class="frow">
-    <div class="fld"><label>回溯交易日數</label><input type="number" id="fDays" value="25" min="10" max="70"></div>
+    <div class="fld"><label>回溯交易日數</label><input type="number" id="fDays" value="25" min="10" max="120"><div style="font-size:11px;color:var(--dim2);margin-top:3px">動能趨勢模式需要 40 個交易日以上（MACD 要 35 根才收斂），建議設 60</div></div>
     <button class="btn pri" id="btnProbe">探測所有端點</button>
     <button class="btn" id="btnClear">清空本機快取</button>
     <button class="btn" id="btnFixHoliday">清除雲端的「非交易日」誤標</button>
@@ -494,7 +531,7 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V61';
+const VER = 'V62';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1893,6 +1930,212 @@ function runSincePct(c, backDays){
   return (base && now) ? (now-base)/base*100 : null;
 }
 
+
+/* ==========================================================================
+   動能趨勢（V62 新增）
+   四關：KD 健康帶或高檔鈍化 → RSI>門檻 → MACD 柱狀體轉強 → 均線量能濾網
+   只吃 DATA.px 已經有的開高低收量，不新增任何端點、不需要代理。
+
+   兩個必須講清楚的限制：
+   ① MACD 要 26+9=35 根 K 棒才收斂，加上 MA20 與暖機，至少要 40 個交易日。
+      本工具預設只回溯 25 天，動能欄位會是空的——把「回溯交易日數」拉到 60。
+   ② 除權息還原這裡只能用「跌幅超限法」。stock.html 用的是漲跌價差法
+      （參考價 = 今收 − 官方漲跌），但本工具的 DATA.px 沒有存漲跌價差欄位，
+      推不出參考價。退而求其次：台股跌停 10%，凡今收比昨收低超過 12% 就
+      不可能是正常下跌，必為除權息／減資／無償配股，把該日以前的價格乘上
+      係數還原。緯穎那種假跌停不會再騙到均線與 KD。
+   ========================================================================== */
+const MOMO_NEED = 40;
+
+function momoParams(){
+  const g = (id, dv) => { const e = document.getElementById(id);
+    const v = e ? parseFloat(e.value) : NaN; return isFinite(v) ? v : dv; };
+  const c = (id, dv) => { const e = document.getElementById(id); return e ? e.checked : dv; };
+  return {
+    kdN:9, kdLow:g('fMomoKdLo',50), kdHigh:g('fMomoKdHi',80), blunt:g('fMomoBlunt',3),
+    rsiThr:g('fMomoRsi',50), maxBias:g('fMomoBias',12),
+    histRise:c('fMomoHistRise',true), shrink:2,
+    needBreak:c('fMomoBreakOn',false), breakN:g('fMomoBreakN',20),
+    maLen:20, volLen:5
+  };
+}
+
+/* DATA.px 的陣列與 DATA.dates 同索引、缺值是 null。指標必須先壓成連續序列，
+   否則 KD 的 9 日視窗會把空洞算進去。 */
+function momoSeries(code){
+  const p = DATA.px[code];
+  if(!p || !p.c) return null;
+  const s = [];
+  for(let i = 0; i < p.c.length; i++){
+    const c = p.c[i];
+    if(c === null || c === undefined) continue;
+    s.push({
+      d: DATA.dates[i],
+      o: (p.o && p.o[i] !== null && p.o[i] !== undefined) ? p.o[i] : c,
+      h: (p.h && p.h[i] !== null && p.h[i] !== undefined) ? p.h[i] : c,
+      l: (p.l && p.l[i] !== null && p.l[i] !== undefined) ? p.l[i] : c,
+      c: c,
+      v: (p.v && p.v[i] !== null && p.v[i] !== undefined) ? p.v[i] : 0
+    });
+  }
+  return s;
+}
+/* 除權息還原：跌幅超限法。就地修改傳入的序列。 */
+function momoAdjust(s){
+  const notes = [];
+  for(let i = 1; i < s.length; i++){
+    const p = s[i-1], cu = s[i];
+    if(!p.c || !cu.c) continue;
+    if(cu.c / p.c < 0.88){
+      const k = (cu.o || cu.c) / p.c;
+      if(k > 0 && k < 0.999){
+        for(let j = 0; j < i; j++){
+          s[j].o *= k; s[j].h *= k; s[j].l *= k; s[j].c *= k;
+        }
+        notes.push({date: cu.d, k: +k.toFixed(4)});
+      }
+    }
+  }
+  return notes;
+}
+function momoSma(a, n, i){
+  if(i < n-1 || i < 0) return null;
+  let t = 0;
+  for(let j = i-n+1; j <= i; j++){ if(a[j] === null || a[j] === undefined) return null; t += a[j]; }
+  return t / n;
+}
+/* 台股慣例 9 日 KD：K = 2/3*K' + 1/3*RSV，初始值 50。
+   不用 ewm 是因為它的種子是第一筆 RSV 而不是 50，前幾十根會跟看盤軟體對不上。 */
+function momoKD(hh, ll, cc, n){
+  const K = [], D = [];
+  let k = 50, d = 50;
+  for(let i = 0; i < cc.length; i++){
+    if(i < n-1){ K.push(null); D.push(null); continue; }
+    let hi = -Infinity, lo = Infinity;
+    for(let j = i-n+1; j <= i; j++){ if(hh[j] > hi) hi = hh[j]; if(ll[j] < lo) lo = ll[j]; }
+    const rsv = (hi - lo) > 0 ? (cc[i] - lo) / (hi - lo) * 100 : 50;
+    k = k + (rsv - k) / 3;
+    d = d + (k - d) / 3;
+    K.push(k); D.push(d);
+  }
+  return {k:K, d:D};
+}
+function momoRSI(cc, n){                       // Wilder
+  const out = new Array(cc.length).fill(null);
+  if(cc.length <= n) return out;
+  let au = 0, ad = 0;
+  for(let i = 1; i <= n; i++){ const ch = cc[i] - cc[i-1]; if(ch > 0) au += ch; else ad -= ch; }
+  au /= n; ad /= n;
+  out[n] = ad === 0 ? (au > 0 ? 100 : 50) : 100 - 100/(1 + au/ad);
+  for(let i = n+1; i < cc.length; i++){
+    const ch = cc[i] - cc[i-1];
+    au = (au*(n-1) + (ch > 0 ? ch : 0)) / n;
+    ad = (ad*(n-1) + (ch < 0 ? -ch : 0)) / n;
+    out[i] = ad === 0 ? (au > 0 ? 100 : 50) : 100 - 100/(1 + au/ad);
+  }
+  return out;
+}
+function momoEMA(cc, span){
+  const a = 2/(span+1); let e = null;
+  return cc.map(v => { e = (e === null) ? v : e + (v-e)*a; return e; });
+}
+function momoMACD(cc){
+  const ef = momoEMA(cc,12), es = momoEMA(cc,26);
+  const dif = cc.map((_,i) => ef[i]-es[i]);
+  const dem = momoEMA(dif,9);
+  return {dif, dem, hist: dif.map((v,i) => v-dem[i])};
+}
+function momoScoreOf(x){
+  const cl = (v,a,b) => Math.max(a, Math.min(b, v));
+  const sRsi  = cl((x.rsi12-50)/30, 0, 1) * 25;
+  const sK    = x.blunt ? 15 : cl((x.k-50)/30, 0, 1) * 15;
+  const sMacd = x.hist > 0 ? (20 + (x.hist > x.histPrev ? 10 : 0)) : 12;
+  let   sVol  = cl((x.volRatio-1)/1.5, 0, 1) * 20;
+  if(x.volRatio > 3) sVol *= 0.8;                       // 超過 3 倍多半是出貨或一次性事件
+  const sBias = x.bias < 0 ? 0
+              : (x.bias <= 8 ? 10
+              : Math.max(0, 10 - (x.bias-8)/Math.max(0.1, x.maxBias-8)*10));
+  const sBrk  = x.broke ? 10 : 0;
+  return Math.round((sRsi+sK+sMacd+sVol+sBias+sBrk) * 100/110 * 10) / 10;
+}
+
+const MOMO_CACHE = {};
+function momoClearCache(){ for(const k in MOMO_CACHE) delete MOMO_CACHE[k]; }
+
+function momoOf(code){
+  const P = momoParams();
+  const ck = code + '|' + JSON.stringify(P);
+  if(MOMO_CACHE[ck] !== undefined) return MOMO_CACHE[ck];
+  let out = null;
+  const s = momoSeries(code);
+  if(s && s.length >= MOMO_NEED){
+    const adj = momoAdjust(s);
+    const cc = s.map(x=>x.c), hh = s.map(x=>x.h), ll = s.map(x=>x.l), vv = s.map(x=>x.v);
+    const i = cc.length - 1;
+    const KD = momoKD(hh, ll, cc, P.kdN);
+    const r6 = momoRSI(cc,6), r12 = momoRSI(cc,12), M = momoMACD(cc);
+    const maV   = momoSma(cc, P.maLen, i);
+    const volMA = momoSma(vv, P.volLen, i-1);      // 前 5 日均量，不含今天
+    const av20  = momoSma(vv, 20, i);
+    if(maV !== null && volMA && KD.k[i] !== null && r12[i] !== null){
+      const k = KD.k[i], d = KD.d[i], H = M.hist;
+      const healthy = k >= P.kdLow && k <= P.kdHigh && d >= P.kdLow && d <= P.kdHigh;
+      let blunt = true;
+      for(let j = 0; j < P.blunt; j++){
+        if(!(KD.k[i-j] !== null && KD.k[i-j] >= P.kdHigh)){ blunt = false; break; }
+      }
+      const c1 = healthy || blunt;
+      const c2 = (r6[i] !== null && r6[i] >= P.rsiThr) || (r12[i] >= P.rsiThr);
+      const posOK = H[i] > 0 && (P.histRise ? H[i] > H[i-1] : true);
+      let shrinkOK = true;
+      for(let j = 0; j <= P.shrink; j++){ if(!(H[i-j] < 0)){ shrinkOK = false; break; } }
+      if(shrinkOK){ for(let j = 0; j < P.shrink; j++){ if(!(H[i-j] > H[i-j-1])){ shrinkOK = false; break; } } }
+      const c3 = posOK || shrinkOK;
+      const px = cc[i], bias = (px/maV - 1) * 100, volRatio = vv[i] / volMA;
+      const aboveMA = px > maV, volOK = volRatio > 1, biasOK = bias <= P.maxBias;
+      const c4 = aboveMA && volOK && biasOK;
+      let prevHi = -Infinity;
+      for(let j = Math.max(0, i-P.breakN); j < i; j++){ if(hh[j] > prevHi) prevHi = hh[j]; }
+      const broke = isFinite(prevHi) && px > prevHi;
+      const c5 = P.needBreak ? broke : true;
+      const fails = [];
+      if(!c1) fails.push('KD 不在健康帶也未鈍化（K ' + fmt(k,1) + '／D ' + fmt(d,1) + '）');
+      if(!c2) fails.push('RSI 未過 ' + P.rsiThr + '（6日 ' + fmt(r6[i],1) + '／12日 ' + fmt(r12[i],1) + '）');
+      if(!c3) fails.push('MACD 柱狀體未轉強（今 ' + fmt(H[i],3) + '／昨 ' + fmt(H[i-1],3) + '）');
+      if(!aboveMA) fails.push('未站上 MA' + P.maLen + '（' + fmt(maV,2) + '）');
+      if(!volOK)   fails.push('量未過 ' + P.volLen + ' 日均量（量比 ' + fmt(volRatio,2) + '）');
+      if(!biasOK)  fails.push('乖離 ' + fmt(bias,1) + '% 超過上限 ' + P.maxBias + '%');
+      if(!c5)      fails.push('未突破近 ' + P.breakN + ' 日高（前高 ' + fmt(prevHi,2) + '）');
+      out = {
+        pass: c1&&c2&&c3&&c4&&c5,
+        score: momoScoreOf({k, rsi12:r12[i], hist:H[i], histPrev:H[i-1],
+                            volRatio, bias, blunt, broke, maxBias:P.maxBias}),
+        k, d, rsi6:r6[i], rsi12:r12[i], hist:H[i], histPrev:H[i-1], dif:M.dif[i],
+        ma:maV, bias, volRatio, lots: av20 === null ? null : av20, broke, px,
+        type: blunt ? '高檔鈍化' : (healthy ? '健康帶' : '—'),
+        macdState: posOK ? '正柱轉強' : (shrinkOK ? '負柱收斂' : '動能仍弱'),
+        c1, c2, c3, c4, c5, fails, bars: s.length, adj
+      };
+    }
+  }
+  MOMO_CACHE[ck] = out;
+  return out;
+}
+function momoChip(r){
+  if(!r.MO) return '<span class="mochip d">資料不足</span>';
+  const t = r.MO.type;
+  const cl = t === '高檔鈍化' ? 'y' : (t === '健康帶' ? 'g' : 'd');
+  return '<span class="mochip ' + cl + '">' + t + '</span>';
+}
+function momoHistChip(r){
+  if(!r.MO) return '<span class="na">—</span>';
+  const s = r.MO.macdState;
+  const cl = s === '正柱轉強' ? 'g' : (s === '負柱收斂' ? 'y' : 'r');
+  return '<span class="mochip ' + cl + '">' + s + '</span>';
+}
+/* 動能資料是否足夠。不夠的話畫面要明說是天數不夠，不是「沒有訊號」。 */
+function momoDataOK(){ return DATA.dates.length >= MOMO_NEED; }
+
 function metrics(code){
   const p = DATA.px[code], q = DATA.ins[code];
   if(!p || !q) return null;
@@ -2520,6 +2763,8 @@ function score(){
     if(noLoss && SQ.eps !== null && SQ.eps !== undefined && SQ.eps <= 0) continue;
 
     const V = valuation(code, m.px, f);
+    const MO = momoOf(code);
+    if(MODE === 'momo' && !MO) continue;              // 動能模式下算不出來的就別佔位置
     const s = (MODE === 'fund') ? fundOnlyScore(f, V, m) : scoreOne(m, f, V);
     if(s.score === null) continue;
     if(MODE === 'fund' && !s.hasFund) continue;
@@ -2544,6 +2789,16 @@ function score(){
 
     ROWS.push({
       code, name, ind: f.ind || '—', mkt: f.mkt || guessMkt(code), fin,
+      MO,
+      momo:      MO ? MO.score     : null,
+      momoType:  MO ? MO.type      : '—',
+      momoPass:  MO ? MO.pass      : false,
+      kv:        MO ? MO.k         : null,
+      dv:        MO ? MO.d         : null,
+      rsi6:      MO ? MO.rsi6      : null,
+      rsi12:     MO ? MO.rsi12     : null,
+      histState: MO ? MO.macdState : '—',
+      moBroke:   MO ? MO.broke     : false,
       score:s.score, sChip:s.sChip, sFund:s.sFund, sRoom:s.sRoom, cmp:s.cmp,
       hasFund:s.hasFund, S:s, M:m, V,
       trustD:m.trustD, foreignD:m.foreignD, net5:Math.round(m.net5),
@@ -2588,6 +2843,19 @@ function score(){
       r.dressParts = d.parts;
     }
   }
+  /* 綜合分＝動能 60% ＋ 作帳 40%。這是「混合」真正落地的地方——
+     動能那四關全部由收盤價推導、彼此高度相關，四關全過比較接近
+     同一件事確認三次；投信買賣超是唯一不從價格推導的維度，
+     兩邊都給分才是多重確認。算不出動能就退回作帳分，不硬湊。 */
+  for(const r of ROWS){
+    const dz = (r.dress === undefined || r.dress === null) ? null : r.dress;
+    r.mix = (r.momo === null) ? dz
+          : (dz === null ? r.momo : Math.round((r.momo*0.6 + dz*0.4) * 10) / 10);
+  }
+  /* 動能模式的主分數換成動能分。作帳分仍留在 r.dress，明細看得到。 */
+  if(MODE === 'momo'){
+    for(const r of ROWS) if(r.momo !== null) r.score = r.momo;
+  }
 
   const sel = document.getElementById('fInd');
   const keep = sel.value;
@@ -2616,6 +2884,9 @@ function filtered(){
   const pat   = document.getElementById('fPat').value;
   const noDump= document.getElementById('fNoDump').checked;
   const sig   = document.getElementById('fSig').value;
+  const moPass= document.getElementById('fMomoPass').checked;
+  const moMin = document.getElementById('fMomoMin').value;
+  const moType= document.getElementById('fMomoType').value;
 
   let out = ROWS.filter(r => {
     if(r.score < min) return false;
@@ -2632,6 +2903,9 @@ function filtered(){
     if(pat && pat !== '__early' && r.pattern !== pat) return false;
     if(noDump && r.f5sellDays >= 3 && r.net5fOnly < 0) return false;
     if(sig && (!r.SIG || r.SIG.k !== sig)) return false;
+    if(moPass && !r.momoPass) return false;
+    if(moMin !== '' && (r.momo === null || r.momo < +moMin)) return false;
+    if(moType && r.momoType !== moType) return false;
     if(runMx !== '' && r.runPct !== null && r.runPct > +runMx) return false;
     if(yoy !== '' && (r.revYoY === null || r.revYoY < +yoy)) return false;
     if(ind && r.ind !== ind) return false;
@@ -2740,7 +3014,9 @@ const COL_GROUPS = [
   ['其他成本與位階', ['instCost','vsInst','runPct','toHigh','distMA20']],
   ['每股與估值', ['epsTTM','pe','mcap']],
   ['月營收', ['revPeriod','revYoY','revMoM']],
-  ['財報（目前抓不到，端點通了才會有值）', ['nm','triScore','repDate']]
+  ['財報（目前抓不到，端點通了才會有值）', ['nm','triScore','repDate']],
+  ['動能趨勢（V62，只用行情資料，不需要代理）',
+    ['momo','mix','momoType','histState','kv','dv','rsi6','rsi12','momoPass']]
 ];
 const COL_LOCK_BASE = ['code','name','score'];
 const COL_LOCK_CHIP = ['sigRank','phaseRank'];
@@ -2749,7 +3025,12 @@ const COL_HIDE_DEFAULT = ['gm','om','nm','triScore','repDate','mcap','volRatio',
                           'nm','triScore','repDate','mcap','instCost','vsInst'];
 const COL_CORE = ['code','name','score','sigRank','phaseRank','pattern',
                   't10buy','buildAll','idleDays',
-                  'px','trustCost','vsTrust','fairLo','prem','revYoY'];
+                  'px','trustCost','vsTrust','fairLo','prem','revYoY',
+                  'momo','momoPass'];
+/* 動能模式的欄位組：籌碼那幾欄刻意留著，因為「動能 × 籌碼雙擊」要靠它們。 */
+const COL_MOMO = ['code','name','ind','score','momoType','histState',
+                  'kv','dv','rsi6','rsi12','px','distMA20','volRatio','momoPass',
+                  'mix','trustD','t10buy','trustCost','vsTrust','phaseRank'];
 const COL_KEY = 'kawei_cols_v8';
 let COL_HIDDEN = new Set(COL_HIDE_DEFAULT);
 let COL_ORDER = [];      // data-k 依表格實際順序
@@ -2948,7 +3229,7 @@ const COL_FUND = ['code','name','ind','score','px','revPeriod','revYoY','revMoM'
 function applyModeCols(){
   // 純基本面模式下訊號與階段沒有意義，解除鎖定讓它們可以被關掉
   COL_LOCK = (MODE === 'fund') ? COL_LOCK_BASE.slice() : COL_LOCK_BASE.concat(COL_LOCK_CHIP);
-  const want = (MODE === 'fund') ? COL_FUND : COL_CORE;
+  const want = (MODE === 'fund') ? COL_FUND : (MODE === 'momo' ? COL_MOMO : COL_CORE);
   COL_HIDDEN = new Set(COL_ORDER.filter(k => !want.includes(k) && !COL_LOCK.includes(k)));
   colApply(); colPanel();
   // 純基本面模式下，籌碼相關的篩選條件會誤殺，先歸零
@@ -2965,8 +3246,29 @@ function applyModeCols(){
   const hideChip = (MODE === 'fund');
   document.querySelectorAll('.chiponly').forEach(el => el.classList.toggle('hide-mode', hideChip));
   document.querySelectorAll('[data-chiponly]').forEach(el => el.classList.toggle('hide-mode', hideChip));
+  /* 動能那排在純基本面模式下沒有意義（那個模式連籌碼都不看），一起藏。
+     卡位模式要留著——那正是「動能 × 籌碼雙擊」的入口。 */
+  document.querySelectorAll('.momorow').forEach(el => el.classList.toggle('hide-mode', MODE === 'fund'));
 
   const bar = document.getElementById('modeNote');
+  if(MODE === 'momo'){
+    const short = !momoDataOK();
+    if(bar) bar.innerHTML = '<div class="modebox">'
+      + '<b>動能趨勢模式</b>：不要求法人在買，全市場跑技術面四關'
+      + '（KD 健康帶或高檔鈍化 → RSI 過門檻 → MACD 柱狀體轉強 → 站上 MA20 且量過 5 日均量）。'
+      + '主分數換成動能分，作帳分仍在明細裡。'
+      + '<br>要做<b>動能 × 籌碼雙擊</b>：把上面那排的「只看動能四關通過」和「只看投信有買的」一起勾起來，'
+      + '再照「綜合分」排序（動能 60% ＋ 作帳 40%）。'
+      + (short
+          ? '<br><b style="color:var(--accent)">目前只有 ' + DATA.dates.length + ' 個交易日，動能算不出來。</b>'
+            + 'MACD 要 26+9=35 根 K 棒才收斂，加上 MA20 與暖機至少要 ' + MOMO_NEED + ' 天。'
+            + '到「資料源」分頁把「回溯交易日數」改成 60，再按「更新並篩選」。'
+          : '<br><span style="color:var(--dim2)">目前 ' + DATA.dates.length + ' 個交易日，足夠計算。'
+            + '除權息還原用的是「跌幅超限法」（單日跌超過 12% 必為除權息），'
+            + '因為本工具沒有存證交所的漲跌價差欄位，推不出參考價。</span>')
+      + '</div>';
+    return;
+  }
   if(bar) bar.innerHTML = (MODE === 'fund')
     ? '<div class="modebox">'
       + '<b>純基本面模式</b>：全市場評分，不看籌碼、不要求法人在買。籌碼相關的篩選與作帳名單已隱藏。'
@@ -3223,12 +3525,20 @@ function whyStock(code){
   pass('行情資料', `最新收盤 ${fmt(m.px,2)}`);
 
   // --- score() 的硬排除，順序與程式一致 ---
-  if(m.trustD === 0 && m.foreignD === 0 && m.net5 <= 0){
+  /* V62 修正：這條硬排除在 score() 裡只有卡位模式才套用
+     （`if(MODE === 'chip' && ...)`），但這裡原本是無條件的。
+     結果純基本面模式與動能模式下，明明在清單裡的股票會被查詢器
+     回報成「被硬排除」——工具自己講的話跟自己做的事不一致。
+     現在跟著 MODE 走。 */
+  if(MODE === 'chip' && m.trustD === 0 && m.foreignD === 0 && m.net5 <= 0){
     R.verdict = 'out';
     fail('法人有沒有在買', `投信連買 0 天、外資連買 0 天，近 5 日法人合計 ${Math.round(m.net5).toLocaleString()} 張（淨賣超）。這是硬排除，法人沒在買就不是卡位標的`);
     return R;
   }
-  pass('法人有沒有在買', `投信連買 ${m.trustD} 天、外資連買 ${m.foreignD} 天，近 5 日合計 ${Math.round(m.net5).toLocaleString()} 張`);
+  if(MODE === 'chip')
+    pass('法人有沒有在買', `投信連買 ${m.trustD} 天、外資連買 ${m.foreignD} 天，近 5 日合計 ${Math.round(m.net5).toLocaleString()} 張`);
+  else
+    pass('法人有沒有在買', `目前是${MODE === 'momo' ? '動能趨勢' : '純基本面'}模式，不要求法人在買（投信連買 ${m.trustD} 天、外資 ${m.foreignD} 天，近 5 日 ${Math.round(m.net5).toLocaleString()} 張）`);
 
   if(m.vol20 !== null && m.vol20 < 1000){
     R.verdict = 'out';
@@ -3257,12 +3567,44 @@ function whyStock(code){
   // --- 到這裡應該在 ROWS 裡 ---
   const r = ROWS.find(x => x.code === code);
   if(!r){
-    R.verdict = 'odd';
-    fail('計分', '硬排除都過了，但沒有出現在計分結果裡。可能是三軸全部都沒有資料（分數算不出來）');
+    R.verdict = 'out';
+    if(MODE === 'momo' && !momoOf(code)){
+      fail('計分', `動能模式下算不出動能的股票不會進清單。${
+        DATA.dates.length < MOMO_NEED
+          ? `目前只有 ${DATA.dates.length} 個交易日，至少要 ${MOMO_NEED} 天（MACD 要 35 根才收斂）`
+          : `這一檔只有 ${(momoSeries(code)||[]).length} 根有效 K 棒，不足 ${MOMO_NEED} 根`}`);
+    } else {
+      R.verdict = 'odd';
+      fail('計分', '硬排除都過了，但沒有出現在計分結果裡。可能是三軸全部都沒有資料（分數算不出來）');
+    }
     return R;
   }
   R.row = r;
   pass('計分', `卡位分 ${r.score}（法人 ${r.sChip===null?'—':r.sChip} ／ 基本面 ${r.sFund===null?'—':r.sFund} ／ 空間 ${r.sRoom===null?'—':r.sRoom}）`);
+
+  // --- 動能四關（V62）：逐關攤開，跟籌碼那幾關一樣的待遇 ---
+  if(!r.MO){
+    fail('動能指標', DATA.dates.length < MOMO_NEED
+      ? `只有 ${DATA.dates.length} 個交易日，MACD 要 35 根才收斂、加上 MA20 與暖機至少要 ${MOMO_NEED} 天。到「資料源」把回溯天數改成 60`
+      : `這一檔的行情資料只有 ${(momoSeries(code)||[]).length} 根有效 K 棒，不足 ${MOMO_NEED} 根`);
+  } else {
+    const MOP = momoParams();
+    const mo = r.MO;
+    (mo.c1 ? pass : fail)('動能① KD',
+      `K ${fmt(mo.k,1)} ／ D ${fmt(mo.d,1)}，型態「${mo.type}」（健康帶 ${MOP.kdLow}~${MOP.kdHigh}，或 K 連續 ${MOP.blunt} 天 ≥ ${MOP.kdHigh}）`);
+    (mo.c2 ? pass : fail)('動能② RSI',
+      `RSI6 ${fmt(mo.rsi6,1)} ／ RSI12 ${fmt(mo.rsi12,1)}，門檻 ${MOP.rsiThr}（其一過即可）`);
+    (mo.c3 ? pass : fail)('動能③ MACD',
+      `柱狀體 今 ${fmt(mo.hist,3)} ／ 昨 ${fmt(mo.histPrev,3)}，判定「${mo.macdState}」`);
+    (mo.c4 ? pass : fail)('動能④ 均線量能',
+      `收 ${fmt(mo.px,2)}、MA20 ${fmt(mo.ma,2)}、乖離 ${fmt(mo.bias,1)}%（上限 ${MOP.maxBias}%）、量比 ${fmt(mo.volRatio,2)}`);
+    if(MOP.needBreak)
+      (mo.c5 ? pass : fail)('動能⑤ 突破近高', mo.broke ? `已突破近 ${MOP.breakN} 日高` : `尚未突破近 ${MOP.breakN} 日高`);
+    (mo.pass ? pass : fail)('動能四關合計',
+      mo.pass ? `全數通過，動能分 ${mo.score}` : `動能分 ${mo.score}，卡在：${mo.fails.join('；')}`);
+    if(mo.adj && mo.adj.length)
+      pass('除權息還原', `偵測到 ${mo.adj.length} 次（${mo.adj.map(a=>a.date+' ×'+a.k).join('、')}），已把該日以前的價格還原，均線與 KD 不會被假跳空騙到`);
+  }
 
   // --- filtered() 的每一條，依畫面上目前的設定 ---
   const V = id => document.getElementById(id).value;
@@ -3290,6 +3632,12 @@ function whyStock(code){
     ['排除外資對倒',  C('fNoDump'), () => !(C('fNoDump') && r.f5sellDays >= 3 && r.net5fOnly < 0),
         `外資近 5 日賣 ${r.f5sellDays} 天、淨 ${Math.round(r.net5fOnly).toLocaleString()} 張`],
     ['訊號',          V('fSig'), () => !V('fSig') || (r.SIG && r.SIG.k === V('fSig')), `目前訊號是「${r.SIG ? r.SIG.label : '—'}」`],
+    ['只看動能四關通過', C('fMomoPass'), () => !C('fMomoPass') || r.momoPass,
+        r.MO ? (r.momoPass ? '四關全過' : '卡在：' + r.MO.fails.join('；')) : '算不出動能（資料筆數不足）'],
+    ['最低動能分',    V('fMomoMin'), () => V('fMomoMin')==='' || (r.momo !== null && r.momo >= +V('fMomoMin')),
+        r.momo === null ? '算不出動能分' : `動能分 ${r.momo}`],
+    ['動能型態',      V('fMomoType'), () => !V('fMomoType') || r.momoType === V('fMomoType'),
+        `目前是「${r.momoType}」`],
     ['買超期間漲幅 ≤', V('fRun'), () => V('fRun')==='' || r.runPct === null || r.runPct <= +V('fRun'), `期間漲幅 ${fmt(r.runPct,1)}%`],
     ['營收年增 ≥',    V('fYoY'), () => V('fYoY')==='' || (r.revYoY !== null && r.revYoY >= +V('fYoY')), r.revYoY===null ? '沒有營收資料' : `營收年增 ${fmt(r.revYoY,1)}%`],
     ['產業',          V('fInd'), () => !V('fInd') || r.ind === V('fInd'), `產業是「${r.ind}」`],
@@ -3821,7 +4169,7 @@ function render(){
   const rows = filtered();
   const tb = document.getElementById('tb');
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="44" style="text-align:center;padding:28px;color:var(--dim)">
+    tb.innerHTML = `<tr><td colspan="53" style="text-align:center;padding:28px;color:var(--dim)">
       ${ROWS.length ? '這組條件沒有符合的股票，把門檻放寬一點。' : '還沒有資料。按右上「更新並篩選」。'}</td></tr>`;
     document.getElementById('detail').innerHTML = '';
     return;
@@ -3883,7 +4231,18 @@ function render(){
       <td class="${cls(r.nm)}">${fmt(r.nm,1)}</td>
       <td>${triChip(r.TRI)}</td>
       <td style="color:var(--dim)">${r.repDate || '<span class="na">—</span>'}</td>
-    
+      <td>${r.momo===null ? '<span class="na">—</span>'
+            : `<span class="sc ${r.momo>=70?'s1':(r.momo>=55?'s2':'s3')}">${r.momo}</span>`}</td>
+      <td>${r.mix===null||r.mix===undefined ? '<span class="na">—</span>' : r.mix}</td>
+      <td>${momoChip(r)}</td>
+      <td>${momoHistChip(r)}</td>
+      <td>${fmt(r.kv,1)}</td>
+      <td>${fmt(r.dv,1)}</td>
+      <td>${fmt(r.rsi6,1)}</td>
+      <td>${fmt(r.rsi12,1)}</td>
+      <td>${!r.MO ? '<span class="na">—</span>'
+            : (r.momoPass ? '<span class="mochip g">四關通過</span>'
+              : `<span class="mochip d" title="${r.MO.fails.join('；')}">${r.MO.fails.length} 關卡住</span>`)}</td>
     </tr>`).join('');
 
   document.querySelectorAll('#tb tr[data-c]').forEach(tr => {
@@ -4888,10 +5247,20 @@ document.querySelectorAll('#tbl th').forEach(th => {
   };
 });
 ['fScore','fTrust','fRun','fYoY','fPrem','fInd','fQ','fTrustOnly','fHasFund',
- 'fT10','fNetD','fVol','fPat','fNoDump','fSig','fVsT'].forEach(id => {
+ 'fT10','fNetD','fVol','fPat','fNoDump','fSig','fVsT',
+ 'fMomoPass','fMomoMin','fMomoType'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('input', render);
   el.addEventListener('change', render);
+});
+/* 這幾個是「算指標」的參數不是「篩選」的參數，改了要重算整批，
+   而且要先清掉動能快取，否則會拿舊參數的結果。 */
+['fMomoKdLo','fMomoKdHi','fMomoBlunt','fMomoRsi','fMomoBias','fMomoHistRise',
+ 'fMomoBreakOn','fMomoBreakN'].forEach(id => {
+  const el = document.getElementById(id);
+  if(!el) return;
+  const go = () => { momoClearCache(); score(); };
+  el.addEventListener('change', go);
 });
 
 /* 原本有一顆「套用投信建倉條件」的預設按鈕，V27 移除。
@@ -4901,8 +5270,10 @@ document.querySelectorAll('#tbl th').forEach(th => {
 const SET = (id, v) => { const e = document.getElementById(id);
   if(e.type === 'checkbox') e.checked = v; else e.value = v; };
 document.getElementById('btnReset').onclick = () => {
-  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig','fVsT'].forEach(id => SET(id, ''));
+  ['fT10','fNetD','fRun','fYoY','fPrem','fVol','fPat','fQ','fSig','fVsT',
+   'fMomoMin','fMomoType'].forEach(id => SET(id, ''));
   SET('fScore', 0); SET('fTrust', 0); SET('fNoDump', false); SET('fTrustOnly', false);
+  SET('fMomoPass', false);
   render();
 };
 document.getElementById('btnFbTest').onclick = fbTest;
@@ -4917,6 +5288,7 @@ document.getElementById('btnPxHelp').onclick = () => {
 };
 document.getElementById('fMode').addEventListener('change', () => {
   MODE = document.getElementById('fMode').value;
+  momoClearCache();
   applyModeCols();
   score();
 });
