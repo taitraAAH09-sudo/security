@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V242</title>
+<title>盤後篩選台 V243</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -435,6 +435,11 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .bar i{display:block;height:100%;background:var(--amber);width:0;transition:width .18s}
 .log{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 .log .err{color:var(--up)} .log .ok{color:var(--down)}
+/* 全域的 .warn 是一個有內距與外框的方塊；直接套在 log 的 <span> 上會撐開行高、壓到上下行。
+   log 裡一律拉回純文字，只留顏色。 */
+.log .warn{display:inline;background:none;border:0;border-radius:0;padding:0;margin:0;font-size:inherit;line-height:inherit;color:var(--amber)}
+.log .dim{color:var(--dim)}
+.log span{display:inline}
 .note{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:10px}
 
 /* funnel */
@@ -640,7 +645,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V242</span>
+    <h1>盤後篩選台</h1><span class="ver">V243</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -857,11 +862,49 @@ tbody tr{cursor:pointer}
 <script>
 /* ═══ storage ═══ */
 const KEY='twstk2_cache', KEY3='twstk2_fb';
+/* ── 存檔壓縮（V243）──────────────────────────────────────────────
+   為什麼要有這段：JSON 裡一個 null 是 "null," 共 5 個字元，一個股價 "123.5," 是 6 個。
+   所以 V242 的 trimHLO 把舊的高低開「清成 null」其實幾乎沒省到空間（每格只省 1 個字元），
+   這就是砍完還是 3.8MB 的原因。真正要省，必須讓那一段根本不要寫進檔案裡。
+   做法：只在「寫進本機」的那一刻，把陣列開頭連續的 null 壓成一個數字 z，讀回來時再攤開。
+   DB.stocks 裡每檔的陣列長度、索引位置在記憶體中完全不變，所有計算不受影響。 */
+const PACK_F=['c','q','h','l','o'];
+function packArr(a){
+  if(!Array.isArray(a))return a;
+  let z=0; while(z<a.length&&a[z]==null)z++;
+  return z>=4?{z:z,a:a.slice(z)}:a;      // 少於 4 格不值得包，省得多一層物件
+}
+function unpackArr(v){
+  if(v==null||Array.isArray(v))return v;
+  if(typeof v==='object'&&Array.isArray(v.a))return new Array(v.z|0).fill(null).concat(v.a);
+  return v;
+}
+function packDB(db){
+  if(!db||!db.stocks)return db;
+  const out={};
+  for(const code in db.stocks){
+    const s=db.stocks[code]; if(!s||typeof s!=='object'){out[code]=s;continue;}
+    const t={}; for(const k in s)t[k]=s[k];
+    for(const f of PACK_F)if(f in t)t[f]=packArr(t[f]);
+    out[code]=t;
+  }
+  return Object.assign({},db,{stocks:out});
+}
+function unpackDB(db){
+  if(!db||!db.stocks)return db;
+  for(const code in db.stocks){
+    const s=db.stocks[code]; if(!s||typeof s!=='object')continue;
+    for(const f of PACK_F)if(f in s)s[f]=unpackArr(s[f]);
+  }
+  return db;
+}
 const store={
   async get(k){try{
-    if(window.storage){const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}
-    const v=window.localStorage&&localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},
-  async set(k,v){try{const s=JSON.stringify(v);
+    let v=null;
+    if(window.storage){const r=await window.storage.get(k);v=r?JSON.parse(r.value):null;}
+    else{const t=window.localStorage&&localStorage.getItem(k);v=t?JSON.parse(t):null;}
+    return k===KEY?unpackDB(v):v;}catch(e){return null;}},
+  async set(k,v){try{const s=JSON.stringify(k===KEY?packDB(v):v);
     if(window.storage){await window.storage.set(k,s);return true;}
     if(window.localStorage){localStorage.setItem(k,s);return true;}return false;}catch(e){return false;}},
   async del(k){try{if(window.storage){await window.storage.delete(k);return;}
@@ -1274,14 +1317,19 @@ const validCount=s=>Array.isArray(s&&s.c)?s.c.reduce((a,x)=>a+(x!=null?1:0),0):0
 // 「最近幾個交易日曾進過法人排行」的保留窗口。窗口越短、留下的股票越少、本機越省。
 // 縮短完全不影響計算（推薦與篩選只看當天名單），只是舊股票的歷史要重查時得重抓。
 const RANK_WINDOW=3;
-function pruneStaleStocks(uni){
+// ⚠ V242 這裡有個 bug：DB.insts[d].f / .i 存的是「全市場每一檔」的買賣超（買、賣都有），
+//   不是排行前 N 名。舊寫法 for(const c in r.f) 等於把整個市場都列為「要保留」，
+//   pruneStaleStocks 幾乎刪不掉任何東西——這就是 RANK_WINDOW 從 10 改成 3、檔數卻沒少的原因。
+//   V243 改成只認 topN（買超>0 的前 N 名），跟 makeUniverse 的口徑一致。
+function pruneStaleStocks(uni,nRank){
   const keep=new Set(uni||[]);
   for(const en of ((TEST_TRACK&&TEST_TRACK.entries)||[]))keep.add(en.code);
   for(const t of (SIM||[]))keep.add(t.code);
+  const N=Math.max(20,+nRank||200);
   const days=(DB.dates||[]).slice(-RANK_WINDOW);
   for(const d of days){ const r=DB.insts&&DB.insts[d]; if(!r)continue;
-    for(const c in (r.f||{}))keep.add(c);
-    for(const c in (r.i||{}))keep.add(c); }
+    topN(r.f,N).forEach(c=>keep.add(c));
+    topN(r.i,N).forEach(c=>keep.add(c)); }
   let n=0;
   for(const c of Object.keys(DB.stocks||{}))if(!keep.has(c)){ delete DB.stocks[c]; n++; }
   return n;
@@ -1290,9 +1338,12 @@ const INSTS_KEEP=12;   // 法人買賣超是「全市場每檔」每天一份，
 // 高／低／開只有這些地方用得到：缺口（看近 10 根）、爆量低點（10 根）、守住率回測、K 線。
 // 收盤與成交量才是均線、損益、回放的命脈。所以高低開只留最近 65 天，更早的清成 null，
 // 均線（含 MA60）與所有損益計算完全不受影響。
-const HLO_KEEP=65;
-function trimHLO(){
-  const L=(DB.dates||[]).length, cut=L-HLO_KEEP;
+// V243：因為存檔已經會把開頭那段 null 壓掉，這個數字現在才真的等於省下來的空間
+// （V242 設 65 只省到約 9%，等於白設）。45 天足夠：缺口看 10 根、爆量低點 10 根、
+// 損益回放最遠只回到 RECO_START（8/03，約 26 個交易日）。
+const HLO_KEEP=45;
+function trimHLO(keep){
+  const L=(DB.dates||[]).length, cut=L-Math.max(20,keep||HLO_KEEP);
   if(cut<=0)return 0;
   let n=0;
   for(const code of Object.keys(DB.stocks||{})){
@@ -1317,14 +1368,23 @@ function trimSideData(){
 // 存檔：存不下就一路瘦身重試（120→100→85→75 天），最後才放棄。
 // 5MB 是瀏覽器本機上限，雲端不受影響，所以最壞情況也只是本機少留幾天歷史。
 async function saveDB(){
-  const steps=[null,120,100,85,75];
-  for(let i=0;i<steps.length;i++){
-    if(steps[i]!=null){
-      if(DB.dates.length<=steps[i])continue;
-      trimAll(steps[i]); trimSideData(); try{ trimHLO(); }catch(e){}
-      log(`快取空間不足，自動精簡到 ${steps[i]} 個交易日後重試…`,'warn');
-    }
-    try{ if(await store.set(KEY,DB))return true; }catch(e){}
+  const tryset=async()=>{ try{ return await store.set(KEY,DB); }catch(e){ return false; } };
+  if(await tryset())return true;
+  // 第一階段：先丟「高／低／開」的舊資料。收盤與成交量原封不動，
+  // 所以均線（含 MA60）、篩選、損益回放、追蹤成績都不受影響，只有很舊的 K 線與守住率樣本會變少。
+  for(const k of [50,40,30]){
+    if((DB.dates||[]).length<=k)continue;
+    try{ trimHLO(k); }catch(e){}
+    trimSideData();
+    log(`空間不夠，先把 ${k} 天以前的高／低／開丟掉再存（不影響均線與損益）…`,'dim');
+    if(await tryset())return true;
+  }
+  // 第二階段：真的還存不下，才動到交易日數。
+  for(const d of [120,100,85,75]){
+    if(DB.dates.length<=d)continue;
+    trimAll(d); trimSideData(); try{ trimHLO(30); }catch(e){}
+    log(`還是不夠，交易日數縮到 ${d} 天再存…`,'warn');
+    if(await tryset())return true;
   }
   return false;
 }
@@ -1339,6 +1399,7 @@ async function runFetch(){
 }
 // 修正 DB.stocks 裡結構不完整的股票（雲端舊資料常缺 o 或欄位長度不齊）
 function sanitizeDB(){
+  try{ unpackDB(DB); }catch(e){}   // 保險：萬一哪條路徑拿到壓縮過的陣列，先攤開再檢查
   const L=DB.dates.length;
   for(const c of Object.keys(DB.stocks)){
     const s=DB.stocks[c];
@@ -1469,11 +1530,18 @@ async function doFetch(){
   const before=Object.keys(DB.stocks||{}).length;
   trimAll(Math.min(want+15, KEEP_MAX));
   try{ backfillExDiv(); }catch(e){}
-  const dropped=pruneStaleStocks(uni);
+  const dropped=pruneStaleStocks(uni,nR);
   try{ trimHLO(); }catch(e){}
   trimSideData();
   if(dropped)log(`清掉 ${dropped} 檔用不到的股票（掉出名單、也沒在追蹤或模擬持有），剩 ${before-dropped} 檔`,'ok');
-  try{ const mb=(dbBytes()/1048576).toFixed(1); log(`目前本機快取約 ${mb}MB／5MB`, +mb>=4?'warn':'ok'); }catch(e){}
+  try{
+    const mb=x=>(JSON.stringify(x).length*2/1048576);
+    const all=dbBytes()/1048576;
+    const quote=mb(packDB({dates:DB.dates,stocks:DB.stocks}));
+    const inst=mb(DB.insts||{});
+    const rest=Math.max(0,all-quote-inst);
+    log(`目前本機快取約 ${all.toFixed(1)}MB／5MB　（行情 ${quote.toFixed(1)}／法人 ${inst.toFixed(1)}／追蹤等 ${rest.toFixed(1)}；${Object.keys(DB.stocks).length} 檔 × ${DB.dates.length} 天，高低開留 ${HLO_KEEP} 天）`, all>=4?'warn':'ok');
+  }catch(e){}
   if(!await saveDB())log('快取寫入失敗：即使精簡到最低天數仍存不下，建議按左下「清除本機快取」再重抓。','err');
   paintStrip(); run();
   updateStrength();   // 更新完成後刷新大盤/櫃買強度
@@ -2127,10 +2195,11 @@ function paintTable(){
 const QUOTA_LIMIT=5*1024*1024;   // 5MB，window.storage / localStorage 常見上限
 // 瀏覽器本機儲存是用 UTF-16 計費，一個字元算 2 bytes；中文字串更是每字 2 bytes。
 // 舊版直接用「字元數」當 bytes，等於少算一半——顯示 2.6MB 時其實已經 5.2MB，難怪存不下。
+// 量的是「真的會被寫進本機的那份」——DB 走壓縮後的版本，否則會比實際佔用高估一大截。
 function dbBytes(){
   let n=0;
   const add=o=>{ try{ n+=JSON.stringify(o).length*2; }catch(e){} };
-  add(DB);
+  try{ add(packDB(DB)); }catch(e){ add(DB); }
   try{ add(SIM); }catch(e){}
   try{ add(TEST_TRACK); }catch(e){}
   try{ add(RECO_HIST); }catch(e){}
