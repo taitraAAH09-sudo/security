@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V241</title>
+<title>盤後篩選台 V242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -640,7 +640,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V241</span>
+    <h1>盤後篩選台</h1><span class="ver">V242</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1273,7 +1273,7 @@ const validCount=s=>Array.isArray(s&&s.c)?s.c.reduce((a,x)=>a+(x!=null?1:0),0):0
 // 保留條件：今天的更新名單內／追蹤成績還沒結案／模擬下單持有中／最近 20 個交易日曾進過法人排行。
 // 「最近幾個交易日曾進過法人排行」的保留窗口。窗口越短、留下的股票越少、本機越省。
 // 縮短完全不影響計算（推薦與篩選只看當天名單），只是舊股票的歷史要重查時得重抓。
-const RANK_WINDOW=10;
+const RANK_WINDOW=3;
 function pruneStaleStocks(uni){
   const keep=new Set(uni||[]);
   for(const en of ((TEST_TRACK&&TEST_TRACK.entries)||[]))keep.add(en.code);
@@ -1287,6 +1287,21 @@ function pruneStaleStocks(uni){
   return n;
 }
 const INSTS_KEEP=12;   // 法人買賣超是「全市場每檔」每天一份，最佔空間；連買判定與排行只用得到最近幾天
+// 高／低／開只有這些地方用得到：缺口（看近 10 根）、爆量低點（10 根）、守住率回測、K 線。
+// 收盤與成交量才是均線、損益、回放的命脈。所以高低開只留最近 65 天，更早的清成 null，
+// 均線（含 MA60）與所有損益計算完全不受影響。
+const HLO_KEEP=65;
+function trimHLO(){
+  const L=(DB.dates||[]).length, cut=L-HLO_KEEP;
+  if(cut<=0)return 0;
+  let n=0;
+  for(const code of Object.keys(DB.stocks||{})){
+    const s=DB.stocks[code];
+    for(const f of ['h','l','o']){ const a=s&&s[f]; if(!Array.isArray(a))continue;
+      for(let i=0;i<cut;i++)if(a[i]!=null){ a[i]=null; n++; } }
+  }
+  return n;
+}
 function trimSideData(){
   const keep=new Set(DB.dates||[]);
   for(const k of ['insts','secHist','idxHist','otcHist','revHist']){
@@ -1306,7 +1321,7 @@ async function saveDB(){
   for(let i=0;i<steps.length;i++){
     if(steps[i]!=null){
       if(DB.dates.length<=steps[i])continue;
-      trimAll(steps[i]); trimSideData();
+      trimAll(steps[i]); trimSideData(); try{ trimHLO(); }catch(e){}
       log(`快取空間不足，自動精簡到 ${steps[i]} 個交易日後重試…`,'warn');
     }
     try{ if(await store.set(KEY,DB))return true; }catch(e){}
@@ -1455,6 +1470,7 @@ async function doFetch(){
   trimAll(Math.min(want+15, KEEP_MAX));
   try{ backfillExDiv(); }catch(e){}
   const dropped=pruneStaleStocks(uni);
+  try{ trimHLO(); }catch(e){}
   trimSideData();
   if(dropped)log(`清掉 ${dropped} 檔用不到的股票（掉出名單、也沒在追蹤或模擬持有），剩 ${before-dropped} 檔`,'ok');
   try{ const mb=(dbBytes()/1048576).toFixed(1); log(`目前本機快取約 ${mb}MB／5MB`, +mb>=4?'warn':'ok'); }catch(e){}
@@ -4528,7 +4544,7 @@ function purgeFinancials(){
   }
   return n;
 }
-// 量太小的舊紀錄一併清掉：V241 之後不再推薦，但更早開的追蹤紀錄還留著
+// 量太小的舊紀錄一併清掉：V242 之後不再推薦，但更早開的追蹤紀錄還留著
 // 萬元股的舊紀錄一併清掉
 function purgeHighPrice(){
   if(!DB.dates||!DB.dates.length)return 0;
