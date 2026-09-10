@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V65</title>
+<title>法人卡位選股台 V68</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -301,6 +301,51 @@ table.bt th{background:#151c26;color:var(--dim);padding:6px 8px;text-align:right
 table.bt td{padding:5px 8px;text-align:right;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 table.bt th.l,table.bt td.l{text-align:left}
 table.bt tr:hover td{background:rgba(255,255,255,.03)}
+/* --- 模式按鈕（V66：從下拉搬到表頭中間） --- */
+/* 三顆一人一行，垂直堆疊 */
+.modebtns{display:flex;flex-direction:column;gap:3px;background:#0f151d;
+  border:1px solid var(--line);border-radius:8px;padding:4px;min-width:132px}
+.mbtn{background:transparent;border:0;border-radius:5px;padding:4px 12px;cursor:pointer;
+  color:var(--dim);font-family:inherit;font-size:12.5px;line-height:1.35;text-align:left;
+  white-space:nowrap;transition:background .12s,color .12s}
+.mbtn:hover{background:rgba(255,255,255,.05);color:var(--tx)}
+.mbtn.on{background:var(--accent);color:#0f151d;font-weight:700}
+.mbtn.on small{color:rgba(15,21,29,.7)}
+/* --- 篩選條件收合列 --- */
+.fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.fsum{font-size:11.5px;color:var(--dim2)}
+.fsum.act{color:var(--accent)}
+.fbar .cnt{background:var(--accent);color:#0f151d;border-radius:9px;
+  padding:0 6px;font-size:10.5px;font-weight:700}
+/* --- 開場導覽：畫面壓暗，只留上面那四顆亮著 --- */
+.tour{position:fixed;inset:0;background:rgba(4,8,13,.78);z-index:900;
+  animation:tfade .25s ease-out}
+@keyframes tfade{from{opacity:0}to{opacity:1}}
+body.touring header{position:relative;z-index:950;border-radius:10px;
+  box-shadow:0 14px 50px rgba(0,0,0,.7)}
+/* 導覽進行中，表頭裡除了當下該按的那個，其餘一律壓暗 */
+body.touring header > *{opacity:.18;transition:opacity .2s}
+body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
+  box-shadow:0 0 0 2px var(--accent),0 0 0 9px rgba(245,158,11,.22);
+  animation:tpulse 1.6s ease-in-out infinite}
+@keyframes tpulse{0%,100%{box-shadow:0 0 0 2px var(--accent),0 0 0 9px rgba(245,158,11,.22)}
+  50%{box-shadow:0 0 0 2px var(--accent),0 0 0 15px rgba(245,158,11,0)}}
+.tcard{position:absolute;left:50%;transform:translateX(-50%);width:min(560px,92vw);
+  background:#141b25;border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6)}
+.tcard:before{content:'';position:absolute;top:-9px;left:50%;margin-left:-9px;
+  border:9px solid transparent;border-top:0;border-bottom-color:#141b25}
+.tcard h4{margin:0 0 3px;font-size:14.5px;color:var(--tx)}
+.tcard .sub{font-size:12px;color:var(--dim2);margin-bottom:11px}
+.titem{display:flex;gap:9px;align-items:baseline;padding:6px 0;
+  border-top:1px solid rgba(255,255,255,.06)}
+.titem:first-of-type{border-top:0}
+.tnum{flex:0 0 19px;height:19px;border-radius:50%;background:#2a3646;color:var(--dim);
+  font-size:11px;font-weight:700;text-align:center;line-height:19px}
+.titem.hi .tnum{background:var(--accent);color:#0f151d}
+.tk{font-size:12.5px;color:var(--tx);font-weight:600;flex:0 0 84px}
+.tv{font-size:12.5px;color:var(--dim);line-height:1.5}
+.tbtns{display:flex;gap:8px;margin-top:13px}
 #guide{margin-bottom:10px}
 .gd{background:#141b25;border:1px solid var(--line);border-radius:8px;padding:12px 15px}
 .gdhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -333,7 +378,13 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
 <header>
   <h1>法人卡位選股台</h1><span class="ver" id="vtag">V61</span>
   <div class="hspace"></div>
+  <div class="modebtns" id="modeBtns">
+    <button class="mbtn on" data-mode="chip" title="投信在買誰、我進場的成本跟他們差多遠">卡位模式</button>
+    <button class="mbtn" data-mode="fund" title="不看籌碼，只看營收獲利與估值">純基本面</button>
+    <button class="mbtn" data-mode="momo" title="不看法人，只看技術面四關有沒有轉強">動能趨勢</button>
+  </div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
+  <div class="hspace"></div>
   <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
   <button class="btn" id="btnCsv">匯出 CSV</button>
@@ -351,10 +402,15 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
 
 <div id="status">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
 
-<div id="vintage" class="vint"></div>
+<div id="vintage" class="vint moretool"></div>
 
 <div class="pane on" id="p1">
-  <div class="filters"><div class="frow">
+  <div class="fbar">
+    <button class="btn" id="btnFilters">篩選條件</button>
+    <button class="btn" id="btnMore">更多工具</button>
+    <span class="fsum" id="fSummary"></span>
+  </div>
+  <div class="filters" id="filterBox"><div class="frow">
     <div class="fld"><label>最低總分</label><input type="number" id="fScore" value="55" min="0" max="100"></div>
     <div class="fld chiponly"><label>投信連買 ≥ 日</label><input type="number" id="fTrust" value="0" min="0"></div>
     <div class="fld chiponly"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
@@ -413,22 +469,22 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
       勾「只看動能四關通過」＋「只看投信有買的」＝ 動能與籌碼雙擊</span>
   </div></div>
 
-  <div class="whybar">
-    <span style="font-size:12.5px;color:var(--dim);font-weight:600">模式</span>
-    <select id="fMode" style="background:#0f151d;color:var(--tx);border:1px solid var(--line);
-      border-radius:6px;padding:6px 9px;font-size:13px;font-family:inherit">
+  <div class="whybar moretool">
+    <!-- V66：模式改成表頭上的三顆按鈕。這個 select 留著當相容層——
+         全檔有十幾處讀 fMode.value，改成按鈕後由 setMode() 同步它，
+         不必去動那十幾處。使用者看不到它。 -->
+    <select id="fMode" style="display:none">
       <option value="chip">卡位模式（法人＋基本面＋位階）</option>
       <option value="fund">純基本面模式（不看籌碼）</option>
       <option value="momo">動能趨勢模式（技術面轉強）</option>
     </select>
-    <span style="width:14px"></span>
     <span class="chiponly" style="font-size:12.5px;color:var(--dim);font-weight:600">產生名單</span>
     <button class="btn pri" id="btnSaveToday" data-chiponly="1">存今天前 10 檔</button>
     <button class="btn" id="btnPickHist" data-chiponly="1">歷次名單與績效檢核</button>
     <span class="chiponly" style="font-size:11.5px;color:var(--dim2)">
       主表已依作帳分排序，最上面那幾檔就是名單　·　存檔後下一季可回頭對答案</span>
   </div>
-  <div class="whybar momorow">
+  <div class="whybar momorow moretool">
     <span style="font-size:12.5px;color:var(--dim);font-weight:600">動能回測</span>
     <div class="fld"><label>持有天數</label><input type="number" id="fBtH" value="10" min="2" max="30"></div>
     <button class="btn" id="btnBacktest">跑回測</button>
@@ -574,7 +630,7 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V65';
+const VER = 'V68';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2457,11 +2513,13 @@ function momoBacktest(){
 const GUIDE_KEY = 'kawei_guide_v1';
 function guideOn(){ return localStorage.getItem(GUIDE_KEY) !== 'off'; }
 
+/* V66：順序改成「先選模式、再按更新」。
+   模式決定要算什麼、欄位長什麼樣，先按更新再換模式等於白等一次。 */
 function guideState(){
   const n = DATA.dates.length;
-  if(!n)                 return {step:1, key:'nodata'};
-  if(n < MOMO_NEED)      return {step:1, key:'short'};
-  if(MODE === 'chip')    return {step:2, key:'ready'};
+  if(!MODE_PICKED)   return {step:1, key:'pick'};
+  if(!n)             return {step:2, key:'nodata'};
+  if(n < MOMO_NEED)  return {step:2, key:'short'};
   return {step:3, key:'ready'};
 }
 
@@ -2470,9 +2528,9 @@ function guideSpot(){
   const on = guideOn();
   const st = guideState();
   const run  = document.getElementById('btnRun');
-  const mode = document.getElementById('fMode');
-  if(run)  run.classList.toggle('spot',  on && st.step === 1);
-  if(mode) mode.classList.toggle('spot', on && st.step === 2);
+  const mode = document.getElementById('modeBtns');
+  if(mode) mode.classList.toggle('spot', on && st.step === 1);
+  if(run)  run.classList.toggle('spot',  on && st.step === 2);
 }
 
 function renderGuide(){
@@ -2485,27 +2543,22 @@ function renderGuide(){
 
   /* 「下一步」只講一件事。列一串待辦事項等於沒講。 */
   let next;
-  if(st.key === 'nodata'){
-    next = '<b>下一步：按右上角的「更新並篩選」。</b>'
-         + '第一次會抓約 60 個交易日的法人買賣超與行情，大概兩三分鐘。'
-         + '抓過的日子存在你的瀏覽器裡，之後只補新的。';
+  if(st.key === 'pick'){
+    next = '<b>第一步：先選模式</b>（表頭那三顆）。不確定就用卡位模式。';
+  } else if(st.key === 'nodata'){
+    next = '<b>第二步：按「更新並篩選」。</b>第一次約兩三分鐘，之後只補新的。';
   } else if(st.key === 'short'){
-    next = `<b>下一步：再按一次右上角的「更新並篩選」。</b>`
-         + `目前快取只有 ${n} 個交易日，動能那幾欄會是空的——`
-         + `MACD 要 26+9=35 根 K 棒才收斂，加上 MA20 與暖機至少要 ${MOMO_NEED} 天。`
-         + `V63 起回溯天數預設已經改成 60，但<b>改預設值不會自己去補抓</b>，`
-         + `要再按一次才會把缺的那 ${Math.max(0, 60-n)} 天補回來。`;
+    next = `<b>再按一次「更新並篩選」。</b>目前只有 ${n} 個交易日，`
+         + `動能欄位至少要 ${MOMO_NEED} 天才算得出來，還缺 ${Math.max(0, 60-n)} 天。`;
   } else if(MODE === 'chip'){
-    next = '<b>資料夠了，動能欄位已經有值。</b>'
-         + '現在是卡位模式——回答的是「投信在買誰、我進場的成本跟他們差多遠」。'
-         + '想改看技術面，用下面的「模式」下拉切到動能趨勢模式。';
+    next = '<b>資料夠了。</b>卡位模式：投信在買誰、我的成本跟他們差多遠。'
+         + '想看技術面就切到動能趨勢。';
   } else if(MODE === 'momo'){
-    next = '<b>目前是動能趨勢模式。</b>'
-         + '想做動能 × 籌碼雙擊：把「只看動能四關通過」和「只看投信有買的」一起勾起來，'
-         + '再點「綜合分」欄排序。不確定該用哪組參數就按「跑回測」，用你自己的資料決定。';
+    next = '<b>動能趨勢模式。</b>展開「篩選條件」，勾「只看動能四關通過」＋'
+         + '「只看投信有買的」＝ 雙擊，再點「綜合分」排序。';
   } else {
-    next = '<b>目前是純基本面模式。</b>不看籌碼、不要求法人在買，全市場照營收獲利與估值評分。'
-         + '要注意月營收與三率仍卡在 CORS，沒設自訂代理的話這個模式只剩本益比與淨值比有值。';
+    next = '<b>純基本面模式。</b>不看籌碼。注意月營收與三率仍卡在 CORS，'
+         + '沒設自訂代理就只剩本益比與淨值比有值。';
   }
 
   const step = (i, title, where, body) => {
@@ -2514,42 +2567,204 @@ function renderGuide(){
       <div class="gtxt"><b>${title}</b><span class="gwhere">${where}</span><br>${body}</div></div>`;
   };
 
-  el.innerHTML = `<div class="gd">
-    <div class="gdhead"><b>怎麼用這個工具</b>
-      <span style="color:var(--dim2);font-size:11.5px">四步，每步只做一件事</span>
-      <div class="hspace" style="flex:1"></div>
-      <button class="btn" id="btnGuideOff" style="font-size:11.5px;padding:3px 9px">不再顯示</button>
-    </div>
-    <div class="gdnext">${next}</div>
-    ${step(1, '抓資料', '右上角', 
-      '「更新並篩選」。抓法人買賣超（T86）與行情（MI_INDEX），這兩支不需要代理。'
-      + '天數在「資料源」分頁調，預設 60。<b>改完天數要再按一次這顆</b>才會去補抓。')}
-    ${step(2, '選模式', '下面的「模式」下拉',
-      '三種模式回答三個不同的問題，欄位與篩選會整組跟著換：<br>'
-      + '<b>卡位模式</b>　投信在買誰、我的成本跟他們差多遠。主分數是作帳分<br>'
-      + '<b>純基本面模式</b>　不看籌碼，只看營收獲利與估值<br>'
-      + '<b>動能趨勢模式</b>　不看法人，只看技術面四關有沒有轉強。主分數換成動能分')}
-    ${step(3, '設條件', '篩選面板最下面那排「動能趨勢」',
-      '勾<b>「只看動能四關通過」</b>＋<b>「只看投信有買的」</b>就是動能 × 籌碼雙擊，'
-      + '再點「綜合分」欄排序（動能 60% ＋ 作帳 40%）。<br>'
-      + '這兩個一起勾才有意義——KD、RSI、MACD 三個都是同一串收盤價推導的，'
-      + '四關全過比較接近同一件事確認三次；投信買賣超是唯一不從價格推導的維度。')}
-    ${step(4, '決定參數', '模式列下面「動能回測」',
-      '不確定該勾哪些條件就按「跑回測」。它把快取裡每一根 K 棒都當成「今天」重判一次四關，'
-      + '比較六種設定的勝率、超額報酬與期間回撤。<b>用你自己的資料決定，不是用網路上的數字。</b>')}
-    <div class="gstep"><div class="gnum" style="background:#2a3646">·</div>
-      <div class="gtxt">另外兩個地方：<br>
-      <b>表頭滑鼠移上去</b>有那一欄的說明，包括數字到多少代表什麼<br>
-      <b>「查某一檔：為什麼在／不在名單」</b>會逐關告訴你它卡在哪一條、以及當時的數字</div></div>
-  </div>`;
-
+  /* V67：四大段說明搬進開場導覽了，這裡只留一行「下一步」。
+     使用者的原話是「解釋不是一堆字」——常駐在畫面上的東西就該是一句話。 */
+  el.innerHTML = `<div class="gdnext">${next}
+    <span style="float:right;color:var(--dim2);font-size:11px;cursor:pointer" id="btnGuideOff">關閉</span>
+    </div>`;
   const off = document.getElementById('btnGuideOff');
-  if(off) off.onclick = () => {
-    localStorage.setItem(GUIDE_KEY, 'off');
-    renderGuide();
-    setStatus('已關閉使用說明。要再打開按右上角的「使用說明」。', false);
-  };
+  if(off) off.onclick = () => { localStorage.setItem(GUIDE_KEY, 'off'); renderGuide(); };
   guideSpot();
+}
+
+
+/* ==========================================================================
+   模式按鈕與篩選收合（V66）
+   ========================================================================== */
+let MODE_PICKED = false;      // 這次開啟網頁後有沒有主動選過模式（不寫進 localStorage，
+                              // 每次進來都要重新提示「先選模式」）
+
+function setMode(m, fromUser){
+  MODE = m;
+  const sel = document.getElementById('fMode');
+  if(sel) sel.value = m;
+  document.querySelectorAll('#modeBtns .mbtn').forEach(b =>
+    b.classList.toggle('on', b.dataset.mode === m));
+  if(fromUser){ MODE_PICKED = true; tourAdvance(); }
+  momoClearCache();
+  applyModeCols();
+  score();
+  renderGuide();
+}
+
+/* --- 篩選條件收合 --- */
+const FBOX_KEY = 'kawei_fbox_v1';
+function fboxOpen(){ return localStorage.getItem(FBOX_KEY) === 'open'; }
+
+/* 收起來的篩選還是在作用中。把「目前跟預設不一樣」的條件列出來，
+   否則使用者會看不到清單為什麼少了一半——這比版面亂更危險。
+   用 defaultValue / defaultChecked 比對，那是 HTML 屬性上的原始值，
+   不會被程式改到，不必另外維護一份預設值清單。 */
+const FSUM_IDS = ['fScore','fTrust','fRun','fYoY','fPrem','fVsT','fSig','fInd','fQ','fWin',
+  'fT10','fNetD','fVol','fPat','fNoFin','fNoLoss','fTrustOnly','fHasFund','fOTC','fNoDump',
+  'fMomoPass','fMomoMin','fMomoType','fKdCross'];
+function fldLabel(e){
+  try{
+    const l = e.parentElement && e.parentElement.querySelector('label');
+    if(l) return l.textContent.trim();
+    return (e.parentElement.textContent || '').trim();
+  }catch(err){ return e.id; }
+}
+function activeFilters(){
+  const on = [];
+  for(const id of FSUM_IDS){
+    const e = document.getElementById(id);
+    if(!e) continue;
+    try{
+      if(e.type === 'checkbox'){
+        if(e.checked !== e.defaultChecked)
+          on.push((e.checked ? '' : '不') + (e.parentElement.textContent || id).trim());
+      } else if(e.options){
+        let d = null;
+        for(const o of e.options) if(o.defaultSelected) d = o;
+        if(!d && e.options.length) d = e.options[0];
+        if(d && e.value !== d.value){
+          const cur = e.options[e.selectedIndex];
+          on.push(fldLabel(e) + '：' + (cur ? cur.text : e.value));
+        }
+      } else {
+        if(String(e.value) !== String(e.defaultValue))
+          on.push(fldLabel(e) + ' ' + (e.value === '' ? '（清空）' : e.value));
+      }
+    }catch(err){ /* 單一控制項判讀失敗不該弄壞整條摘要 */ }
+  }
+  return on;
+}
+function renderFbox(){
+  const box = document.getElementById('filterBox');
+  const btn = document.getElementById('btnFilters');
+  const sum = document.getElementById('fSummary');
+  if(!box || !btn || !sum) return;
+  const open = fboxOpen();
+  box.classList.toggle('hide-mode', !open);
+  const act = activeFilters();
+  btn.innerHTML = (open ? '收起篩選條件' : '篩選條件')
+    + (act.length ? ' <span class="cnt">' + act.length + '</span>' : '');
+  if(open){
+    sum.className = 'fsum';
+    sum.textContent = '調完會自動重新篩選。收起來之後這些條件仍然在作用。';
+  } else if(act.length){
+    sum.className = 'fsum act';
+    sum.textContent = '目前套用 ' + act.length + ' 項：' + act.join('、');
+  } else {
+    sum.className = 'fsum';
+    sum.textContent = '目前沒有調整任何條件（全部用預設值）。要做動能 × 籌碼雙擊請展開。';
+  }
+}
+
+
+/* ==========================================================================
+   開場導覽（V67）：畫面壓暗，只留表頭那四顆按鈕亮著
+   ========================================================================== */
+const TOUR_KEY = 'kawei_tour_v1';
+function tourOff(){ return localStorage.getItem(TOUR_KEY) === 'off'; }
+
+let TOUR_STEP = 1;
+
+function closeTour(forever){
+  const t = document.getElementById('tour');
+  if(t) t.remove();
+  document.body.classList.remove('touring');
+  ['modeBtns','btnRun'].forEach(id => {
+    const e = document.getElementById(id);
+    if(e) e.classList.remove('tlit');
+  });
+  if(forever) localStorage.setItem(TOUR_KEY, 'off');
+  renderGuide();
+}
+
+/* 只把「當下該按的那一個」點亮。
+   使用者的原話：請先選 > 後按更新。所以分兩段，
+   第一段只有三顆模式按鈕是亮的，連「更新並篩選」都壓暗——
+   四顆一起亮等於沒有指出順序。 */
+function tourPaint(){
+  const mode = document.getElementById('modeBtns');
+  const run  = document.getElementById('btnRun');
+  if(mode) mode.classList.toggle('tlit', TOUR_STEP === 1);
+  if(run)  run.classList.toggle('tlit',  TOUR_STEP === 2);
+
+  const card = document.getElementById('tcard');
+  if(!card) return;
+  card.innerHTML = TOUR_STEP === 1 ? `
+    <h4>第一步：先選一個模式</h4>
+    <div class="sub">上面亮著的那三顆。模式決定要算什麼、欄位長什麼樣</div>
+    <div class="titem hi"><span class="tnum">1</span><span class="tk">卡位模式</span>
+      <span class="tv">投信在買誰、我的成本跟他們差多遠</span></div>
+    <div class="titem hi"><span class="tnum">2</span><span class="tk">純基本面</span>
+      <span class="tv">不看籌碼，只看營收獲利與估值</span></div>
+    <div class="titem hi"><span class="tnum">3</span><span class="tk">動能趨勢</span>
+      <span class="tv">不看法人，只看技術面四關有沒有轉強</span></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--dim2)">
+      不確定就選卡位模式。選完會自動接到第二步。</div>
+    <div class="tbtns">
+      <button class="btn" id="tourOff">不再顯示</button>
+      <span style="align-self:center;font-size:11.5px;color:var(--dim2)">
+        點空白處可跳過</span>
+    </div>` : `
+    <h4>第二步：按「更新並篩選」</h4>
+    <div class="sub">現在只有那一顆是亮的</div>
+    <div class="titem hi"><span class="tnum">·</span><span class="tk">會做什麼</span>
+      <span class="tv">抓法人買賣超與行情，第一次約兩三分鐘</span></div>
+    <div class="titem hi"><span class="tnum">·</span><span class="tk">之後</span>
+      <span class="tv">抓過的日子存在瀏覽器裡，只補新的</span></div>
+    <div style="margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
+      font-size:11.5px;color:var(--dim2);line-height:1.6">
+      表格欄位的標題滑鼠移上去有說明（數字到多少代表什麼）　·　
+      想知道某一檔為什麼不在名單，用下面的查詢框
+    </div>
+    <div class="tbtns">
+      <button class="btn pri" id="tourGo">開始使用</button>
+      <button class="btn" id="tourOff">不再顯示</button>
+    </div>`;
+
+  const go = document.getElementById('tourGo');
+  if(go) go.onclick = () => closeTour(false);
+  const off = document.getElementById('tourOff');
+  if(off) off.onclick = () => closeTour(true);
+}
+
+/* 使用者在導覽中選了模式 → 自動推進到第二步 */
+function tourAdvance(){
+  if(!document.getElementById('tour')) return;
+  if(TOUR_STEP !== 1) return;
+  TOUR_STEP = 2;
+  tourPaint();
+}
+
+function openTour(){
+  closeTour(false);
+  TOUR_STEP = 1;
+  const d = document.createElement('div');
+  d.id = 'tour'; d.className = 'tour';
+  d.innerHTML = '<div class="tcard" id="tcard"></div>';
+  document.body.appendChild(d);
+  document.body.classList.add('touring');
+  tourPaint();
+  // 卡片貼在表頭正下方。表頭高度會因為三顆按鈕直排而變，所以用量的不用寫死。
+  const hd = document.querySelector('header');
+  const card = document.getElementById('tcard');
+  if(hd && card) card.style.top = (hd.getBoundingClientRect().bottom + 16) + 'px';
+  d.onclick = (e) => { if(e.target === d) closeTour(false); };
+}
+
+/* --- 「更多工具」：預設把不常用的區塊收起來 --- */
+const MORE_KEY = 'kawei_more_v1';
+function moreOpen(){ return localStorage.getItem(MORE_KEY) === 'open'; }
+function renderMore(){
+  const on = moreOpen();
+  document.querySelectorAll('.moretool').forEach(el => el.classList.toggle('hide-mode', !on));
+  const b = document.getElementById('btnMore');
+  if(b) b.textContent = on ? '收起工具' : '更多工具';
 }
 
 function momoChip(r){
@@ -4695,6 +4910,8 @@ function patChip(p){
 
 function render(){
   syncScoreHeader();
+  renderFbox();
+  renderMore();
   renderGuide();
   renderVintage();
   renderAlert();
@@ -5836,17 +6053,26 @@ document.getElementById('btnPxHelp').onclick = () => {
   h.classList.toggle('on');
   if(h.classList.contains('on') && !h.innerHTML.trim()) renderPxHelp();
 };
-document.getElementById('fMode').addEventListener('change', () => {
-  MODE = document.getElementById('fMode').value;
-  momoClearCache();
-  applyModeCols();
-  score();
-  renderGuide();
+document.querySelectorAll('#modeBtns .mbtn').forEach(b => {
+  b.onclick = () => setMode(b.dataset.mode, true);
 });
+document.getElementById('btnFilters').onclick = () => {
+  localStorage.setItem(FBOX_KEY, fboxOpen() ? 'closed' : 'open');
+  renderFbox();
+};
+document.getElementById('btnMore').onclick = () => {
+  localStorage.setItem(MORE_KEY, moreOpen() ? 'closed' : 'open');
+  renderMore();
+};
+/* 開場導覽在載入時自動跳出來（除非按過「不再顯示」）。
+   放 setTimeout 是要等表頭排版完成，卡片才量得到該貼在哪。 */
+setTimeout(() => { if(!tourOff()) openTour(); }, 120);
 document.getElementById('btnGuide').onclick = () => {
-  localStorage.setItem(GUIDE_KEY, guideOn() ? 'off' : 'on');
+  localStorage.setItem(GUIDE_KEY, 'on');
+  localStorage.setItem(TOUR_KEY, 'on');
   renderGuide();
-  if(guideOn()) window.scrollTo({top:0, behavior:'smooth'});
+  window.scrollTo({top:0, behavior:'smooth'});
+  openTour();
 };
 document.getElementById('btnHot').onclick = () => { if(requireChipMode()) renderMomo(15); };
 function requireChipMode(){
