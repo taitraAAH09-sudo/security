@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V72</title>
+<title>法人卡位選股台 V73</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -412,9 +412,9 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
   <button class="tab" data-p="p3">選股邏輯</button>
 </div>
 
-<div id="status" class="cfgpart">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
+<div id="status">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
 
-<div id="vintage" class="vint cfgpart"></div>
+<div id="vintage" class="vint"></div>
 
 <div class="pane on" id="p1">
   <div class="cfgbar"><button class="cfgtoggle" id="btnCfg">展開設定</button></div>
@@ -643,7 +643,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V72';
+const VER = 'V73';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
