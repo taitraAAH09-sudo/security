@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V71</title>
+<title>法人卡位選股台 V72</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -251,6 +251,12 @@ tbody tr{cursor:pointer} tbody tr:hover{background:#1a222e} tbody tr.sel{backgro
 .sumrow{font-size:12.5px;color:var(--dim);padding:5px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sumrow b{color:var(--tx)}
 
+/* V72 重大修正：原本只有 `.chiponly.hide-mode` 這一條，也就是元素必須「同時」
+   掛著 .chiponly 才會被藏起來。V66 之後新增的 .cfgpart／.moretool／#filterBox
+   都沒有 .chiponly，所以程式明明把 hide-mode 加上去了，畫面卻毫無反應——
+   使用者按了好幾版的收合按鈕，其實從來沒有真正藏過任何東西。
+   改成通用規則，任何元素掛上 hide-mode 都會消失。 */
+.hide-mode{display:none !important}
 .chiponly.hide-mode{display:none !important}
 .modebox{background:#121a24;border:1px solid #2a3a4d;border-left:3px solid var(--accent);
   border-radius:0 8px 8px 0;padding:9px 12px;font-size:12.5px;line-height:1.7;color:var(--dim)}
@@ -637,7 +643,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V71';
+const VER = 'V72';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
