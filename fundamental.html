@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V70</title>
+<title>法人卡位選股台 V71</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -312,6 +312,12 @@ table.bt tr:hover td{background:rgba(255,255,255,.03)}
 .mbtn.on{background:var(--accent);color:#0f151d;font-weight:700}
 .mbtn.on small{color:rgba(15,21,29,.7)}
 /* --- 篩選條件收合列 --- */
+.cfgbar{margin-bottom:8px}
+.cfgtoggle{background:transparent;border:1px dashed var(--line);border-radius:6px;
+  padding:3px 11px;cursor:pointer;color:var(--dim2);font-family:inherit;font-size:11.5px;
+  transition:color .12s,border-color .12s}
+.cfgtoggle:hover{color:var(--accent);border-color:var(--accent)}
+.cfgtoggle.on{color:var(--accent);border-style:solid;border-color:var(--accent)}
 .fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .fsum{font-size:11.5px;color:var(--dim2)}
 .fsum.act{color:var(--accent)}
@@ -384,7 +390,6 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
     <button class="mbtn" data-mode="momo" title="不看法人，只看技術面四關有沒有轉強">動能趨勢</button>
   </div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
-  <button class="btn" id="btnCfg">設定</button>
   <div class="hspace"></div>
   <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
@@ -406,6 +411,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
 <div id="vintage" class="vint cfgpart"></div>
 
 <div class="pane on" id="p1">
+  <div class="cfgbar"><button class="cfgtoggle" id="btnCfg">展開設定</button></div>
   <div class="fbar cfgpart">
     <span class="fsum" id="fSummary"></span>
   </div>
@@ -631,7 +637,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V70';
+const VER = 'V71';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2760,13 +2766,20 @@ function openTour(){
    產生名單／動能回測／模式說明）預設全部收起來。
    使用者要的預設畫面是：表頭 → 查某一檔 → 主表，中間不要有東西。
    ========================================================================== */
-const CFG_KEY = 'kawei_cfg_v1';
-function cfgOpen(){ return localStorage.getItem(CFG_KEY) === 'open'; }
+/* V71：開合狀態只活在這次頁面裡，不寫 localStorage。
+   V70 是存起來的，結果使用者打開過一次之後，之後每次進網頁都是展開的——
+   他要的是「內建都是隱藏，除非有人想打開」。存起來就違背了這件事。
+   切模式也不會動到它：setMode 走的是 render()，render 只是照這個變數重畫。 */
+let CFG_ON = false;
+function cfgOpen(){ return CFG_ON; }
 function renderCfg(){
-  const on = cfgOpen();
+  const on = CFG_ON;
   document.querySelectorAll('.cfgpart').forEach(el => el.classList.toggle('hide-mode', !on));
   const b = document.getElementById('btnCfg');
-  if(b) b.textContent = on ? '收起設定' : '設定';
+  if(b){
+    b.textContent = on ? '收起設定' : '展開設定';
+    b.classList.toggle('on', on);
+  }
   if(!on){
     /* 分頁列一起藏了，所以收起來之前要先確定停在主名單那一頁，
        否則會變成看著空白畫面又找不到分頁鈕可以切回來。 */
@@ -6087,7 +6100,7 @@ document.querySelectorAll('#modeBtns .mbtn').forEach(b => {
   b.onclick = () => setMode(b.dataset.mode, true);
 });
 document.getElementById('btnCfg').onclick = () => {
-  localStorage.setItem(CFG_KEY, cfgOpen() ? 'closed' : 'open');
+  CFG_ON = !CFG_ON;
   renderCfg(); renderFbox();
 };
 /* 開場導覽在載入時自動跳出來（除非按過「不再顯示」）。
