@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V68</title>
+<title>法人卡位選股台 V70</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -384,6 +384,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
     <button class="mbtn" data-mode="momo" title="不看法人，只看技術面四關有沒有轉強">動能趨勢</button>
   </div>
   <button class="btn pri" id="btnRun">更新並篩選</button>
+  <button class="btn" id="btnCfg">設定</button>
   <div class="hspace"></div>
   <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
@@ -394,23 +395,21 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
 <div id="alert"></div>
 <div id="guide"></div>
 
-<div class="tabbar">
+<div class="tabbar cfgpart">
   <button class="tab on" data-p="p1">卡位名單</button>
   <button class="tab" data-p="p2">資料源</button>
   <button class="tab" data-p="p3">選股邏輯</button>
 </div>
 
-<div id="status">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
+<div id="status" class="cfgpart">按右上「更新並篩選」開始。第一次會抓約 60 個交易日的法人與行情，大概兩三分鐘；之後只補新的日子。</div>
 
-<div id="vintage" class="vint moretool"></div>
+<div id="vintage" class="vint cfgpart"></div>
 
 <div class="pane on" id="p1">
-  <div class="fbar">
-    <button class="btn" id="btnFilters">篩選條件</button>
-    <button class="btn" id="btnMore">更多工具</button>
+  <div class="fbar cfgpart">
     <span class="fsum" id="fSummary"></span>
   </div>
-  <div class="filters" id="filterBox"><div class="frow">
+  <div class="filters cfgpart" id="filterBox"><div class="frow">
     <div class="fld"><label>最低總分</label><input type="number" id="fScore" value="55" min="0" max="100"></div>
     <div class="fld chiponly"><label>投信連買 ≥ 日</label><input type="number" id="fTrust" value="0" min="0"></div>
     <div class="fld chiponly"><label>買超期間漲幅 ≤ %</label><input type="number" id="fRun" value="15"></div>
@@ -469,7 +468,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
       勾「只看動能四關通過」＋「只看投信有買的」＝ 動能與籌碼雙擊</span>
   </div></div>
 
-  <div class="whybar moretool">
+  <div class="whybar cfgpart">
     <!-- V66：模式改成表頭上的三顆按鈕。這個 select 留著當相容層——
          全檔有十幾處讀 fMode.value，改成按鈕後由 setMode() 同步它，
          不必去動那十幾處。使用者看不到它。 -->
@@ -484,7 +483,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
     <span class="chiponly" style="font-size:11.5px;color:var(--dim2)">
       主表已依作帳分排序，最上面那幾檔就是名單　·　存檔後下一季可回頭對答案</span>
   </div>
-  <div class="whybar momorow moretool">
+  <div class="whybar momorow cfgpart">
     <span style="font-size:12.5px;color:var(--dim);font-weight:600">動能回測</span>
     <div class="fld"><label>持有天數</label><input type="number" id="fBtH" value="10" min="2" max="30"></div>
     <button class="btn" id="btnBacktest">跑回測</button>
@@ -492,7 +491,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
       把快取裡每一根 K 棒都當成「今天」重判四關，比較六種設定的相對表現　·　用你自己的資料，不是我背給你的數字</span>
   </div>
   <div id="btOut"></div>
-  <div id="modeNote" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
+  <div id="modeNote" class="cfgpart" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
   <div id="pickOut"></div>
   <div id="pickHist"></div>
 
@@ -501,6 +500,8 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
     <input type="text" id="whyCode" placeholder="輸入代號，例如 9910" maxlength="4">
     <button class="btn pri" id="btnWhy">查詢</button>
     <span style="font-size:11.5px;color:var(--dim2)">會逐關告訴你它卡在哪一條，以及當時的數字</span>
+    <div class="hspace"></div>
+    <span class="fsum" id="qInfo"></span>
   </div>
   <div id="whyOut"></div>
 
@@ -630,7 +631,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V68';
+const VER = 'V70';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -2598,9 +2599,6 @@ function setMode(m, fromUser){
 }
 
 /* --- 篩選條件收合 --- */
-const FBOX_KEY = 'kawei_fbox_v1';
-function fboxOpen(){ return localStorage.getItem(FBOX_KEY) === 'open'; }
-
 /* 收起來的篩選還是在作用中。把「目前跟預設不一樣」的條件列出來，
    否則使用者會看不到清單為什麼少了一半——這比版面亂更危險。
    用 defaultValue / defaultChecked 比對，那是 HTML 屬性上的原始值，
@@ -2640,25 +2638,24 @@ function activeFilters(){
   }
   return on;
 }
+/* V70：篩選面板的顯示與否已經由「設定」總開關（.cfgpart）決定，
+   這裡只負責那行摘要文字。
+   V69 的錯就出在這裡多了一層：當時把 .moretool 改名成 .cfgpart，
+   「更多工具」那顆按鈕的 querySelectorAll('.moretool') 從此找不到任何元素，
+   按下去毫無反應——兩顆巢狀開關跟一顆總開關搶著改同一批元素的 hide-mode，
+   遲早會這樣。現在只留總開關。 */
 function renderFbox(){
-  const box = document.getElementById('filterBox');
-  const btn = document.getElementById('btnFilters');
   const sum = document.getElementById('fSummary');
-  if(!box || !btn || !sum) return;
-  const open = fboxOpen();
-  box.classList.toggle('hide-mode', !open);
+  if(!sum) return;
   const act = activeFilters();
-  btn.innerHTML = (open ? '收起篩選條件' : '篩選條件')
-    + (act.length ? ' <span class="cnt">' + act.length + '</span>' : '');
-  if(open){
-    sum.className = 'fsum';
-    sum.textContent = '調完會自動重新篩選。收起來之後這些條件仍然在作用。';
-  } else if(act.length){
+  if(act.length){
     sum.className = 'fsum act';
-    sum.textContent = '目前套用 ' + act.length + ' 項：' + act.join('、');
+    sum.textContent = '目前套用 ' + act.length + ' 項：' + act.join('、')
+      + '　·　調完會自動重新篩選，收起設定之後這些條件仍然在作用';
   } else {
     sum.className = 'fsum';
-    sum.textContent = '目前沒有調整任何條件（全部用預設值）。要做動能 × 籌碼雙擊請展開。';
+    sum.textContent = '目前沒有調整任何條件（全部用預設值）。'
+      + '要做動能 × 籌碼雙擊：勾下面的「只看動能四關通過」＋「只看投信有買的」。';
   }
 }
 
@@ -2757,15 +2754,46 @@ function openTour(){
   d.onclick = (e) => { if(e.target === d) closeTour(false); };
 }
 
-/* --- 「更多工具」：預設把不常用的區塊收起來 --- */
-const MORE_KEY = 'kawei_more_v1';
-function moreOpen(){ return localStorage.getItem(MORE_KEY) === 'open'; }
-function renderMore(){
-  const on = moreOpen();
-  document.querySelectorAll('.moretool').forEach(el => el.classList.toggle('hide-mode', !on));
-  const b = document.getElementById('btnMore');
-  if(b) b.textContent = on ? '收起工具' : '更多工具';
+/* ==========================================================================
+   設定區總開關（V69）
+   表頭以下、查詢列以上那一整區（分頁列／狀態列／六格資訊卡／篩選面板／
+   產生名單／動能回測／模式說明）預設全部收起來。
+   使用者要的預設畫面是：表頭 → 查某一檔 → 主表，中間不要有東西。
+   ========================================================================== */
+const CFG_KEY = 'kawei_cfg_v1';
+function cfgOpen(){ return localStorage.getItem(CFG_KEY) === 'open'; }
+function renderCfg(){
+  const on = cfgOpen();
+  document.querySelectorAll('.cfgpart').forEach(el => el.classList.toggle('hide-mode', !on));
+  const b = document.getElementById('btnCfg');
+  if(b) b.textContent = on ? '收起設定' : '設定';
+  if(!on){
+    /* 分頁列一起藏了，所以收起來之前要先確定停在主名單那一頁，
+       否則會變成看著空白畫面又找不到分頁鈕可以切回來。 */
+    document.querySelectorAll('.tab').forEach(x =>
+      x.classList.toggle('on', x.dataset.p === 'p1'));
+    document.querySelectorAll('.pane').forEach(x =>
+      x.classList.toggle('on', x.id === 'p1'));
+  }
 }
+
+/* 設定區收起來之後狀態列也看不到了，把最關鍵的三個數字放進查詢列。
+   一定要在 render() 開頭就更新——主表沒東西時 render 會提前 return，
+   擺在尾端就永遠跑不到，而「0 檔」正是最需要知道套用了幾項篩選的時候。 */
+function renderQInfo(n){
+  const qi = document.getElementById('qInfo');
+  if(!qi) return;
+  const act = activeFilters().length;
+  qi.className = act ? 'fsum act' : 'fsum';
+  qi.innerHTML = `符合條件 <b>${n}</b> 檔`
+    + (DATA.dates.length ? `　·　資料 ${DATA.dates[DATA.dates.length-1]}　·　${DATA.dates.length} 個交易日` : '')
+    + (act ? `　·　套用 ${act} 項篩選（按「設定」展開）` : '');
+}
+
+/* V70：「更多工具」併進「設定」總開關，這個函式退場。
+   留一個空殼是因為 render() 與幾處接線還會呼叫它，
+   直接刪掉會變成 ReferenceError。 */
+function renderMore(){ /* 已併入 renderCfg() */ }
 
 function momoChip(r){
   if(!r.MO) return '<span class="mochip d">資料不足</span>';
@@ -4910,12 +4938,14 @@ function patChip(p){
 
 function render(){
   syncScoreHeader();
+  renderCfg();
   renderFbox();
   renderMore();
   renderGuide();
   renderVintage();
   renderAlert();
   const rows = filtered();
+  renderQInfo(rows.length);
   const tb = document.getElementById('tb');
   if(!rows.length){
     /* 「還沒有資料」與「有資料但天數不夠」是兩件事，訊息不能共用一句。
@@ -6056,13 +6086,9 @@ document.getElementById('btnPxHelp').onclick = () => {
 document.querySelectorAll('#modeBtns .mbtn').forEach(b => {
   b.onclick = () => setMode(b.dataset.mode, true);
 });
-document.getElementById('btnFilters').onclick = () => {
-  localStorage.setItem(FBOX_KEY, fboxOpen() ? 'closed' : 'open');
-  renderFbox();
-};
-document.getElementById('btnMore').onclick = () => {
-  localStorage.setItem(MORE_KEY, moreOpen() ? 'closed' : 'open');
-  renderMore();
+document.getElementById('btnCfg').onclick = () => {
+  localStorage.setItem(CFG_KEY, cfgOpen() ? 'closed' : 'open');
+  renderCfg(); renderFbox();
 };
 /* 開場導覽在載入時自動跳出來（除非按過「不再顯示」）。
    放 setTimeout 是要等表頭排版完成，卡片才量得到該貼在哪。 */
