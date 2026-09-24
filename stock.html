@@ -66,7 +66,22 @@ li b{color:var(--tx);font-weight:600}
 .card.broken{opacity:.72}
 .card.broken .miss{display:block}
 
-footer{margin-top:26px;padding-top:15px;border-top:1px solid var(--line);
+.bar{position:relative;display:flex;align-items:center;gap:14px;margin-top:14px;
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border:1px solid var(--line);border-radius:11px;padding:11px 16px;
+  text-decoration:none;color:inherit;--edge:#f87171;
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.bar:hover{border-color:var(--edge);transform:translateY(-1px);box-shadow:0 10px 26px rgba(0,0,0,.4)}
+.bar:before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--edge);opacity:.85}
+.bar h2{margin:0;font-size:15px;font-weight:700;white-space:nowrap}
+.bar .tag{margin:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .go{margin-top:0;margin-left:auto;font-size:12.5px;white-space:nowrap}
+.bar .path{margin-top:0;white-space:nowrap}
+.bar .miss{margin:0;white-space:normal}
+@media(max-width:700px){ .bar{flex-wrap:wrap;gap:6px} .bar .tag{white-space:normal} .bar .path{display:none} }
+
+footer{margin-top:22px;padding-top:15px;border-top:1px solid var(--line);
   font-size:11.5px;color:var(--dim2);line-height:1.7}
 footer b{color:var(--dim)}
 </style>
@@ -112,8 +127,17 @@ footer b{color:var(--dim)}
 
 </div>
 
+<a class="bar" id="cardC" href="https://taitraaah09-sudo.github.io/security/trumpcalls.html">
+  <h2>川普點名台</h2>
+  <span class="badge">政策面</span>
+  <span class="tag">他點名的公司、原物料與產業，判多空並帶出台股概念股</span>
+  <span class="go">開啟 <span class="arw">→</span></span>
+  <span class="path" id="pathC">security/trumpcalls.html</span>
+  <span class="miss" id="missC"></span>
+</a>
+
 <footer>
-  兩支工具的資料<b>各自獨立</b>：盤後篩選台的 Firebase 路徑在 <b>/twstk</b>，法人卡位選股台在 <b>/kawei</b>，快取也分開存在瀏覽器裡，互不影響。<br>
+  兩支工具的資料<b>各自獨立</b>：盤後篩選台的 Firebase 路徑在 <b>/twstk</b>，法人卡位選股台在 <b>/kawei</b>，快取也分開存在瀏覽器裡，互不影響。川普點名台存在 <b>/PRESS_KIT/trumpcalls</b>，跟上面兩支也不相干。<br>
   月營收與三率仍卡在 <b>openapi.twse.com.tw</b> 的 CORS，要拿到那些欄位得在法人卡位選股台的「資料源」分頁設一個自訂代理。
 </footer>
 
@@ -157,7 +181,10 @@ const TARGETS = [
   {card:'cardA', path:'pathA', miss:'missA', name:'盤後篩選台',
    files:['stockscanning.html','stock_V243.html']},
   {card:'cardB', path:'pathB', miss:'missB', name:'法人卡位選股台',
-   files:['fundamental.html','fundamental_V73.html','fundamental_V72.html']}
+   files:['fundamental.html','fundamental_V73.html','fundamental_V72.html']},
+  {card:'cardC', path:'pathC', miss:'missC', name:'川普點名台',
+   files:['https://taitraaah09-sudo.github.io/security/trumpcalls.html','trumpcalls.html','trumpcalls_V15.html'],
+   label:'security/trumpcalls.html'}
 ];
 
 async function exists(url){
@@ -185,7 +212,7 @@ async function resolveAll(){
     }
     if(hit){
       card.href = hit;
-      document.getElementById(t.path).textContent = hit;
+      document.getElementById(t.path).textContent = t.label || hit;
     } else {
       card.classList.add('broken');
       card.removeAttribute('href');
