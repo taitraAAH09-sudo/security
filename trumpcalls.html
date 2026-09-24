@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>川普點名台 V14</title>
+<title>川普點名台 V15</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -106,7 +106,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V14</span></h1>
+    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V15</span></h1>
     <p>他點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -288,7 +288,7 @@ async function boot(){
 }
 
 /* ---------- 抓取（RSS / HTML / markdown 多重策略） ---------- */
-const FEED_HTML = "https://www.trumpstruth.org/?per_page=50";
+const FEED_HTML = "https://www.trumpstruth.org/?per_page=100";
 const PROXIES = {
   direct: u => u,
   allorigins: u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
@@ -417,10 +417,22 @@ function parseByParagraph(raw){
   });
   return out;
 }
+function looksReal(p){
+  const words = (p.text.match(/[A-Za-z]{2,}/g) || []).length;
+  const letters = (p.text.match(/[A-Za-z]/g) || []).length;
+  return words >= 12 && letters >= 60;
+}
+function goodBatch(posts){
+  const ok = posts.filter(looksReal);
+  if (!ok.length) return [];
+  if (ok.length === 1 && (ok[0].text.match(/[A-Za-z]/g)||[]).length < 200) return [];
+  return ok;
+}
 async function fetchPosts(signal){
   const plan = [
-    { label:"RSS jina", url:FEED, via:"jina" },
     { label:"列表頁 jina", url:FEED_HTML, via:"jina" },
+    { label:"列表頁 直連", url:FEED_HTML, via:"direct" },
+    { label:"RSS jina", url:FEED, via:"jina" },
     { label:"RSS 直連", url:FEED, via:"direct" },
     { label:"RSS allorigins", url:FEED, via:"allorigins" },
     { label:"RSS corsproxy", url:FEED, via:"corsproxy" },
@@ -442,11 +454,11 @@ async function fetchPosts(signal){
       if (step.via === "allorigins2"){
         try { body = JSON.parse(raw).contents || raw; } catch(e){}
       }
-      let posts = (body.includes("<item") || body.includes("<entry")) ? parseRSS(body) : [];
-      if (!posts.length) posts = parseLoose(body);
-      if (!posts.length) posts = parseBySignoff(body);
-      if (!posts.length && body.includes("realDonaldTrump")) posts = parseByHandle(body);
-      if (!posts.length) posts = parseByParagraph(body);
+      let posts = goodBatch((body.includes("<item") || body.includes("<entry")) ? parseRSS(body) : []);
+      if (!posts.length) posts = goodBatch(parseLoose(body));
+      if (!posts.length) posts = goodBatch(parseBySignoff(body));
+      if (!posts.length && body.includes("realDonaldTrump")) posts = goodBatch(parseByHandle(body));
+      if (!posts.length) posts = goodBatch(parseByParagraph(body));
       if (posts.length) return { posts, via: step.label };
       const sample = toText(body).replace(/\s+/g," ").trim();
       SAMPLES.push({ label: step.label, text: sample });
