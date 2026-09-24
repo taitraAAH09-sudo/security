@@ -291,7 +291,10 @@ const PROXIES = {
 };
 const MONTHS = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec";
 const MON_RE = `(?:${MONTHS})[a-z]*\\.?`;
-const DATE_RE = new RegExp(`${MON_RE}\\s+\\d{1,2},\\s+\\d{4},?\\s*(?:\\d{1,2}:\\d{2}\\s*(?:AM|PM))?`, "g");
+// 兩種日期寫法都吃：網頁版「September 23, 2026, 8:19 PM」與 RSS 版「Thu, 24 Sep 2026 01:51:54 +0000」
+const DATE_RE = new RegExp(
+  `(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\\s+\\d{1,2}\\s+${MON_RE}\\s+\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:[+-]\\d{4}|GMT|UTC)?)` +
+  `|(?:${MON_RE}\\s+\\d{1,2},\\s+\\d{4},?\\s*(?:\\d{1,2}:\\d{2}\\s*(?:AM|PM))?)`, "g");
 
 function parseRSS(txt){
   const doc = new DOMParser().parseFromString(txt, "text/xml");
@@ -317,10 +320,13 @@ function toText(raw){
 function cleanChunk(t){
   return t
     .replace(/^\s*\]\([^)]*\)/, " ")
+    .replace(/^#{1,6}\s*/gm, " ")
+    .replace(/Title:|URL Source:|Published Time:|Markdown Content:/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")                 // markdown 圖片
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")               // markdown 連結
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/Original Post|Donald J\. Trump|@realDonaldTrump|Share:|Copy link|Show More|\+ Show More|Download (?:video|image)|ReTruthed/g, " ")
+    .replace(/\s*·\s*\[?\s*$/, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -334,6 +340,21 @@ function parseLoose(raw){
   let lm;
   while ((lm = linkRe.exec(src)) !== null) idByDate[lm[1].trim()] = { link: lm[2], id: lm[3] };
 
+  // RSS 版的 markdown 是「[](statuses/ID) ... 日期」，先依出現順序收集 id
+  const idPos = [];
+  const idRe = /https?:\/\/[^\s)\]]*?\/statuses\/(\d+)/g;
+  let im;
+  while ((im = idRe.exec(src)) !== null){
+    if (!idPos.length || idPos[idPos.length-1].id !== im[1]) idPos.push({ id: im[1], at: im.index });
+  }
+  const idNear = pos => {
+    let before = null;
+    for (const x of idPos){ if (x.at < pos) before = x; else break; }
+    if (before && pos - before.at < 400) return before.id;       // RSS 版：連結在日期前
+    const after = idPos.find(x => x.at >= pos && x.at - pos < 400);
+    return after ? after.id : null;                               // 網頁版：連結在日期後
+  };
+
   DATE_RE.lastIndex = 0;
   const marks = [];
   let m;
@@ -343,11 +364,17 @@ function parseLoose(raw){
     const a = marks[i], b = marks[i+1];
     const chunk = cleanChunk(text.slice(a.index + a.len, b ? b.index : text.length));
     if (!chunk || chunk.length < 3) continue;
-    let d = new Date(a.raw.replace(/\./g,"") + " GMT-0400");
-    if (isNaN(d)) d = new Date(a.raw.replace(/\./g,""));
+    const rawDate = a.raw.replace(/\./g,"").trim();
+    let d = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),/.test(rawDate)
+      ? new Date(rawDate)                                   // RSS 版自帶時區
+      : new Date(rawDate + " GMT-0400");                    // 網頁版是美東時間
+    if (isNaN(d)) d = new Date(rawDate);
     const hit = idByDate[a.raw.trim()];
-    out.push({ id: safeKey(hit ? "ts" + hit.id : a.raw + "-" + chunk.slice(0,40)),
-      link: hit ? hit.link : "", text: chunk.slice(0, 4000), ts: isNaN(d) ? Date.now() : d.getTime() });
+    const seqId = idNear(a.index);
+    const sid = hit ? hit.id : seqId;
+    out.push({ id: safeKey(sid ? "ts" + sid : a.raw + "-" + chunk.slice(0,40)),
+      link: hit ? hit.link : (sid ? "https://www.trumpstruth.org/statuses/" + sid : ""),
+      text: chunk.slice(0, 4000), ts: isNaN(d) ? Date.now() : d.getTime() });
   }
   return out;
 }
@@ -364,13 +391,13 @@ function parseByHandle(raw){
 let LAST_SAMPLE = "";
 async function fetchPosts(signal){
   const plan = [
+    { label:"RSS jina", url:FEED, via:"jina" },
+    { label:"列表頁 jina", url:FEED_HTML, via:"jina" },
     { label:"RSS 直連", url:FEED, via:"direct" },
     { label:"RSS allorigins", url:FEED, via:"allorigins" },
     { label:"RSS corsproxy", url:FEED, via:"corsproxy" },
     { label:"列表頁 allorigins", url:FEED_HTML, via:"allorigins" },
     { label:"列表頁 corsproxy", url:FEED_HTML, via:"corsproxy" },
-    { label:"列表頁 jina", url:FEED_HTML, via:"jina" },
-    { label:"RSS jina", url:FEED, via:"jina" },
     { label:"列表頁 codetabs", url:FEED_HTML, via:"codetabs" },
     { label:"RSS codetabs", url:FEED, via:"codetabs" },
     { label:"RSS allorigins(JSON)", url:FEED, via:"allorigins2" }
