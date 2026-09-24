@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>川普點名台</title>
+<title>川普點名台 V11</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -106,7 +106,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>川普點名台</h1>
+    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V11</span></h1>
     <p>他點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -388,7 +388,7 @@ function parseByHandle(raw){
   });
   return out;
 }
-let LAST_SAMPLE = "";
+let SAMPLES = [];
 async function fetchPosts(signal){
   const plan = [
     { label:"RSS jina", url:FEED, via:"jina" },
@@ -418,14 +418,55 @@ async function fetchPosts(signal){
       if (!posts.length) posts = parseLoose(body);
       if (!posts.length && body.includes("realDonaldTrump")) posts = parseByHandle(body);
       if (posts.length) return { posts, via: step.label };
-      LAST_SAMPLE = toText(body).replace(/\s+/g," ").trim().slice(0, 300);
+      const sample = toText(body).replace(/\s+/g," ").trim();
+      SAMPLES.push({ label: step.label, text: sample });
       errs.push(`${step.label} → 解析不出貼文`);
     }catch(e){
       if (e.name === "AbortError") throw e;
       errs.push(`${step.label} → ${e.message}`);
     }
   }
-  throw new Error("都抓不到。" + errs.join("；") + (LAST_SAMPLE ? `\n\n最後一個管道回傳的內容開頭：${LAST_SAMPLE}` : ""));
+  // 程式切不開，但確實抓到內容 → 交給 AI 切割
+  const best = SAMPLES.filter(x => x.text.length > 500).sort((a,b) => b.text.length - a.text.length)[0];
+  if (best && AI.key){
+    setStatus("格式不認得，改用 AI 切割…");
+    try{
+      const posts = await aiSplit(best.text, signal);
+      if (posts.length) return { posts, via: best.label + " + AI 切割" };
+    }catch(e){ if (e.name === "AbortError") throw e; errs.push("AI 切割 → " + e.message); }
+  }
+  const shown = SAMPLES.slice(0, 2).map(x => `【${x.label}】${x.text.slice(0, 260)}`).join("\n\n");
+  throw new Error("都抓不到。" + errs.join("；") + (shown ? `\n\n抓回來的內容開頭：\n${shown}` : ""));
+}
+
+/* ---------- AI 切割（格式不認得時的保底） ---------- */
+async function aiSplit(text, signal){
+  const p = `This is scraped text from an archive of Donald Trump's Truth Social posts. Split it into individual posts.
+
+TEXT:
+<<<
+${text.slice(0, 20000)}
+>>>
+
+For each post:
+- "id": the numeric status id if one appears near the post (from a /statuses/NNNNN link); otherwise "".
+- "date": the post's timestamp in ISO 8601 if you can read one; otherwise "".
+- "text": the post's own words, cleaned of navigation, share buttons, repeated links and site chrome. Keep video transcripts and image descriptions.
+
+Ignore page headers, menus, footers and anything that is not a post. Today is ${new Date().toISOString().slice(0,10)}.
+
+Return JSON only, no prose, no code fences:
+{"posts":[{"id":"","date":"","text":""}]}`;
+  const out = parseJSON(await callAI(p, signal));
+  const arr = Array.isArray(out?.posts) ? out.posts : [];
+  return arr.map((x, i) => {
+    const t = String(x.text||"").trim();
+    if (!t || t.length < 10) return null;
+    const d = x.date ? new Date(x.date) : new Date(NaN);
+    return { id: safeKey(x.id ? "ts" + x.id : "ai-" + (x.date||"") + "-" + t.slice(0,40)),
+      link: x.id ? "https://www.trumpstruth.org/statuses/" + x.id : "",
+      text: t.slice(0,4000), ts: isNaN(d) ? Date.now() - i*60000 : d.getTime() };
+  }).filter(Boolean);
 }
 
 /* ---------- AI 判讀 ---------- */
