@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>選股工具</title>
+<style>
+:root{
+  --bg:#0b1017; --panel:#141b25; --panel2:#0f151d; --line:#243043;
+  --tx:#e6edf6; --dim:#9fb0c6; --dim2:#6b7c93;
+  --accent:#f59e0b; --blue:#5b9dff; --ok:#4ade80;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:
+  radial-gradient(900px 500px at 15% -10%,rgba(91,157,255,.10),transparent 60%),
+  radial-gradient(900px 500px at 85% -10%,rgba(245,158,11,.10),transparent 60%),
+  var(--bg);
+  color:var(--tx);font:14px/1.6 "Segoe UI","Noto Sans TC",system-ui,sans-serif}
+.wrap{max-width:1020px;margin:0 auto;padding:38px 20px 46px}
+
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+h1{margin:0;font-size:23px;font-weight:700;letter-spacing:.5px}
+.sub{color:var(--dim2);font-size:12.5px}
+.clock{margin-left:auto;color:var(--dim);font-size:12.5px;font-variant-numeric:tabular-nums}
+
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+@media(max-width:820px){.cards{grid-template-columns:1fr}}
+
+.card{position:relative;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border:1px solid var(--line);border-radius:14px;padding:20px 21px 18px;
+  text-decoration:none;color:inherit;
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.card:hover{border-color:var(--edge);transform:translateY(-2px);
+  box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.card.a{--edge:var(--blue)}
+.card.b{--edge:var(--accent)}
+.card:before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--edge);opacity:.85}
+
+.ctop{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+.ctop h2{margin:0;font-size:17.5px;font-weight:700}
+.badge{font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:2px 7px;
+  border-radius:4px;border:1px solid var(--edge);color:var(--edge)}
+.tag{font-size:12px;color:var(--dim);margin-bottom:13px}
+
+ul{margin:0 0 15px;padding:0;list-style:none}
+li{position:relative;padding:3px 0 3px 15px;font-size:12.8px;color:var(--dim)}
+li:before{content:'';position:absolute;left:2px;top:12px;width:4px;height:4px;
+  border-radius:50%;background:var(--edge);opacity:.7}
+li b{color:var(--tx);font-weight:600}
+
+.note{font-size:12px;line-height:1.55;border-radius:8px;padding:8px 11px;
+  background:rgba(255,255,255,.035);border-left:2px solid var(--edge);margin-bottom:15px}
+.note.live{background:rgba(74,222,128,.09);border-left-color:var(--ok);color:#a9e9c2}
+.note.wait{background:rgba(245,158,11,.09);border-left-color:var(--accent);color:#f2c375}
+
+.go{margin-top:auto;display:flex;align-items:center;gap:8px;
+  font-size:13.5px;font-weight:700;color:var(--edge)}
+.go .arw{transition:transform .15s}
+.card:hover .go .arw{transform:translateX(4px)}
+.path{margin-top:7px;font-size:11px;color:var(--dim2);font-family:ui-monospace,Menlo,monospace}
+.miss{margin-top:9px;font-size:11.5px;line-height:1.55;color:#ffb4b4;
+  background:rgba(248,113,113,.1);border-left:2px solid #f87171;
+  border-radius:6px;padding:7px 10px;display:none}
+.card.broken{opacity:.72}
+.card.broken .miss{display:block}
+
+.bar{position:relative;display:flex;align-items:center;gap:14px;margin-top:14px;
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border:1px solid var(--line);border-radius:11px;padding:11px 16px;
+  text-decoration:none;color:inherit;--edge:#f87171;
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.bar:hover{border-color:var(--edge);transform:translateY(-1px);box-shadow:0 10px 26px rgba(0,0,0,.4)}
+.bar:before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--edge);opacity:.85}
+.bar h2{margin:0;font-size:15px;font-weight:700;white-space:nowrap}
+.bar .tag{margin:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .go{margin-top:0;margin-left:auto;font-size:12.5px;white-space:nowrap}
+.bar .path{margin-top:0;white-space:nowrap}
+.bar .miss{margin:0;white-space:normal}
+@media(max-width:700px){ .bar{flex-wrap:wrap;gap:6px} .bar .tag{white-space:normal} .bar .path{display:none} }
+
+footer{margin-top:22px;padding-top:15px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--dim2);line-height:1.7}
+footer b{color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>選股工具</h1>
+  <span class="sub">兩支工具各回答不同的問題，資料互不相通</span>
+  <span class="clock" id="clock"></span>
+</header>
+
+<div class="cards">
+
+  <a class="card a" id="cardA" href="stockscanning.html">
+    <div class="ctop"><h2>盤後篩選台</h2><span class="badge">技術面</span></div>
+    <div class="tag">收盤之後掃一次全市場，找符合條件的股票</div>
+    <ul>
+      <li><b>四均線</b>排列與均線糾結</li>
+      <li><b>法人買超排行</b>、爆量、多缺口</li>
+      <li><b>新手看盤</b>、追蹤成績、近期產業</li>
+    </ul>
+    <div class="note" id="noteA">每天 17:00 之後按「更新」，證交所收盤資料才會公告。</div>
+    <div class="go">開啟 <span class="arw">→</span></div>
+    <div class="path" id="pathA">stockscanning.html</div>
+    <div class="miss" id="missA"></div>
+  </a>
+
+  <a class="card b" id="cardB" href="fundamental.html">
+    <div class="ctop"><h2>法人卡位選股台</h2><span class="badge">籌碼＋動能</span></div>
+    <div class="tag">跟投信的車，順便看技術面轉強了沒</div>
+    <ul>
+      <li><b>投信作帳</b>：買超天數、建倉%、投信成本與貴投信%</li>
+      <li><b>動能四關</b>：KD、RSI、MACD、均線量能</li>
+      <li><b>三種模式</b>：卡位／純基本面／動能趨勢，可雙擊</li>
+    </ul>
+    <div class="note">主分數隨模式換。動能欄位需要 40 個交易日以上才算得出來。</div>
+    <div class="go">開啟 <span class="arw">→</span></div>
+    <div class="path" id="pathB">fundamental.html</div>
+    <div class="miss" id="missB"></div>
+  </a>
+
+</div>
+
+<a class="bar" id="cardC" href="https://taitraaah09-sudo.github.io/security/trumpcalls.html">
+  <h2>川普點名台</h2>
+  <span class="badge">政策面</span>
+  <span class="tag">他點名的公司、原物料與產業，判多空並帶出台股概念股</span>
+  <span class="go">開啟 <span class="arw">→</span></span>
+  <span class="path" id="pathC">security/trumpcalls.html</span>
+  <span class="miss" id="missC"></span>
+</a>
+
+<footer>
+  兩支工具的資料<b>各自獨立</b>：盤後篩選台的 Firebase 路徑在 <b>/twstk</b>，法人卡位選股台在 <b>/kawei</b>，快取也分開存在瀏覽器裡，互不影響。川普點名台存在 <b>/PRESS_KIT/trumpcalls</b>，跟上面兩支也不相干。<br>
+  月營收與三率仍卡在 <b>openapi.twse.com.tw</b> 的 CORS，要拿到那些欄位得在法人卡位選股台的「資料源」分頁設一個自訂代理。
+</footer>
+
+</div>
+
+<script>
+/* ==================================================================
+   兩件事：
+   ① 左邊那張卡要看現在是不是已經可以按更新（收盤資料 17:00 後才公告）
+   ② 檔名對不對得上。這頁是靜態的，連結寫死之後如果對方改了檔名就是 404，
+      所以先用 HEAD 探一次，探不到就換候選，全都探不到才把卡片標成紅字，
+      直接寫出它找過哪些檔名——比讓使用者點下去看 404 有用得多。
+   ================================================================== */
+
+/* ---------- 現在能不能更新 ---------- */
+function updateClock(){
+  const d = new Date();
+  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+  const p = n => String(n).padStart(2,'0');
+  document.getElementById('clock').textContent =
+    `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())}（${wd}）${p(d.getHours())}:${p(d.getMinutes())}`;
+
+  const note = document.getElementById('noteA');
+  const weekend = d.getDay() === 0 || d.getDay() === 6;
+  if(weekend){
+    note.className = 'note';
+    note.textContent = '週末沒有新的收盤資料。下一個交易日 17:00 之後再按「更新」。';
+  } else if(d.getHours() >= 17){
+    note.className = 'note live';
+    note.textContent = '今天的收盤資料已經公告，可以按「更新」了。';
+  } else {
+    const left = 17 - d.getHours() - (d.getMinutes() > 0 ? 1 : 0);
+    note.className = 'note wait';
+    note.textContent = `今天的收盤資料 17:00 之後才會公告，還要等約 ${left} 小時。`
+      + '現在按「更新」只會拿到昨天的。';
+  }
+}
+
+/* ---------- 檔名探測 ---------- */
+const TARGETS = [
+  {card:'cardA', path:'pathA', miss:'missA', name:'盤後篩選台',
+   files:['stockscanning.html','stock_V243.html']},
+  {card:'cardB', path:'pathB', miss:'missB', name:'法人卡位選股台',
+   files:['fundamental.html','fundamental_V73.html','fundamental_V72.html']},
+  {card:'cardC', path:'pathC', miss:'missC', name:'川普點名台',
+   files:['https://taitraaah09-sudo.github.io/security/trumpcalls.html','trumpcalls.html','trumpcalls_V15.html'],
+   label:'security/trumpcalls.html'}
+];
+
+async function exists(url){
+  try{
+    const r = await fetch(url, {method:'HEAD', cache:'no-store'});
+    return r.ok;
+  }catch(e){ return false; }
+}
+
+async function resolveAll(){
+  /* file:// 開啟時 fetch 會被瀏覽器擋掉，探測沒有意義，
+     直接用第一個候選，讓使用者自己看得到路徑。 */
+  if(location.protocol === 'file:'){
+    TARGETS.forEach(t => {
+      document.getElementById(t.path).textContent =
+        t.files[0] + '（本機開啟，無法先確認檔案在不在）';
+    });
+    return;
+  }
+  for(const t of TARGETS){
+    const card = document.getElementById(t.card);
+    let hit = null;
+    for(const f of t.files){
+      if(await exists(f)){ hit = f; break; }
+    }
+    if(hit){
+      card.href = hit;
+      document.getElementById(t.path).textContent = t.label || hit;
+    } else {
+      card.classList.add('broken');
+      card.removeAttribute('href');
+      document.getElementById(t.path).textContent = '找不到檔案';
+      document.getElementById(t.miss).textContent =
+        `這個目錄裡沒有 ${t.name}。找過：${t.files.join('、')}。`
+        + '把檔案上傳到跟這一頁同一個目錄，或改成上面其中一個檔名。';
+    }
+  }
+}
+
+updateClock();
+setInterval(updateClock, 30000);
+resolveAll();
+</script>
+</body>
+</html>
