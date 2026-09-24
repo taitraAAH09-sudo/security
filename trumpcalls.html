@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V18</title>
+<title>點名台 V19</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -109,7 +109,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V18</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V19</span></h1>
     <p>川普與馬斯克點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -193,30 +193,31 @@ const safeKey = s => String(s).replace(/[.#$\[\]\/]/g, "_").slice(0, 160);
 let AI = { provider:"gemini", model:"gemini-2.5-flash", key:"", baseUrl:"https://api.openai.com/v1" };
 
 /* ---------- 內建預設對照表（Firebase 沒有時才用） ---------- */
-const DEFAULT_THEMES = `無人機 | drone,drones,UAV,unmanned aircraft,無人機 | 8033 雷虎;5371 中光電;2634 漢翔;2645 長榮航太
-稀土磁材 | rare earth,rare earths,magnet,magnets,neodymium,稀土,磁鐵 | 3311 閎暉;1609 大亞;2049 上銀;2308 台達電
-半導體 | semiconductor,chip,chips,fab,wafer,晶片,半導體 | 2330 台積電;2303 聯電;2454 聯發科;3711 日月光投控
-AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data centers,算力,資料中心 | 2382 廣達;3231 緯創;6669 緯穎;2317 鴻海
+const DEFAULT_THEMES = `#v2
+無人機 | drone,drones,UAV,unmanned aircraft,無人機 | 8033 雷虎;5371 中光電;2634 漢翔;2645 長榮航太
+稀土磁材 | rare earth,rare earths,magnet,magnets,neodymium,permanent magnet,稀土,磁鐵 | 3311 閎暉;1609 大亞;2049 上銀;2308 台達電
+半導體 | semiconductor,chip,chips,fab,wafer,Nvidia,TSMC,Intel,AMD,晶片,半導體 | 2330 台積電;2303 聯電;2454 聯發科;3711 日月光投控
+AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data centers,xAI,Grok,OpenAI,Colossus,算力,資料中心 | 2382 廣達;3231 緯創;6669 緯穎;2317 鴻海
 散熱 | cooling,liquid cooling,thermal,散熱 | 3017 奇鋐;3324 雙鴻;2421 建準
-電力與重電 | electricity,power grid,grid,transformer,nuclear,SMR,electricity prices,電網,電價,核能 | 2308 台達電;1519 華城;1503 士電;1513 中興電
+電力與重電 | electricity,power grid,grid,transformer,nuclear,SMR,electricity prices,battery,Megapack,電網,電價,核能 | 2308 台達電;1519 華城;1503 士電;1513 中興電
 網通 | network,switch,broadband,5G,網通 | 2345 智邦;3596 智易;5388 中磊
-低軌衛星 | satellite,satellites,low earth orbit,Starlink,衛星 | 3491 昇達科;3419 譁裕;6285 啟碁
+低軌衛星 | satellite,satellites,low earth orbit,Starlink,Starshield,衛星 | 3491 昇達科;3419 譁裕;6285 啟碁
 資安 | cybersecurity,cyber attack,hacking,資安 | 6690 安碁資訊;6214 精誠;3029 零壹
 電線電纜與銅 | copper,cable,wire,銅,電纜 | 1609 大亞;1605 華新;1612 宏泰
-航太與國防 | Boeing,aircraft,airplanes,defense,munitions,military,missile,航太,國防 | 2634 漢翔;2645 長榮航太;8222 寶一;2630 亞航
+航太與國防 | Boeing,aircraft,airplanes,defense,munitions,military,missile,SpaceX,rocket,launch,Starship,航太,國防 | 2634 漢翔;2645 長榮航太;8222 寶一;2630 亞航
 造船 | shipbuilding,shipyard,navy ships,造船 | 2208 台船
 鋼鐵 | steel,aluminum,鋼,鋁 | 2002 中鋼;2014 中鴻;2015 豐興
 航運 | shipping,container,port fees,航運 | 2603 長榮;2609 陽明;2615 萬海
 塑化與石油 | oil,crude,diesel,refinery,drilling,gas prices,石油,柴油 | 1301 台塑;6505 台塑化;1326 台化
 農業與飼料 | farm bill,farmers,ranchers,soybean,corn,agriculture,農業 | 1210 大成;1215 卜蜂;1219 福壽
 肥料 | potash,fertilizer,鉀肥,肥料 | 1722 台肥
-機器人與自動化 | robot,robots,robotics,automation,機器人 | 2049 上銀;1590 亞德客-KY;2359 所羅門
+機器人與自動化 | robot,robots,robotics,automation,Optimus,humanoid,機器人 | 2049 上銀;1590 亞德客-KY;2359 所羅門
 工具機 | machine tool,machine tools,CNC,工具機 | 1583 程泰;1530 亞崴;2049 上銀
 太陽能 | solar,photovoltaic,太陽能 | 6443 元晶;6477 安集
 風電 | wind,offshore wind,風電 | 9958 世紀鋼;3708 上緯投控
 生技製藥 | drug prices,pharmaceutical,prescription,FDA,藥價,製藥 | 6472 保瑞;1795 美時
-汽車與電動車 | automobile,auto tariffs,electric vehicle,EV,汽車,電動車 | 1536 和大;3665 貿聯-KY;2231 為升
-消費電子 | iPhone,Apple,smartphone,consumer electronics,手機 | 2317 鴻海;3008 大立光;3406 玉晶光
+汽車與電動車 | automobile,auto tariffs,electric vehicle,EV,Tesla,Cybertruck,robotaxi,Model Y,汽車,電動車 | 1536 和大;3665 貿聯-KY;2231 為升
+消費電子 | iPhone,Apple,smartphone,consumer electronics,Neuralink,手機 | 2317 鴻海;3008 大立光;3406 玉晶光
 光通訊 | optical,fiber,光通訊 | 3081 聯亞;3163 波若威;4977 眾達-KY
 紡織成衣 | textile,apparel,footwear,紡織,成衣 | 1476 儒鴻;1477 聚陽;9910 豐泰
 自行車 | bicycle,bike,自行車 | 9921 巨大;9914 美利達
@@ -295,7 +296,13 @@ async function boot(){
       AI.key = String(AI.key).trim().replace(/^["']|["']$/g, "");
       AI.model = String(AI.model || "gemini-2.5-flash").trim();
     }
-    if (typeof th === "string" && th.trim()){ THEME_RAW = th; refreshThemes(); }
+    if (typeof th === "string" && th.trim()){
+      if (!th.includes("#v2")){
+        try{ await fbPut("themes_backup", th); await fbPut("themes", DEFAULT_THEMES); THEME_RAW = DEFAULT_THEMES; refreshThemes();
+          setStatus("對照表已更新到新版（多了 Tesla、SpaceX 等關鍵詞），舊的存在 themes_backup。");
+        }catch(e){ THEME_RAW = th; refreshThemes(); }
+      } else { THEME_RAW = th; refreshThemes(); }
+    }
     else { try{ await fbPut("themes", DEFAULT_THEMES); setStatus("後台還沒有對照表，已寫入內建預設，之後在 Firebase 直接改。"); }catch(e){} }
     if (c && typeof c === "object") CALLS = { ...CALLS, ...c };
     if (s && typeof s === "object") SEEN = { ...SEEN, ...s };
@@ -674,7 +681,7 @@ async function analyzePost(p, signal){
 }
 
 /* ---------- 更新 ---------- */
-let CTL = null;
+let CTL = null, SRC_REPORT = "";
 $("#stop").onclick = () => CTL?.abort();
 $("#update").onclick = async () => {
   if (!fbOn()){ setStatus("還沒設定 Firebase，無法儲存。", true); return; }
@@ -685,11 +692,18 @@ $("#update").onclick = async () => {
     let items = [], via = "";
     try{ const r = await fetchPosts(CTL.signal); items = r.posts; via = r.via; }
     catch(e){ if (e.name === "AbortError") throw e; setStatus(e.message, true); }
+    const perSource = [];
+    if (items.length) perSource.push(`川普 ${items.length} 則`);
     for (const src of SOURCES.filter(x => x.kind === "news")){
       setStatus(`抓取 ${src.person} 的新聞…`);
-      try{ const more = await fetchNews(src, CTL.signal); items = items.concat(more); via += (via?"、":"") + src.person + " 新聞"; }
-      catch(e){ if (e.name === "AbortError") throw e; }
+      try{
+        const more = await fetchNews(src, CTL.signal);
+        items = items.concat(more);
+        perSource.push(`${src.person} ${more.length} 則`);
+        via += (via?"、":"") + src.person + " 新聞";
+      }catch(e){ if (e.name === "AbortError") throw e; perSource.push(`${src.person} 抓取失敗`); }
     }
+    SRC_REPORT = perSource.join("、");
     if (!items.length) return;
     const cutoff = Date.now() - (+$("#days").value) * 86400000;
     const todo = items.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts).slice(0, CONFIG.maxPosts);
@@ -719,7 +733,7 @@ async function ingest(list, signal, label){
   LAST = new Date().toLocaleString("zh-TW"); cache();
   $("#lastRun").textContent = "上次更新 " + LAST;
   await fbPut("lastRun", LAST).catch(()=>{});
-  setStatus(`${label}：看了 ${done} 則，挑出 ${hits} 個點名${failed?`，${failed} 則判讀失敗`:""}。`);
+  setStatus(`${label}：看了 ${done} 則，挑出 ${hits} 個點名${failed?`，${failed} 則判讀失敗`:""}。` + (SRC_REPORT ? `（來源：${SRC_REPORT}）` : ""));
 }
 
 function fillPasteWho(){
