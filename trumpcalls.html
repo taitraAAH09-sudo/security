@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V17</title>
+<title>點名台 V18</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -109,7 +109,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V17</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V18</span></h1>
     <p>川普與馬斯克點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -134,7 +134,10 @@ a.btn{text-decoration:none;display:inline-block}
     <div id="pasteWrap" hidden style="margin-top:12px">
       <p class="hint" style="margin:0 0 6px">開 <a href="https://www.trumpstruth.org/?per_page=50" target="_blank" rel="noopener">存檔站列表頁</a>，整頁全選複製（Ctrl+A、Ctrl+C），貼進來按解析。抓取失敗時用這個一定會通。</p>
       <textarea id="pasteText" placeholder="貼上存檔站頁面內容"></textarea>
-      <div class="bar" style="margin:8px 0 0"><button class="btn primary" id="pasteRun">解析並寫入</button></div>
+      <div class="bar" style="margin:8px 0 0">
+        <label class="f">誰講的<select id="pasteWho"></select></label>
+        <button class="btn primary" id="pasteRun">解析並寫入</button>
+      </div>
     </div>
   </div>
 
@@ -719,12 +722,21 @@ async function ingest(list, signal, label){
   setStatus(`${label}：看了 ${done} 則，挑出 ${hits} 個點名${failed?`，${failed} 則判讀失敗`:""}。`);
 }
 
-$("#pasteBtn").onclick = () => { const w = $("#pasteWrap"); w.hidden = !w.hidden; if (!w.hidden) $("#pasteText").focus(); };
+function fillPasteWho(){
+  const sel = $("#pasteWho"); if (!sel) return;
+  const names = [...new Set(SOURCES.map(x => x.person).concat(["川普"]))];
+  sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+}
+$("#pasteBtn").onclick = () => { const w = $("#pasteWrap"); w.hidden = !w.hidden; fillPasteWho(); if (!w.hidden) $("#pasteText").focus(); };
 $("#pasteRun").onclick = async () => {
   const raw = $("#pasteText").value.trim();
   if (!raw){ setStatus("先貼上內容。", true); return; }
+  const who = $("#pasteWho").value || "川普";
   let posts = parseLoose(raw);
   if (!posts.length && raw.includes("realDonaldTrump")) posts = parseByHandle(raw);
+  if (!posts.length) posts = parseBySignoff(raw);
+  if (!posts.length) posts = parseByParagraph(raw);
+  posts = posts.map(p => ({ ...p, person: who, note: who === "川普" ? "本人發文" : "手動輸入" }));
   if (!posts.length){ setStatus("解析不出貼文，確認有複製到含時間戳的整頁內容。", true); return; }
   const cutoff = Date.now() - (+$("#days").value) * 86400000;
   const todo = posts.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).slice(0, CONFIG.maxPosts);
@@ -743,6 +755,14 @@ $$("#filterSeg [data-f]").forEach(b => b.onclick = () => {
 });
 $("#q").oninput = () => render();
 $("#who").onchange = () => render();
+function srcLink(c){
+  if (c.link) return { url:c.link, label: c.outlet || (c.link.includes("trumpstruth") ? "Truth Social 存檔" : "原始報導") };
+  const q = (c.quote || "").replace(/[^\w\s]/g," ").split(/\s+/).filter(Boolean).slice(0,8).join(" ");
+  if ((c.person || "川普") === "川普" && q)
+    return { url: "https://www.trumpstruth.org/search?q=" + encodeURIComponent(q), label: "到存檔站找這句" };
+  if (q) return { url: "https://www.google.com/search?q=" + encodeURIComponent(`"${q}"`), label: "Google 這句" };
+  return null;
+}
 function twBlock(c){
   const t = matchTheme(c);
   if (!t) return `<div class="tw"><div class="lab">台股概念股　<span class="hint">對照表沒有這個主題，到後台 themes 新增一行就會出現</span></div></div>`;
@@ -790,7 +810,7 @@ function render(){
         <span class="target">${esc(c.target)}</span>
         ${c.targetEn?`<span class="hint">${esc(c.targetEn)}</span>`:""}
         ${c.kind?`<span class="kind">${esc(c.kind)}</span>`:""}
-        ${c.person?`<span class="kind" style="border-color:var(--brand);color:var(--brand)">${esc(c.person)}${c.note?"・"+esc(c.note):""}</span>`:""}
+        <span class="kind" style="border-color:var(--brand);color:var(--brand)">${esc(c.person || "川普")}${c.note?"・"+esc(c.note):""}</span>
         <span class="verdict ${c.stance}">${VERDICT[c.stance]}</span>
       </div>
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
@@ -799,11 +819,11 @@ function render(){
       ${c.local?`<p class="hint" style="margin:8px 0 0">關鍵詞比對結果，未經 AI 判讀</p>`:""}
       ${(c.related||[]).length?`<div class="rel"><span class="lab">美股相關</span>${c.related.map(r=>`<span class="tag ${c.stance}">${esc(r)}</span>`).join("")}</div>`:""}
       ${twBlock(c)}
-      <div class="src">出處　${c.link
-        ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.outlet || (c.link.includes("trumpstruth") ? "Truth Social 存檔" : "原始報導"))} ↗</a>`
-        : `<span class="hint">${esc(c.outlet || "手動貼上，沒有連結")}</span>`}</div>
+      ${(() => { const L = srcLink(c); return `<div class="src">出處　${L
+        ? `<a href="${esc(L.url)}" target="_blank" rel="noopener">${esc(L.label)} ↗</a>`
+        : `<span class="hint">沒有可連的出處</span>`}</div>`; })()}
       <div class="foot"><span>${esc(when)}</span>
-        <span class="ops">${c.link?`<a class="btn small ghost" href="${esc(c.link)}" target="_blank" rel="noopener">開啟原文</a>`:""}
+        <span class="ops">${(() => { const L = srcLink(c); return L ? `<a class="btn small ghost" href="${esc(L.url)}" target="_blank" rel="noopener">開啟原文</a>` : ""; })()}
         <button class="btn small ghost" data-del="${esc(c.id)}" style="color:var(--up)">刪除</button></span></div>
     </article>`;
   }).join("") : `<div class="empty"><p>${all.length ? "這個篩選沒有東西。" : "還沒有資料，上面按「更新」。"}</p></div>`;
