@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>川普點名台 V15</title>
+<title>點名台 V17</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -86,6 +86,9 @@ progress{width:100%;height:6px;margin-top:8px}
 .call .why{margin:9px 0 0;font-size:14px}
 .call .rel{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
 .call .rel .lab{font-size:12.5px;color:var(--muted)}
+.call .src{margin-top:9px;font-size:12.5px;color:var(--muted)}
+.call .src a{color:var(--brand);text-decoration:none;border-bottom:1px solid transparent}
+.call .src a:hover{border-bottom-color:var(--brand)}
 .call .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--muted)}
 .call .foot .ops{margin-left:auto;display:flex;gap:6px}
 .tw{margin-top:11px;padding-top:10px;border-top:1px dashed var(--line)}
@@ -106,8 +109,8 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V15</span></h1>
-    <p>他點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V17</span></h1>
+    <p>川普與馬斯克點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
 </div></header>
@@ -143,6 +146,7 @@ a.btn{text-decoration:none;display:inline-block}
       <button data-f="bull" aria-pressed="false">多</button>
       <button data-f="bear" aria-pressed="false">空</button>
     </div>
+    <select id="who" aria-label="人物"><option value="">所有人</option></select>
     <input type="text" id="q" placeholder="搜尋標的、主題或股號" style="min-width:190px">
     <span class="grow"></span>
     <span class="hint" id="count"></span>
@@ -217,6 +221,19 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
+const DEFAULT_SOURCES = `川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
+馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+when:7d&hl=en-US&gl=US&ceid=US:en`;
+let SOURCE_RAW = DEFAULT_SOURCES, SOURCES = [];
+function parseSources(raw){
+  return String(raw||"").split("\n").map(line => {
+    const [person, kind, note, url] = line.split("|").map(x => (x||"").trim());
+    if (!person || !url) return null;
+    return { person, kind: kind === "news" ? "news" : "archive", note: note || "", url };
+  }).filter(Boolean);
+}
+function refreshSources(){ SOURCES = parseSources(SOURCE_RAW); }
+refreshSources();
+
 let THEME_RAW = DEFAULT_THEMES, THEMES = [];
 function parseThemes(raw){
   return String(raw||"").split("\n").map(line => {
@@ -267,7 +284,9 @@ async function boot(){
   if (!fbOn()){ dot("bad","未設定後台"); setStatus("這份檔案還沒填 Firebase 網址，請在原始碼最上面的 CONFIG 填好再上架。", true); return; }
   dot("", "讀取後台…");
   try{
-    const [cfg, th, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("calls"), fbGet("seen")]);
+    const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
+    if (typeof sr === "string" && sr.trim()){ SOURCE_RAW = sr; refreshSources(); }
+    else { try{ await fbPut("sources", DEFAULT_SOURCES); }catch(e){} }
     if (cfg && cfg.key){
       AI = { ...AI, ...cfg };
       AI.key = String(AI.key).trim().replace(/^["']|["']$/g, "");
@@ -418,6 +437,7 @@ function parseByParagraph(raw){
   return out;
 }
 function looksReal(p){
+  if (p.kind === "news") return (p.text.match(/[A-Za-z]{2,}/g)||[]).length >= 5;
   const words = (p.text.match(/[A-Za-z]{2,}/g) || []).length;
   const letters = (p.text.match(/[A-Za-z]/g) || []).length;
   return words >= 12 && letters >= 60;
@@ -427,6 +447,23 @@ function goodBatch(posts){
   if (!ok.length) return [];
   if (ok.length === 1 && (ok[0].text.match(/[A-Za-z]/g)||[]).length < 200) return [];
   return ok;
+}
+async function fetchNews(src, signal){
+  const order = CONFIG.proxy === "auto" ? ["jina","direct","allorigins","codetabs"] : [CONFIG.proxy];
+  for (const via of order){
+    try{
+      const res = await fetch(PROXIES[via](src.url), { signal });
+      if (!res.ok) continue;
+      const raw = await res.text();
+      const posts = parseRSS(raw).map(p => {
+        const m = p.text.match(/^(.*)\s[-–—]\s([^-–—]{2,40})$/);
+        return { ...p, text: m ? m[1].trim() : p.text, outlet: m ? m[2].trim() : "",
+          person: src.person, note: src.note, kind:"news" };
+      });
+      if (posts.length) return posts;
+    }catch(e){ if (e.name === "AbortError") throw e; }
+  }
+  return [];
 }
 async function fetchPosts(signal){
   const plan = [
@@ -459,7 +496,8 @@ async function fetchPosts(signal){
       if (!posts.length) posts = goodBatch(parseBySignoff(body));
       if (!posts.length && body.includes("realDonaldTrump")) posts = goodBatch(parseByHandle(body));
       if (!posts.length) posts = goodBatch(parseByParagraph(body));
-      if (posts.length) return { posts, via: step.label };
+      if (posts.length) return { posts: posts.map(p => ({ ...p, person:"川普", note:"本人發文",
+        link: p.link || FEED_HTML })), via: step.label };
       const sample = toText(body).replace(/\s+/g," ").trim();
       SAMPLES.push({ label: step.label, text: sample });
       errs.push(`${step.label} → 解析不出貼文`);
@@ -516,6 +554,7 @@ function localAnalyze(p){
       if (used.has(t.name)) break;
       used.add(t.name);
       made.push({ id: safeKey(p.id + "-" + t.name), postId:p.id, ts:p.ts, link:p.link,
+        person: p.person || "川普", note: p.note || "", outlet: p.outlet || "",
         target: t.name, targetEn: kw, kind:"", stance: stanceOf(hit, p.text),
         quote: hit.slice(0,280), zh:"", why:"", theme: t.name, related:[], local:true });
       break;
@@ -620,7 +659,8 @@ async function analyzePost(p, signal){
   const made = [];
   arr.forEach((c, i) => {
     const target = String(c.target||"").trim(); if (!target) return;
-    made.push({ id: safeKey(p.id + "-" + i), postId:p.id, ts:p.ts, link:p.link, target,
+    made.push({ id: safeKey(p.id + "-" + i), postId:p.id, ts:p.ts, link:p.link,
+      person: p.person || "川普", note: p.note || "", outlet: p.outlet || "", target,
       targetEn:String(c.targetEn||"").trim(), kind:String(c.kind||"").trim(),
       stance:["bull","bear","neutral"].includes(c.stance)?c.stance:"neutral",
       quote:String(c.quote||"").trim(), zh:String(c.zh||"").trim(), why:String(c.why||"").trim(),
@@ -639,7 +679,15 @@ $("#update").onclick = async () => {
   $("#update").disabled = true; $("#stop").hidden = false;
   const prog = $("#prog"); prog.hidden = true; prog.value = 0;
   try{
-    const { posts: items, via } = await fetchPosts(CTL.signal);
+    let items = [], via = "";
+    try{ const r = await fetchPosts(CTL.signal); items = r.posts; via = r.via; }
+    catch(e){ if (e.name === "AbortError") throw e; setStatus(e.message, true); }
+    for (const src of SOURCES.filter(x => x.kind === "news")){
+      setStatus(`抓取 ${src.person} 的新聞…`);
+      try{ const more = await fetchNews(src, CTL.signal); items = items.concat(more); via += (via?"、":"") + src.person + " 新聞"; }
+      catch(e){ if (e.name === "AbortError") throw e; }
+    }
+    if (!items.length) return;
     const cutoff = Date.now() - (+$("#days").value) * 86400000;
     const todo = items.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts).slice(0, CONFIG.maxPosts);
     if (!todo.length){ setStatus(`抓到 ${items.length} 則，沒有新的。（管道：${via}）`); return; }
@@ -694,6 +742,7 @@ $$("#filterSeg [data-f]").forEach(b => b.onclick = () => {
   FILTER = b.dataset.f; $$("#filterSeg [data-f]").forEach(x=>x.setAttribute("aria-pressed", String(x===b))); render();
 });
 $("#q").oninput = () => render();
+$("#who").onchange = () => render();
 function twBlock(c){
   const t = matchTheme(c);
   if (!t) return `<div class="tw"><div class="lab">台股概念股　<span class="hint">對照表沒有這個主題，到後台 themes 新增一行就會出現</span></div></div>`;
@@ -707,7 +756,12 @@ function twBlock(c){
 function render(){
   const q = $("#q").value.trim().toLowerCase();
   const all = Object.values(CALLS).sort((a,b)=>b.ts-a.ts);
+  const who = $("#who").value;
+  const people = [...new Set(all.map(c => c.person || "川普"))];
+  const cur = $("#who").value;
+  $("#who").innerHTML = `<option value="">所有人</option>` + people.map(x=>`<option value="${esc(x)}"${x===cur?" selected":""}>${esc(x)}</option>`).join("");
   const rows = all.filter(c => {
+    if (who && (c.person || "川普") !== who) return false;
     if (FILTER !== "all" && c.stance !== FILTER) return false;
     if (!q) return true;
     const t = matchTheme(c);
@@ -736,6 +790,7 @@ function render(){
         <span class="target">${esc(c.target)}</span>
         ${c.targetEn?`<span class="hint">${esc(c.targetEn)}</span>`:""}
         ${c.kind?`<span class="kind">${esc(c.kind)}</span>`:""}
+        ${c.person?`<span class="kind" style="border-color:var(--brand);color:var(--brand)">${esc(c.person)}${c.note?"・"+esc(c.note):""}</span>`:""}
         <span class="verdict ${c.stance}">${VERDICT[c.stance]}</span>
       </div>
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
@@ -744,8 +799,11 @@ function render(){
       ${c.local?`<p class="hint" style="margin:8px 0 0">關鍵詞比對結果，未經 AI 判讀</p>`:""}
       ${(c.related||[]).length?`<div class="rel"><span class="lab">美股相關</span>${c.related.map(r=>`<span class="tag ${c.stance}">${esc(r)}</span>`).join("")}</div>`:""}
       ${twBlock(c)}
+      <div class="src">出處　${c.link
+        ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.outlet || (c.link.includes("trumpstruth") ? "Truth Social 存檔" : "原始報導"))} ↗</a>`
+        : `<span class="hint">${esc(c.outlet || "手動貼上，沒有連結")}</span>`}</div>
       <div class="foot"><span>${esc(when)}</span>
-        <span class="ops">${c.link?`<a class="btn small ghost" href="${esc(c.link)}" target="_blank" rel="noopener">原文</a>`:""}
+        <span class="ops">${c.link?`<a class="btn small ghost" href="${esc(c.link)}" target="_blank" rel="noopener">開啟原文</a>`:""}
         <button class="btn small ghost" data-del="${esc(c.id)}" style="color:var(--up)">刪除</button></span></div>
     </article>`;
   }).join("") : `<div class="empty"><p>${all.length ? "這個篩選沒有東西。" : "還沒有資料，上面按「更新」。"}</p></div>`;
