@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>川普點名台 V12</title>
+<title>川普點名台 V14</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -106,7 +106,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V12</span></h1>
+    <h1>川普點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V14</span></h1>
     <p>他點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -268,14 +268,22 @@ async function boot(){
   dot("", "讀取後台…");
   try{
     const [cfg, th, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("calls"), fbGet("seen")]);
-    if (cfg && cfg.key){ AI = { ...AI, ...cfg }; }
+    if (cfg && cfg.key){
+      AI = { ...AI, ...cfg };
+      AI.key = String(AI.key).trim().replace(/^["']|["']$/g, "");
+      AI.model = String(AI.model || "gemini-2.5-flash").trim();
+    }
     if (typeof th === "string" && th.trim()){ THEME_RAW = th; refreshThemes(); }
     else { try{ await fbPut("themes", DEFAULT_THEMES); setStatus("後台還沒有對照表，已寫入內建預設，之後在 Firebase 直接改。"); }catch(e){} }
     if (c && typeof c === "object") CALLS = { ...CALLS, ...c };
     if (s && typeof s === "object") SEEN = { ...SEEN, ...s };
     cache(); render();
-    dot(AI.key ? "on" : "bad", AI.key ? "後台已連線" : "後台缺 AI key");
-    if (!AI.key) setStatus("後台的 /config 還沒有 AI key，按更新只會抓不到判讀。", true);
+    if (!AI.key){ dot("on","關鍵詞模式"); return; }
+    dot("", "驗證 AI…");
+    try{
+      await callAI("Reply with the single word OK.", undefined);
+      dot("on", `AI 判讀・${AI.model}`);
+    }catch(e){ AI.key = ""; dot("on","關鍵詞模式"); setStatus("AI key 無效，已改用關鍵詞比對。" + e.message); }
   }catch(e){ dot("bad","後台連線失敗"); setStatus(e.message, true); }
 }
 
@@ -389,6 +397,26 @@ function parseByHandle(raw){
   return out;
 }
 let SAMPLES = [];
+const SIGNOFF = /(President DONALD J\. TRUMP|President DJT|Thank you for your attention to this matter[!.]?)/g;
+function parseBySignoff(raw){
+  const text = toText(raw);
+  const parts = text.split(SIGNOFF).filter(x => x && !SIGNOFF.test(x));
+  const out = [];
+  parts.forEach((chunk, i) => {
+    const t = cleanChunk(chunk);
+    if (t.length > 60) out.push({ id: safeKey("so-" + t.slice(0,60)), link:"", text:t.slice(0,4000), ts: Date.now() - i*60000, noDate:true });
+  });
+  return out;
+}
+function parseByParagraph(raw){
+  const text = toText(raw);
+  const out = [];
+  text.split(/\n{2,}/).forEach((chunk, i) => {
+    const t = cleanChunk(chunk);
+    if (t.length > 120) out.push({ id: safeKey("pg-" + t.slice(0,60)), link:"", text:t.slice(0,4000), ts: Date.now() - i*60000, noDate:true });
+  });
+  return out;
+}
 async function fetchPosts(signal){
   const plan = [
     { label:"RSS jina", url:FEED, via:"jina" },
@@ -416,7 +444,9 @@ async function fetchPosts(signal){
       }
       let posts = (body.includes("<item") || body.includes("<entry")) ? parseRSS(body) : [];
       if (!posts.length) posts = parseLoose(body);
+      if (!posts.length) posts = parseBySignoff(body);
       if (!posts.length && body.includes("realDonaldTrump")) posts = parseByHandle(body);
+      if (!posts.length) posts = parseByParagraph(body);
       if (posts.length) return { posts, via: step.label };
       const sample = toText(body).replace(/\s+/g," ").trim();
       SAMPLES.push({ label: step.label, text: sample });
@@ -437,6 +467,49 @@ async function fetchPosts(signal){
   }
   const shown = SAMPLES.slice(0, 2).map(x => `【${x.label}】${x.text.slice(0, 260)}`).join("\n\n");
   throw new Error("都抓不到。" + errs.join("；") + (shown ? `\n\n抓回來的內容開頭：\n${shown}` : ""));
+}
+
+/* ---------- 不用 AI 的判讀：關鍵詞比對 ---------- */
+const BULL_STEMS = ["buy","buying","purchas","order","invest","boost","expand","build","bring back","bringing back","support","subsid","protect","deal","signed","approv","record","increas","grow","growth","tax cut","cut taxes","lower rate","rate cut","drill","dominance","winning","leading","cherish","encourag","back to america","made in america","reshor","incentiv","contract"];
+const BEAR_STEMS = ["tariff","ban ","banning","banned","investigat","sanction","halt","cancel","terminat","lawsuit","sue ","penalt","price gouging","too expensive","rip off","cut off","restrict","block","disaster","substantially less than","replac","reduc","cutting","curb","crack down","phase out"];
+const esc_re = w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const stemRe = w => new RegExp((/\s$/.test(w) ? "\\b" + esc_re(w.trim()) + "\\b" : "\\b" + esc_re(w) + "\\w*"), "i");
+const BULL_RE = BULL_STEMS.map(stemRe), BEAR_RE = BEAR_STEMS.map(stemRe);
+function sentencesOf(text){
+  return text.split(/(?<=[.!?])\s+|\n+/).map(x=>x.trim()).filter(x=>x.length>10);
+}
+function score(txt){
+  let up = 0, dn = 0;
+  BULL_RE.forEach(r => { if (r.test(txt)) up++; });
+  BEAR_RE.forEach(r => { if (r.test(txt)) dn++; });
+  return { up, dn };
+}
+function stanceOf(sentence, wholePost){
+  let { up, dn } = score(sentence);
+  if (up === dn){ const w = score(wholePost); up += w.up; dn += w.dn; }   // 該句看不出方向就看整則
+  if (up > dn) return "bull";
+  if (dn > up) return "bear";
+  return "neutral";
+}
+function localAnalyze(p){
+  const sents = sentencesOf(p.text);
+  const made = [];
+  const used = new Set();
+  for (const t of THEMES){
+    for (const kw of t.kw){
+      if (!kw || kw.length < 2) continue;
+      const kre = new RegExp("\\b" + esc_re(kw) + (kw.length > 3 ? "\\w*" : "") + "\\b", "i");
+      const hit = sents.find(sn => kre.test(sn));
+      if (!hit) continue;
+      if (used.has(t.name)) break;
+      used.add(t.name);
+      made.push({ id: safeKey(p.id + "-" + t.name), postId:p.id, ts:p.ts, link:p.link,
+        target: t.name, targetEn: kw, kind:"", stance: stanceOf(hit, p.text),
+        quote: hit.slice(0,280), zh:"", why:"", theme: t.name, related:[], local:true });
+      break;
+    }
+  }
+  return made;
 }
 
 /* ---------- AI 切割（格式不認得時的保底） ---------- */
@@ -497,19 +570,29 @@ ${THEMES.map(t=>t.name).join(" / ")}
 Return JSON only, no prose, no code fences:
 {"calls":[{"target":"","targetEn":"","kind":"","stance":"bull|bear|neutral","quote":"","zh":"","why":"","related":[],"theme":""}]}`;
 }
+function aiErrMsg(status, body, who){
+  const b = String(body||"");
+  if (/API key not valid|API_KEY_INVALID|invalid_api_key|Incorrect API key/i.test(b))
+    return `${who} 說這把 key 無效。請確認後台 /config 的 key 是 Google AI Studio 申請的（aistudio.google.com → Get API key），不是 Firebase 專案設定裡那組 apiKey。`;
+  if (status === 403) return `${who} 拒絕存取（403）。可能是 key 沒開啟 Generative Language API，或設了 referrer 限制擋掉這個網域。`;
+  if (status === 429) return `${who} 額度用完或請求太密集（429），等一下再試，或把「抓最近」天數調小。`;
+  if (/model.*not found|is not supported/i.test(b))
+    return `${who} 找不到這個模型。到後台 /config 把 model 換成可用的，例如 gemini-2.5-flash。`;
+  return `${who} ${status}：${b.slice(0,160)}`;
+}
 async function callAI(p, signal){
   if (AI.provider === "gemini"){
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(AI.model)}:generateContent?key=${encodeURIComponent(AI.key)}`;
     const res = await fetch(url, { method:"POST", signal, headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ contents:[{ role:"user", parts:[{ text:p }] }], generationConfig:{ temperature:0.2, responseMimeType:"application/json" } }) });
-    if (!res.ok) throw new Error("Gemini " + res.status + "：" + (await res.text()).slice(0,160));
+    if (!res.ok) throw new Error(aiErrMsg(res.status, await res.text(), "Gemini"));
     const j = await res.json();
     return j?.candidates?.[0]?.content?.parts?.map(x=>x.text||"").join("") || "";
   }
   const res = await fetch((AI.baseUrl||"https://api.openai.com/v1").replace(/\/$/,"") + "/chat/completions", { method:"POST", signal,
     headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + AI.key },
     body: JSON.stringify({ model:AI.model, temperature:0.2, response_format:{type:"json_object"}, messages:[{ role:"user", content:p }] }) });
-  if (!res.ok) throw new Error("API " + res.status + "：" + (await res.text()).slice(0,160));
+  if (!res.ok) throw new Error(aiErrMsg(res.status, await res.text(), "AI API"));
   const j = await res.json();
   return j?.choices?.[0]?.message?.content || "";
 }
@@ -519,6 +602,7 @@ function parseJSON(t){
   return JSON.parse(a >= 0 ? s.slice(a, b+1) : s);
 }
 async function analyzePost(p, signal){
+  if (!AI.key) return localAnalyze(p);
   const out = parseJSON(await callAI(buildPrompt(p.text), signal));
   const arr = Array.isArray(out?.calls) ? out.calls : [];
   const made = [];
@@ -539,14 +623,13 @@ let CTL = null;
 $("#stop").onclick = () => CTL?.abort();
 $("#update").onclick = async () => {
   if (!fbOn()){ setStatus("還沒設定 Firebase，無法儲存。", true); return; }
-  if (!AI.key){ setStatus("後台 /config 沒有 AI key，判讀不了。", true); return; }
   CTL = new AbortController();
   $("#update").disabled = true; $("#stop").hidden = false;
   const prog = $("#prog"); prog.hidden = true; prog.value = 0;
   try{
     const { posts: items, via } = await fetchPosts(CTL.signal);
     const cutoff = Date.now() - (+$("#days").value) * 86400000;
-    const todo = items.filter(p => p.ts >= cutoff && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts).slice(0, CONFIG.maxPosts);
+    const todo = items.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts).slice(0, CONFIG.maxPosts);
     if (!todo.length){ setStatus(`抓到 ${items.length} 則，沒有新的。（管道：${via}）`); return; }
     await ingest(todo, CTL.signal, `抓取成功（${via}）`);
   }catch(e){
@@ -578,14 +661,13 @@ async function ingest(list, signal, label){
 
 $("#pasteBtn").onclick = () => { const w = $("#pasteWrap"); w.hidden = !w.hidden; if (!w.hidden) $("#pasteText").focus(); };
 $("#pasteRun").onclick = async () => {
-  if (!AI.key){ setStatus("後台 /config 沒有 AI key，判讀不了。", true); return; }
   const raw = $("#pasteText").value.trim();
   if (!raw){ setStatus("先貼上內容。", true); return; }
   let posts = parseLoose(raw);
   if (!posts.length && raw.includes("realDonaldTrump")) posts = parseByHandle(raw);
   if (!posts.length){ setStatus("解析不出貼文，確認有複製到含時間戳的整頁內容。", true); return; }
   const cutoff = Date.now() - (+$("#days").value) * 86400000;
-  const todo = posts.filter(p => p.ts >= cutoff && !SEEN[p.id]).slice(0, CONFIG.maxPosts);
+  const todo = posts.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).slice(0, CONFIG.maxPosts);
   if (!todo.length){ setStatus(`讀到 ${posts.length} 則，但都在時間範圍外或已經判讀過。可以把天數拉大再試。`); return; }
   CTL = new AbortController();
   $("#pasteRun").disabled = true; $("#stop").hidden = false; $("#stop").onclick = () => CTL.abort();
@@ -647,6 +729,7 @@ function render(){
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
       ${c.zh?`<p class="zh">${esc(c.zh)}</p>`:""}
       ${c.why?`<p class="why">${esc(c.why)}</p>`:""}
+      ${c.local?`<p class="hint" style="margin:8px 0 0">關鍵詞比對結果，未經 AI 判讀</p>`:""}
       ${(c.related||[]).length?`<div class="rel"><span class="lab">美股相關</span>${c.related.map(r=>`<span class="tag ${c.stance}">${esc(r)}</span>`).join("")}</div>`:""}
       ${twBlock(c)}
       <div class="foot"><span>${esc(when)}</span>
