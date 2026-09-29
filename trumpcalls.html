@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V23</title>
+<title>點名台 V27</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -119,7 +119,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V23</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V27</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -136,6 +136,7 @@ a.btn{text-decoration:none;display:inline-block}
       </select></label>
       <button class="btn ghost" id="stop" hidden>停止</button>
       <button class="btn ghost" id="pasteBtn">改用貼上</button>
+      <button class="btn ghost" id="fillTr">補翻譯</button>
       <span class="grow"></span>
       <span class="hint" id="lastRun"></span>
     </div>
@@ -159,6 +160,7 @@ a.btn{text-decoration:none;display:inline-block}
       <button data-f="all" aria-pressed="true">全部</button>
       <button data-f="bull" aria-pressed="false">多</button>
       <button data-f="bear" aria-pressed="false">空</button>
+      <button data-f="tw" aria-pressed="false">台灣</button>
     </div>
     <select id="who" aria-label="來源"><option value="">所有來源</option></select>
     <input type="text" id="q" placeholder="搜尋標的、主題或股號" style="min-width:190px">
@@ -204,7 +206,9 @@ const safeKey = s => String(s).replace(/[.#$\[\]\/]/g, "_").slice(0, 160);
 let AI = { provider:"gemini", model:"gemini-2.5-flash", key:"", baseUrl:"https://api.openai.com/v1" };
 
 /* ---------- 內建預設對照表（Firebase 沒有時才用） ---------- */
-const DEFAULT_THEMES = `#v2
+const DEFAULT_THEMES = `#v4
+台海 | Taiwan,Taiwan Strait,Taipei,Taiwanese,PLA,cross-strait,台海,台灣 | 2634 漢翔;8033 雷虎;2208 台船;2002 中鋼
+地緣衝突 | war,strike,strikes,invade,invasion,military action,blockade,troops,missiles,regime change,戰爭,動武 | 2634 漢翔;2208 台船;8222 寶一;1301 台塑
 無人機 | drone,drones,UAV,unmanned aircraft,無人機 | 8033 雷虎;5371 中光電;2634 漢翔;2645 長榮航太
 稀土磁材 | rare earth,rare earths,magnet,magnets,neodymium,permanent magnet,稀土,磁鐵 | 3311 閎暉;1609 大亞;2049 上銀;2308 台達電
 半導體 | semiconductor,chip,chips,fab,wafer,Nvidia,TSMC,Intel,AMD,晶片,半導體 | 2330 台積電;2303 聯電;2454 聯發科;3711 日月光投控
@@ -322,7 +326,7 @@ async function boot(){
       AI.model = String(AI.model || "gemini-2.5-flash").trim();
     }
     if (typeof th === "string" && th.trim()){
-      if (!th.includes("#v2")){
+      if (!th.includes("#v4")){
         try{ await fbPut("themes_backup", th); await fbPut("themes", DEFAULT_THEMES); THEME_RAW = DEFAULT_THEMES; refreshThemes();
           setStatus("對照表已更新到新版（多了 Tesla、SpaceX 等關鍵詞），舊的存在 themes_backup。");
         }catch(e){ THEME_RAW = th; refreshThemes(); }
@@ -578,6 +582,100 @@ async function fetchPosts(signal){
   throw new Error("都抓不到。" + errs.join("；") + (shown ? `\n\n抓回來的內容開頭：\n${shown}` : ""));
 }
 
+/* ---------- 免費翻譯（不需要 key） ---------- */
+const TR_CACHE_KEY = "trumpcalls.tr.v1";
+let TR_CACHE = {};
+try { TR_CACHE = JSON.parse(localStorage.getItem(TR_CACHE_KEY) || "{}"); } catch(e){}
+function trSave(){ try{ localStorage.setItem(TR_CACHE_KEY, JSON.stringify(TR_CACHE)); }catch(e){} }
+
+async function trGoogle(text, signal){
+  const u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=" + encodeURIComponent(text);
+  const res = await fetch(u, { signal });
+  if (!res.ok) throw new Error("gtx " + res.status);
+  const j = await res.json();
+  return (j?.[0] || []).map(x => x?.[0] || "").join("").trim();
+}
+async function trGoogleViaProxy(text, signal){
+  const u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=" + encodeURIComponent(text);
+  const res = await fetch(PROXIES.jina(u), { signal });
+  if (!res.ok) throw new Error("gtx-proxy " + res.status);
+  const raw = await res.text();
+  const a = raw.indexOf("[["), b = raw.lastIndexOf("]]");
+  if (a < 0) throw new Error("gtx-proxy 格式不符");
+  const j = JSON.parse(raw.slice(a, b + 2));
+  return (j?.[0] || []).map(x => x?.[0] || "").join("").trim();
+}
+async function trMyMemory(text, signal){
+  const u = "https://api.mymemory.translated.net/get?langpair=en|zh-TW&q=" + encodeURIComponent(text.slice(0, 480));
+  const res = await fetch(u, { signal });
+  if (!res.ok) throw new Error("mymemory " + res.status);
+  const j = await res.json();
+  const t = j?.responseData?.translatedText || "";
+  if (!t || /MYMEMORY WARNING/i.test(t)) throw new Error("mymemory 額度用完");
+  return t.trim();
+}
+async function translate(text, signal){
+  const key = text.slice(0, 200);
+  if (TR_CACHE[key]) return TR_CACHE[key];
+  if (!text || !/[A-Za-z]/.test(text)) return "";
+  for (const fn of [trGoogle, trMyMemory, trGoogleViaProxy]){
+    try{
+      const out = await fn(text, signal);
+      if (out && out !== text){ TR_CACHE[key] = out; trSave(); return out; }
+    }catch(e){ if (e.name === "AbortError") throw e; }
+  }
+  return "";
+}
+
+/* ---------- 「要打誰」偵測 ---------- */
+const COUNTRIES = [
+  ["Cuba","古巴"],["Venezuela","委內瑞拉"],["Iran","伊朗"],["Russia","俄羅斯"],["China","中國"],
+  ["North Korea","北韓"],["Mexico","墨西哥"],["Colombia","哥倫比亞"],["Yemen","葉門"],["Houthi","葉門叛軍"],
+  ["Syria","敘利亞"],["Iraq","伊拉克"],["Afghanistan","阿富汗"],["Nigeria","奈及利亞"],["Panama","巴拿馬"],
+  ["Greenland","格陵蘭"],["Canada","加拿大"],["Taiwan","台灣"],["Ukraine","烏克蘭"],["Israel","以色列"],
+  ["Gaza","加薩"],["Lebanon","黎巴嫩"],["Somalia","索馬利亞"],["Haiti","海地"],["Nicaragua","尼加拉瓜"]
+];
+// 台海另外處理：關鍵詞更廣，方向與別人相反
+const TW_RE = /\b(Taiwan|Taiwanese|Taipei|Taiwan Strait|cross[- ]strait|PLA|People'?s Liberation Army)\b/i;
+const THREAT_STEMS = ["strike","attack","invad","bomb","blockad","military action","take out","wipe out","obliterat","boots on the ground","troops","warship","aircraft carrier","missile","regime change","days are numbered","hit them","go in","annihilat","destroy","naval","armada","war with","act of war","designate.{0,20}terrorist"];
+const THREAT_RE = new RegExp("\\b(?:" + THREAT_STEMS.join("|") + ")", "i");
+function threatCalls(p){
+  const text = p.text;
+  const sents = sentencesOf(text);
+  const out = [];
+  // 台海：中國對台動武、封鎖、軍演，對台股是系統性利空，國防個股相對抗跌
+  if (TW_RE.test(text)){
+    const twHit = sents.find(sn => TW_RE.test(sn) && THREAT_RE.test(sn));
+    const twLoose = !twHit && THREAT_RE.test(text) ? (sents.find(sn => TW_RE.test(sn)) || sents[0]) : null;
+    const hit = twHit || twLoose;
+    if (hit){
+      out.push({ id: safeKey(p.id + "-threat-TW"), postId:p.id, ts:p.ts, link:p.link,
+        person: p.person || "川普", note: p.note || "", outlet: p.outlet || "",
+        target: "動武訊號・台海", targetEn: "Taiwan", kind:"國家", stance: "bear",
+        quote: hit.slice(0,280), zh:"",
+        why: (twLoose ? "同一則裡同時出現台灣與動武字眼（模糊比對）。" : "點名台灣並提到動武。")
+           + "台海風險升溫對台股是系統性利空，國防個股相對抗跌。",
+        theme: "台海", related:["台股大盤","避險"], local:true });
+    }
+  }
+  for (const [en, zh] of COUNTRIES){
+    if (en === "Taiwan") continue;
+    const cre = new RegExp("\\b" + en.replace(/\s/g,"\\s+") + "\\w*", "i");
+    if (!cre.test(text)) continue;
+    // 模糊比對：同一句最好，同一則也算
+    let hit = sents.find(sn => cre.test(sn) && THREAT_RE.test(sn));
+    let loose = false;
+    if (!hit && THREAT_RE.test(text)){ hit = sents.find(sn => cre.test(sn)) || sents[0]; loose = true; }
+    if (!hit) continue;
+    out.push({ id: safeKey(p.id + "-threat-" + en), postId:p.id, ts:p.ts, link:p.link,
+      person: p.person || "川普", note: p.note || "", outlet: p.outlet || "",
+      target: "動武訊號・" + zh, targetEn: en, kind:"國家", stance: "bull",
+      quote: hit.slice(0,280), zh:"", why: loose ? "同一則裡同時出現該國與動武字眼（模糊比對）" : "點名該國並提到動武",
+      theme: "地緣衝突", related:["國防","原油"], local:true });
+  }
+  return out.slice(0, 3);
+}
+
 /* ---------- 不用 AI 的判讀：關鍵詞比對 ---------- */
 const BULL_STEMS = ["buy","buying","purchas","order","invest","boost","expand","build","bring back","bringing back","support","subsid","protect","deal","signed","approv","record","increas","grow","growth","tax cut","cut taxes","lower rate","rate cut","drill","dominance","winning","leading","cherish","encourag","back to america","made in america","reshor","incentiv","contract"];
 const BEAR_STEMS = ["tariff","ban ","banning","banned","investigat","sanction","halt","cancel","terminat","lawsuit","sue ","penalt","price gouging","too expensive","rip off","cut off","restrict","block","disaster","substantially less than","replac","reduc","cutting","curb","crack down","phase out"];
@@ -602,7 +700,7 @@ function stanceOf(sentence, wholePost){
 }
 function localAnalyze(p){
   const sents = sentencesOf(p.text);
-  const made = [];
+  const made = threatCalls(p);
   const used = new Set();
   for (const t of THEMES){
     for (const kw of t.kw){
@@ -674,6 +772,8 @@ For each call give:
 - "zh": that sentence in natural Traditional Chinese, Taiwan usage.
 - "why": one short Traditional Chinese sentence on the mechanism — why this is 多 or 空 for that target.
 - "related": up to 4 US tickers or sector names to watch (MP, BA, NVDA). [] if none. Do NOT put Taiwan stock codes here.
+- Taiwan is a special case: any signal of Chinese military action, blockade or drills around Taiwan, or doubt over US defence commitments, is a call with target 動武訊號・台海, kind 國家, stance bear (systemic risk for Taiwanese equities), theme 台海.
+- If he threatens or signals military action against another country (strikes, invasion, blockade, troops, "take them out"), that counts as a call: target = 動武訊號・<國名 in Chinese>, kind = 國家, stance = bull (defence and oil benefit), theme = 地緣衝突.
 - "theme": the single best match copied exactly from this list, or "" when none fits. Never invent a name outside the list:
 ${THEMES.map(t=>t.name).join(" / ")}
 
@@ -773,7 +873,10 @@ async function ingest(list, signal, label){
     setStatus(`判讀中 ${done+1} / ${list.length}…已挑出 ${hits} 個點名`);
     try{
       const made = await analyzePost(p, signal);
-      for (const c of made){ CALLS[c.id] = c; hits++; await fbPut("calls/" + c.id, c).catch(()=>{}); }
+      for (const c of made){
+        if (!c.zh && c.quote){ try{ c.zh = await translate(c.quote, signal); }catch(e){ if (e.name === "AbortError") break; } }
+        CALLS[c.id] = c; hits++; await fbPut("calls/" + c.id, c).catch(()=>{});
+      }
       SEEN[p.id] = p.ts;
       await fbPut("seen/" + p.id, p.ts).catch(()=>{});
     }catch(e){ if (e.name === "AbortError") break; failed++; }
@@ -812,6 +915,26 @@ $("#pasteRun").onclick = async () => {
   finally{ $("#pasteRun").disabled = false; $("#stop").hidden = true; }
 };
 
+$("#fillTr").onclick = async () => {
+  const todo = Object.values(CALLS).filter(c => !c.zh && c.quote).slice(0, 60);
+  if (!todo.length){ setStatus("每一則都有中文了。"); return; }
+  CTL = new AbortController();
+  $("#fillTr").disabled = true; $("#stop").hidden = false; $("#stop").onclick = () => CTL.abort();
+  const prog = $("#prog"); prog.hidden = false; prog.max = todo.length; prog.value = 0;
+  let n = 0, fail = 0;
+  for (const c of todo){
+    if (CTL.signal.aborted) break;
+    setStatus(`翻譯中 ${n+1} / ${todo.length}…`);
+    try{
+      const zh = await translate(c.quote, CTL.signal);
+      if (zh){ c.zh = zh; CALLS[c.id] = c; await fbPut("calls/" + c.id, c).catch(()=>{}); n++; } else fail++;
+    }catch(e){ if (e.name === "AbortError") break; fail++; }
+    prog.value += 1; cache(); render();
+  }
+  prog.hidden = true; $("#fillTr").disabled = false; $("#stop").hidden = true;
+  setStatus(`補了 ${n} 則中文${fail?`，${fail} 則翻譯失敗`:""}。`);
+};
+
 /* ---------- 顯示 ---------- */
 let FILTER = "all";
 $$("#filterSeg [data-f]").forEach(b => b.onclick = () => {
@@ -819,6 +942,10 @@ $$("#filterSeg [data-f]").forEach(b => b.onclick = () => {
 });
 $("#q").oninput = () => render();
 $("#who").onchange = () => render();
+const TW_HINT = /(台海|台灣|Taiwan|Taipei|TSMC|cross[- ]strait|PLA\b)/i;
+function isTW(c){
+  return c.theme === "台海" || TW_HINT.test([c.target, c.targetEn, c.quote, c.zh, c.why].join(" "));
+}
 function srcLink(c){
   if (c.link) return { url:c.link, label: c.outlet || (c.link.includes("trumpstruth") ? "Truth Social 存檔" : "原始報導") };
   const q = (c.quote || "").replace(/[^\w\s]/g," ").split(/\s+/).filter(Boolean).slice(0,8).join(" ");
@@ -869,7 +996,8 @@ function render(){
   $("#who").innerHTML = `<option value="">所有來源</option>` + people.map(x=>`<option value="${esc(x)}"${x===cur?" selected":""}>${esc(x)}</option>`).join("");
   const rows = all.filter(c => {
     if (who && (c.person || "川普") !== who) return false;
-    if (FILTER !== "all" && c.stance !== FILTER) return false;
+    if (FILTER === "tw"){ if (!isTW(c)) return false; }
+    else if (FILTER !== "all" && c.stance !== FILTER) return false;
     if (!q) return true;
     const t = matchTheme(c);
     return (c.target + " " + c.targetEn + " " + c.why + " " + c.zh + " " + (c.theme||"") + " " + (c.related||[]).join(" ")
@@ -886,6 +1014,7 @@ function render(){
     <div><div class="k">近 7 天點名</div><div class="v">${week.length}</div></div>
     <div><div class="k">多</div><div class="v" style="color:var(--up)">${all.filter(c=>c.stance==="bull").length}</div></div>
     <div><div class="k">空</div><div class="v" style="color:var(--down)">${all.filter(c=>c.stance==="bear").length}</div></div>
+    <div><div class="k">台灣相關</div><div class="v">${all.filter(isTW).length}</div></div>
     <div style="flex:1;min-width:200px"><div class="k">最常被點到</div><div class="chips">${
       hot.map(([t,n])=>`<span class="tag neutral">${esc(t)} ×${n}</span>`).join("")}</div></div>
   </div>` : "";
@@ -898,11 +1027,12 @@ function render(){
         <span class="target">${esc(c.target)}</span>
         ${c.targetEn?`<span class="hint">${esc(c.targetEn)}</span>`:""}
         ${c.kind?`<span class="kind">${esc(c.kind)}</span>`:""}
+        ${isTW(c)?`<span class="kind" style="border-color:var(--up);color:var(--up)">台灣</span>`:""}
         <span class="kind" style="border-color:var(--brand);color:var(--brand)">${esc(c.person || "川普")}${c.note?"・"+esc(c.note):""}</span>
         <span class="verdict ${c.stance}">${VERDICT[c.stance]}</span>
       </div>
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
-      ${c.zh?`<p class="zh">${esc(c.zh)}</p>`:""}
+      ${c.zh?`<p class="zh">${esc(c.zh)}</p>`:`${c.quote?`<p class="zh" style="color:var(--muted);font-size:13px">（還沒翻譯，按上面「補翻譯」）</p>`:""}`}
       ${c.why?`<p class="why">${esc(c.why)}</p>`:""}
       ${c.local?`<p class="hint" style="margin:8px 0 0">關鍵詞比對結果，未經 AI 判讀</p>`:""}
       ${(c.related||[]).length?`<div class="rel"><span class="lab">美股相關</span>${c.related.map(r=>`<span class="tag ${c.stance}">${esc(r)}</span>`).join("")}</div>`:""}
