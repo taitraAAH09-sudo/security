@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V28</title>
+<title>點名台 V30</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -96,6 +96,20 @@ progress{width:100%;height:6px;margin-top:8px}
 .call .why{margin:9px 0 0;font-size:14px}
 .call .rel{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
 .call .rel .lab{font-size:12.5px;color:var(--muted)}
+.rel-news{margin-top:11px;padding-top:9px;border-top:1px dashed var(--line)}
+.rel-news .lab{font-size:12.5px;color:var(--muted);margin-bottom:5px}
+.rel-news .n{display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13.5px;line-height:1.5}
+.rel-news .n .dot{flex:none;width:7px;height:7px;border-radius:50%;margin-top:7px}
+.rel-news .n .dot.bull{background:var(--up)} .rel-news .n .dot.bear{background:var(--down)} .rel-news .n .dot.neutral{background:var(--neutral)}
+.rel-news .n a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.rel-news .n a:hover{border-bottom-color:var(--brand);color:var(--brand)}
+.rel-news .n .src{font-size:12px;color:var(--muted);white-space:nowrap}
+details.rest{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 15px}
+details.rest summary{cursor:pointer;font-size:14px;color:var(--muted)}
+details.rest .n{display:flex;gap:8px;align-items:baseline;padding:5px 0;font-size:13.5px;border-top:1px solid var(--line)}
+h3.sect{font-size:14px;font-weight:700;color:var(--muted);margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:10px}
+h3.sect:first-child{margin-top:4px}
+h3.sect small{font-weight:400;font-size:12px}
 .call .src{margin-top:9px;font-size:12.5px;color:var(--muted)}
 .call .src a{color:var(--brand);text-decoration:none;border-bottom:1px solid transparent}
 .call .src a:hover{border-bottom-color:var(--brand)}
@@ -119,7 +133,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V28</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V30</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -1020,7 +1034,7 @@ function render(){
       hot.map(([t,n])=>`<span class="tag neutral">${esc(t)} ×${n}</span>`).join("")}</div></div>
   </div>` : "";
 
-  $("#list").innerHTML = rows.length ? rows.map(c => {
+  const cardHTML = c => {
     const d = new Date(c.ts);
     const when = isNaN(d) ? "" : d.toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
     return `<article class="call ${c.stance}">
@@ -1041,11 +1055,47 @@ function render(){
       ${(() => { const L = srcLink(c); return `<div class="src">出處　${L
         ? `<a href="${esc(L.url)}" target="_blank" rel="noopener">${esc(L.label)} ↗</a>`
         : `<span class="hint">沒有可連的出處</span>`}</div>`; })()}
-      <div class="foot"><span>${esc(when)}</span>
-        <span class="ops">${(() => { const L = srcLink(c); return L ? `<a class="btn small ghost" href="${esc(L.url)}" target="_blank" rel="noopener">開啟原文</a>` : ""; })()}
-        <button class="btn small ghost" data-del="${esc(c.id)}" style="color:var(--up)">刪除</button></span></div>
-    </article>`;
-  }).join("") : `<div class="empty"><p>${all.length ? "這個篩選沒有東西。" : "還沒有資料，上面按「更新」。"}</p></div>`;
+      <div class="foot"><span>${esc(when)}</span></div></article>`;
+  };
+  // 同一則貼文、同一個主題只留一張，有方向的優先
+  const best = {};
+  rows.forEach(c => {
+    const k = (c.postId || c.id) + "|" + (c.theme || c.target);
+    const prev = best[k];
+    if (!prev || (prev.stance === "neutral" && c.stance !== "neutral")) best[k] = c;
+  });
+  const uniq = Object.values(best).sort((a,b) => b.ts - a.ts);
+
+  const VOICES = ["川普","馬斯克","黃仁勳"];
+  const lead = uniq.filter(c => VOICES.includes(c.person || "川普"));
+  const news = uniq.filter(c => !VOICES.includes(c.person || "川普"));
+  const usedNews = new Set();
+  const WINDOW = 5 * 86400000;
+
+  const newsLine = c => {
+    const L = srcLink(c);
+    return `<div class="n"><span class="dot ${c.stance}"></span>
+      <span>${L ? `<a href="${esc(L.url)}" target="_blank" rel="noopener">${esc(c.quote || c.target)}</a>` : esc(c.quote || c.target)}
+      ${c.zh ? `<br><span class="hint">${esc(c.zh)}</span>` : ""}</span>
+      <span class="src">${esc(c.outlet || c.person || "")}</span></div>`;
+  };
+  const attach = c => {
+    const rel = news.filter(n => n.theme && n.theme === c.theme && Math.abs(n.ts - c.ts) < WINDOW).slice(0, 3);
+    rel.forEach(n => usedNews.add(n.id));
+    return rel.length
+      ? `<div class="rel-news"><div class="lab">相關報導　${esc(c.theme)}</div>${rel.map(newsLine).join("")}</div>`
+      : "";
+  };
+
+  const leadHTML = lead.map(c => cardHTML(c).replace("</article>", attach(c) + "</article>")).join("");
+  const rest = news.filter(n => !usedNews.has(n.id));
+  const restHTML = rest.length
+    ? `<details class="rest"><summary>其他新聞，沒有對應到誰的發言（${rest.length} 則）</summary>${rest.map(newsLine).join("")}</details>`
+    : "";
+
+  $("#list").innerHTML = uniq.length
+    ? (lead.length ? leadHTML : `<div class="empty"><p>這段期間主角們沒有點名任何東西，只有新聞。</p></div>`) + restHTML
+    : `<div class="empty"><p>${all.length ? "這個篩選沒有東西。" : "還沒有資料，上面按「更新」。"}</p></div>`;
 }
 $("#list").addEventListener("click", async e => {
   const id = e.target.dataset.del; if (!id) return;
