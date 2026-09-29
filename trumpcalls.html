@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V30</title>
+<title>點名台 V31</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -133,7 +133,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V30</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V31</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -253,7 +253,7 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
-const DEFAULT_SOURCES = `#v4
+const DEFAULT_SOURCES = `#v5
 川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
 美國財經 | news | 頭條 | https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en
 關稅與貿易 | news | 主題新聞 | https://news.google.com/rss/search?q=(tariff+OR+tariffs+OR+%22trade+deal%22+OR+%22export+controls%22)+(Trump+OR+%22White+House%22+OR+Commerce)+when:3d&hl=en-US&gl=US&ceid=US:en
@@ -262,6 +262,9 @@ const DEFAULT_SOURCES = `#v4
 能源與原物料 | news | 主題新聞 | https://news.google.com/rss/search?q=(oil+OR+crude+OR+copper+OR+%22rare+earth%22+OR+potash+OR+uranium)+(price+OR+supply+OR+tariff)+when:3d&hl=en-US&gl=US&ceid=US:en
 國防與無人機 | news | 主題新聞 | https://news.google.com/rss/search?q=(defense+OR+munitions+OR+drone+OR+shipbuilding)+(Pentagon+OR+contract+OR+budget)+when:3d&hl=en-US&gl=US&ceid=US:en
 馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+(Tesla+OR+SpaceX+OR+xAI+OR+chips+OR+robot)+when:7d&hl=en-US&gl=US&ceid=US:en
+黃仁勳 | news | NVIDIA 官方新聞 | https://nvidianews.nvidia.com/releases.xml
+黃仁勳 | news | NVIDIA 部落格 | https://blogs.nvidia.com/feed/
+馬斯克 | news | Tesla 重大訊息 | https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001318605&type=8-K&count=15&output=atom
 BBC 財經 | news | 國際媒體 | https://feeds.bbci.co.uk/news/business/rss.xml
 CNBC 財經 | news | 國際媒體 | https://www.cnbc.com/id/100003114/device/rss/rss.html
 Yahoo Finance | news | 國際媒體 | https://finance.yahoo.com/news/rssindex
@@ -329,7 +332,7 @@ async function boot(){
   try{
     const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
     if (typeof sr === "string" && sr.trim()){
-      if (!sr.includes("#v4")){
+      if (!sr.includes("#v5")){
         try{ await fbPut("sources_backup", sr); await fbPut("sources", DEFAULT_SOURCES); SOURCE_RAW = DEFAULT_SOURCES; }
         catch(e){ SOURCE_RAW = sr; }
       } else SOURCE_RAW = sr;
