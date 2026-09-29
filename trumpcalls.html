@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V19</title>
+<title>點名台 V23</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -64,6 +64,16 @@ textarea{width:100%;min-height:150px;border:1px solid var(--line);background:var
 .status.err{color:var(--up)}
 progress{width:100%;height:6px;margin-top:8px}
 .pulse{display:flex;gap:26px;flex-wrap:wrap;padding:14px 18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:16px;align-items:center}
+.wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:16px}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 13px;text-align:left;width:100%;display:flex;flex-direction:column;gap:6px}
+.pcard:hover{border-color:var(--brand)}
+.pcard[aria-pressed="true"]{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+.pcard .nm{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px}
+.pcard .nm small{font-weight:400;font-size:11px;color:var(--muted)}
+.pcard .st{display:flex;gap:12px;font-family:var(--num);font-size:19px;font-weight:700}
+.pcard .st .b{color:var(--up)} .pcard .st .s{color:var(--down)} .pcard .st .n{color:var(--muted);font-size:13px;font-family:var(--body);font-weight:400;align-self:center}
+.pcard .tg{display:flex;gap:4px;flex-wrap:wrap}
+.pcard .quiet{font-size:12.5px;color:var(--muted)}
 .pulse .k{font-size:12px;color:var(--muted)}
 .pulse .v{font-family:var(--num);font-size:28px;font-weight:700;line-height:1.1}
 .chips{display:flex;gap:5px;flex-wrap:wrap}
@@ -109,8 +119,8 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V19</span></h1>
-    <p>川普與馬斯克點到名的公司、商品與產業，判多空，帶出對應的台股概念股。</p>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V23</span></h1>
+    <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
 </div></header>
@@ -142,6 +152,7 @@ a.btn{text-decoration:none;display:inline-block}
   </div>
 
   <div id="pulse"></div>
+  <div id="wall" hidden></div>
 
   <div class="bar">
     <div class="seg" role="group" aria-label="篩選" id="filterSeg">
@@ -149,7 +160,7 @@ a.btn{text-decoration:none;display:inline-block}
       <button data-f="bull" aria-pressed="false">多</button>
       <button data-f="bear" aria-pressed="false">空</button>
     </div>
-    <select id="who" aria-label="人物"><option value="">所有人</option></select>
+    <select id="who" aria-label="來源"><option value="">所有來源</option></select>
     <input type="text" id="q" placeholder="搜尋標的、主題或股號" style="min-width:190px">
     <span class="grow"></span>
     <span class="hint" id="count"></span>
@@ -225,8 +236,16 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
-const DEFAULT_SOURCES = `川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
-馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+when:7d&hl=en-US&gl=US&ceid=US:en`;
+const DEFAULT_SOURCES = `#v3
+川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
+美國財經 | news | 頭條 | https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en
+關稅與貿易 | news | 主題新聞 | https://news.google.com/rss/search?q=(tariff+OR+tariffs+OR+%22trade+deal%22+OR+%22export+controls%22)+(Trump+OR+%22White+House%22+OR+Commerce)+when:3d&hl=en-US&gl=US&ceid=US:en
+聯準會與利率 | news | 主題新聞 | https://news.google.com/rss/search?q=(%22Federal+Reserve%22+OR+%22Fed+chair%22+OR+FOMC)+(rates+OR+inflation+OR+cut)+when:3d&hl=en-US&gl=US&ceid=US:en
+半導體與 AI | news | 主題新聞 | https://news.google.com/rss/search?q=(semiconductor+OR+chips+OR+%22AI+data+center%22+OR+GPU)+(Nvidia+OR+TSMC+OR+export+OR+capex)+when:3d&hl=en-US&gl=US&ceid=US:en
+能源與原物料 | news | 主題新聞 | https://news.google.com/rss/search?q=(oil+OR+crude+OR+copper+OR+%22rare+earth%22+OR+potash+OR+uranium)+(price+OR+supply+OR+tariff)+when:3d&hl=en-US&gl=US&ceid=US:en
+國防與無人機 | news | 主題新聞 | https://news.google.com/rss/search?q=(defense+OR+munitions+OR+drone+OR+shipbuilding)+(Pentagon+OR+contract+OR+budget)+when:3d&hl=en-US&gl=US&ceid=US:en
+馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+(Tesla+OR+SpaceX+OR+xAI+OR+chips+OR+robot)+when:7d&hl=en-US&gl=US&ceid=US:en
+黃仁勳 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Jensen+Huang%22+(Nvidia+OR+AI+OR+chips)+when:7d&hl=en-US&gl=US&ceid=US:en`;
 let SOURCE_RAW = DEFAULT_SOURCES, SOURCES = [];
 function parseSources(raw){
   return String(raw||"").split("\n").map(line => {
@@ -289,7 +308,13 @@ async function boot(){
   dot("", "讀取後台…");
   try{
     const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
-    if (typeof sr === "string" && sr.trim()){ SOURCE_RAW = sr; refreshSources(); }
+    if (typeof sr === "string" && sr.trim()){
+      if (!sr.includes("#v3")){
+        try{ await fbPut("sources_backup", sr); await fbPut("sources", DEFAULT_SOURCES); SOURCE_RAW = DEFAULT_SOURCES; }
+        catch(e){ SOURCE_RAW = sr; }
+      } else SOURCE_RAW = sr;
+      refreshSources();
+    }
     else { try{ await fbPut("sources", DEFAULT_SOURCES); }catch(e){} }
     if (cfg && cfg.key){
       AI = { ...AI, ...cfg };
@@ -458,6 +483,27 @@ function goodBatch(posts){
   if (ok.length === 1 && (ok[0].text.match(/[A-Za-z]/g)||[]).length < 200) return [];
   return ok;
 }
+// jina 會把 RSS 轉成 markdown，標題本身就是內容，所以另外解析
+function parseNewsMD(raw){
+  const out = [];
+  const seen = new Set();
+  const re = /\[([^\]\n]{15,300})\]\((https?:\/\/[^)\s]+)\)/g;
+  let m;
+  while ((m = re.exec(raw)) !== null){
+    const title = m[1].replace(/\s+/g," ").trim();
+    const url = m[2];
+    if (/^https?:\/\/[^)]*$/.test(title)) continue;           // 純網址當標題的略過
+    if (title.length < 15 || seen.has(title)) continue;
+    seen.add(title);
+    // 找這個標題後面最近的日期
+    const after = raw.slice(m.index, m.index + 600);
+    const dm = after.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+\d{1,2}\s+\w{3,9}\s+\d{4}[^\n]*/);
+    const d = dm ? new Date(dm[0]) : new Date(NaN);
+    out.push({ id: safeKey("gn-" + title.slice(0,70)), link:url, text:title,
+      ts: isNaN(d) ? Date.now() - out.length*60000 : d.getTime() });
+  }
+  return out;
+}
 async function fetchNews(src, signal){
   const order = CONFIG.proxy === "auto" ? ["jina","direct","allorigins","codetabs"] : [CONFIG.proxy];
   for (const via of order){
@@ -465,13 +511,16 @@ async function fetchNews(src, signal){
       const res = await fetch(PROXIES[via](src.url), { signal });
       if (!res.ok) continue;
       const raw = await res.text();
-      const posts = parseRSS(raw).map(p => {
+      let base = parseRSS(raw);
+      if (!base.length) base = parseNewsMD(raw);
+      const posts = base.map(p => {
         const m = p.text.match(/^(.*)\s[-–—]\s([^-–—]{2,40})$/);
         return { ...p, text: m ? m[1].trim() : p.text, outlet: m ? m[2].trim() : "",
           person: src.person, note: src.note, kind:"news" };
       });
       if (posts.length) return posts;
-    }catch(e){ if (e.name === "AbortError") throw e; }
+      NEWS_ERR[src.person] = via + " 抓到內容但解析不出項目";
+    }catch(e){ if (e.name === "AbortError") throw e; NEWS_ERR[src.person] = via + " " + e.message; }
   }
   return [];
 }
@@ -682,6 +731,7 @@ async function analyzePost(p, signal){
 
 /* ---------- 更新 ---------- */
 let CTL = null, SRC_REPORT = "";
+const NEWS_ERR = {};
 $("#stop").onclick = () => CTL?.abort();
 $("#update").onclick = async () => {
   if (!fbOn()){ setStatus("還沒設定 Firebase，無法儲存。", true); return; }
@@ -699,7 +749,7 @@ $("#update").onclick = async () => {
       try{
         const more = await fetchNews(src, CTL.signal);
         items = items.concat(more);
-        perSource.push(`${src.person} ${more.length} 則`);
+        perSource.push(`${src.person} ${more.length} 則${more.length ? "" : "（" + (NEWS_ERR[src.person] || "沒有結果") + "）"}`);
         via += (via?"、":"") + src.person + " 新聞";
       }catch(e){ if (e.name === "AbortError") throw e; perSource.push(`${src.person} 抓取失敗`); }
     }
@@ -787,13 +837,36 @@ function twBlock(c){
     <p class="note">依後台對照表帶出，進場前自己再查一次。</p>
   </div>`;
 }
+function renderWall(all){
+  const days = 7, since = Date.now() - days*86400000;
+  const people = [...new Set(SOURCES.map(x=>x.person).concat(all.map(c=>c.person||"川普")))];
+  const who = $("#who").value;
+  $("#wall").innerHTML = `<div class="wall">${people.map(pn => {
+    const mine = all.filter(c => (c.person||"川普") === pn && c.ts >= since);
+    const bull = mine.filter(c=>c.stance==="bull").length, bear = mine.filter(c=>c.stance==="bear").length;
+    const tg = [...new Set(mine.map(c=>c.target))].slice(0,4);
+    const src = SOURCES.find(x=>x.person===pn);
+    return `<button class="pcard" data-who="${esc(pn)}" aria-pressed="${who===pn}">
+      <div class="nm">${esc(pn)}<small>${esc(src?src.note:"")}</small></div>
+      ${mine.length ? `<div class="st"><span class="b">${bull}</span><span class="s">${bear}</span><span class="n">多／空</span></div>
+        <div class="tg">${tg.map(t=>`<span class="tag neutral">${esc(t)}</span>`).join("")}</div>`
+        : `<div class="quiet">近 7 天沒有點名</div>`}
+    </button>`;
+  }).join("")}</div>`;
+}
+$("#wall").addEventListener("click", e => {
+  const b = e.target.closest("[data-who]"); if (!b) return;
+  const cur = $("#who").value;
+  $("#who").value = cur === b.dataset.who ? "" : b.dataset.who;
+  render();
+});
 function render(){
   const q = $("#q").value.trim().toLowerCase();
   const all = Object.values(CALLS).sort((a,b)=>b.ts-a.ts);
   const who = $("#who").value;
   const people = [...new Set(all.map(c => c.person || "川普"))];
   const cur = $("#who").value;
-  $("#who").innerHTML = `<option value="">所有人</option>` + people.map(x=>`<option value="${esc(x)}"${x===cur?" selected":""}>${esc(x)}</option>`).join("");
+  $("#who").innerHTML = `<option value="">所有來源</option>` + people.map(x=>`<option value="${esc(x)}"${x===cur?" selected":""}>${esc(x)}</option>`).join("");
   const rows = all.filter(c => {
     if (who && (c.person || "川普") !== who) return false;
     if (FILTER !== "all" && c.stance !== FILTER) return false;
@@ -803,6 +876,7 @@ function render(){
       + " " + (t ? t.name + " " + t.stocks.map(x=>x.code + x.name).join(" ") : "")).toLowerCase().includes(q);
   });
   $("#count").textContent = `顯示 ${rows.length} / 共 ${all.length} 個點名`;
+  if (!$("#wall").hidden) renderWall(all);
 
   const freq = {};
   all.forEach(c => freq[c.target] = (freq[c.target]||0)+1);
