@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V27</title>
+<title>點名台 V28</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -119,7 +119,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V27</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V28</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -136,7 +136,6 @@ a.btn{text-decoration:none;display:inline-block}
       </select></label>
       <button class="btn ghost" id="stop" hidden>停止</button>
       <button class="btn ghost" id="pasteBtn">改用貼上</button>
-      <button class="btn ghost" id="fillTr">補翻譯</button>
       <span class="grow"></span>
       <span class="hint" id="lastRun"></span>
     </div>
@@ -240,7 +239,7 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
-const DEFAULT_SOURCES = `#v3
+const DEFAULT_SOURCES = `#v4
 川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
 美國財經 | news | 頭條 | https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en
 關稅與貿易 | news | 主題新聞 | https://news.google.com/rss/search?q=(tariff+OR+tariffs+OR+%22trade+deal%22+OR+%22export+controls%22)+(Trump+OR+%22White+House%22+OR+Commerce)+when:3d&hl=en-US&gl=US&ceid=US:en
@@ -249,6 +248,9 @@ const DEFAULT_SOURCES = `#v3
 能源與原物料 | news | 主題新聞 | https://news.google.com/rss/search?q=(oil+OR+crude+OR+copper+OR+%22rare+earth%22+OR+potash+OR+uranium)+(price+OR+supply+OR+tariff)+when:3d&hl=en-US&gl=US&ceid=US:en
 國防與無人機 | news | 主題新聞 | https://news.google.com/rss/search?q=(defense+OR+munitions+OR+drone+OR+shipbuilding)+(Pentagon+OR+contract+OR+budget)+when:3d&hl=en-US&gl=US&ceid=US:en
 馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+(Tesla+OR+SpaceX+OR+xAI+OR+chips+OR+robot)+when:7d&hl=en-US&gl=US&ceid=US:en
+BBC 財經 | news | 國際媒體 | https://feeds.bbci.co.uk/news/business/rss.xml
+CNBC 財經 | news | 國際媒體 | https://www.cnbc.com/id/100003114/device/rss/rss.html
+Yahoo Finance | news | 國際媒體 | https://finance.yahoo.com/news/rssindex
 黃仁勳 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Jensen+Huang%22+(Nvidia+OR+AI+OR+chips)+when:7d&hl=en-US&gl=US&ceid=US:en`;
 let SOURCE_RAW = DEFAULT_SOURCES, SOURCES = [];
 function parseSources(raw){
@@ -313,7 +315,7 @@ async function boot(){
   try{
     const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
     if (typeof sr === "string" && sr.trim()){
-      if (!sr.includes("#v3")){
+      if (!sr.includes("#v4")){
         try{ await fbPut("sources_backup", sr); await fbPut("sources", DEFAULT_SOURCES); SOURCE_RAW = DEFAULT_SOURCES; }
         catch(e){ SOURCE_RAW = sr; }
       } else SOURCE_RAW = sr;
@@ -915,25 +917,23 @@ $("#pasteRun").onclick = async () => {
   finally{ $("#pasteRun").disabled = false; $("#stop").hidden = true; }
 };
 
-$("#fillTr").onclick = async () => {
-  const todo = Object.values(CALLS).filter(c => !c.zh && c.quote).slice(0, 60);
-  if (!todo.length){ setStatus("每一則都有中文了。"); return; }
-  CTL = new AbortController();
-  $("#fillTr").disabled = true; $("#stop").hidden = false; $("#stop").onclick = () => CTL.abort();
-  const prog = $("#prog"); prog.hidden = false; prog.max = todo.length; prog.value = 0;
-  let n = 0, fail = 0;
+/* ---------- 自動補中文 ---------- */
+let TR_BUSY = false;
+async function autoTranslate(rows){
+  if (TR_BUSY) return;
+  const todo = rows.filter(c => !c.zh && c.quote).slice(0, 8);
+  if (!todo.length) return;
+  TR_BUSY = true;
+  let n = 0;
   for (const c of todo){
-    if (CTL.signal.aborted) break;
-    setStatus(`翻譯中 ${n+1} / ${todo.length}…`);
     try{
-      const zh = await translate(c.quote, CTL.signal);
-      if (zh){ c.zh = zh; CALLS[c.id] = c; await fbPut("calls/" + c.id, c).catch(()=>{}); n++; } else fail++;
-    }catch(e){ if (e.name === "AbortError") break; fail++; }
-    prog.value += 1; cache(); render();
+      const zh = await translate(c.quote);
+      if (zh){ c.zh = zh; CALLS[c.id] = c; n++; fbPut("calls/" + c.id, c).catch(()=>{}); }
+    }catch(e){ break; }
   }
-  prog.hidden = true; $("#fillTr").disabled = false; $("#stop").hidden = true;
-  setStatus(`補了 ${n} 則中文${fail?`，${fail} 則翻譯失敗`:""}。`);
-};
+  TR_BUSY = false;
+  if (n){ cache(); render(); }
+}
 
 /* ---------- 顯示 ---------- */
 let FILTER = "all";
@@ -1005,6 +1005,7 @@ function render(){
   });
   $("#count").textContent = `顯示 ${rows.length} / 共 ${all.length} 個點名`;
   if (!$("#wall").hidden) renderWall(all);
+  autoTranslate(rows);
 
   const freq = {};
   all.forEach(c => freq[c.target] = (freq[c.target]||0)+1);
@@ -1032,7 +1033,7 @@ function render(){
         <span class="verdict ${c.stance}">${VERDICT[c.stance]}</span>
       </div>
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
-      ${c.zh?`<p class="zh">${esc(c.zh)}</p>`:`${c.quote?`<p class="zh" style="color:var(--muted);font-size:13px">（還沒翻譯，按上面「補翻譯」）</p>`:""}`}
+      ${c.zh?`<p class="zh">${esc(c.zh)}</p>`:`${c.quote?`<p class="zh" style="color:var(--muted);font-size:13px">翻譯中…</p>`:""}`}
       ${c.why?`<p class="why">${esc(c.why)}</p>`:""}
       ${c.local?`<p class="hint" style="margin:8px 0 0">關鍵詞比對結果，未經 AI 判讀</p>`:""}
       ${(c.related||[]).length?`<div class="rel"><span class="lab">美股相關</span>${c.related.map(r=>`<span class="tag ${c.stance}">${esc(r)}</span>`).join("")}</div>`:""}
