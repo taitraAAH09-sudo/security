@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V245</title>
+<title>盤後篩選台 V246</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -176,7 +176,21 @@ a{color:var(--amber)}
 .secflag.hold{background:rgba(242,181,68,.14);color:var(--amber);border:1px solid rgba(242,181,68,.45)}
 .secflag.past{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--line)}
 @media(max-width:760px){.secrow{grid-template-columns:24px 88px 1fr 62px 62px;}.secma{display:none}}
-.calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.calhd{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.calhd .calnav,.calhd b,.calmode button{white-space:nowrap}
+.calhd .calhint{margin-left:auto;flex:1 1 260px;min-width:0}
+@media(max-width:760px){
+  .calhd{gap:8px}
+  .calhd b{font-size:15px}
+  .calnav{padding:5px 9px;font-size:12px}
+  .calmode{margin-left:0}
+  .calmode button{padding:4px 8px}
+  .calhd .calhint{flex:1 1 100%;margin-left:0;font-size:11px;line-height:1.5}
+  .easymask{padding:10px 6px}
+  .easyhd{padding:10px 14px;z-index:3}
+  .easyhd h2{font-size:15px;letter-spacing:0;line-height:1.35}
+  .easyhd .x{width:28px;height:28px;font-size:15px;flex:0 0 auto;margin-left:8px}
+}
 .calhd b{font-family:var(--mono);font-size:17px}
 .calmode{display:flex;gap:4px;margin-left:10px}
 .calmode button{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer}
@@ -185,14 +199,22 @@ a{color:var(--amber)}
 .calnav:disabled{opacity:.35;cursor:not-allowed}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 @media(max-width:760px){
-  .calwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .calgrid{min-width:520px}
-  .calcell{min-height:40px;padding:2px 3px}
+  /* V246：手機不再橫向捲動，7 欄直接塞進螢幕；金額改用「萬」縮寫 */
+  .calgrid{min-width:0;gap:2px}
+  .calcell{min-height:46px;padding:2px 2px;min-width:0;overflow:hidden}
+  .calgrid .calcell .cvf,.calgrid .calcell .cnf{display:none}
+  .calgrid .calcell .cvs,.calgrid .calcell .cns{display:inline}
+  .calwk{font-size:10px}
+  .calgrid .calcell .cv{white-space:nowrap;font-size:9.5px;letter-spacing:-.04em}
+  .calgrid .calcell .cn{white-space:nowrap}
   .calcell .cd{font-size:9px}.calcell .cv{font-size:10px}.calcell .cn{font-size:8px}
   .calsum{gap:8px}.calsum .sc{min-width:104px;padding:8px 10px}
 }
 .calwk{text-align:center;font-size:11px;color:var(--dim);font-weight:700;padding:2px 0}
 .calcell{min-height:44px;border:1px solid var(--line);border-radius:6px;padding:3px 5px;background:var(--panel2);display:flex;flex-direction:column;gap:1px}
+.calcell .cvs,.calcell .cns{display:none}
+.calsum .sc{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;flex:1;min-width:130px}
+.calsum .sc s{text-decoration:none;color:var(--dim);font-size:11px;display:block}
 .calcell.blank{background:transparent;border-color:transparent}
 .calcell.has{cursor:pointer}
 .calcell.has:hover{border-color:var(--amber)}
@@ -679,7 +701,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V245</span>
+    <h1>盤後篩選台</h1><span class="ver">V246</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4317,6 +4339,7 @@ function testPnL(en){
   else if(px!=null)        unreal   += (px-entry)*LOT;
   return {realized, unreal, total:realized+unreal, cost:entry*2*LOT};
 }
+let TEST_MONTH_USER=false;   // V246：使用者自己翻過月份才固定，否則永遠跟著最新月份
 let TEST_VIEW='list', TEST_MONTH=null, TEST_CAL_MODE='total';   // 月曆格子顯示：total／real／unreal   // 月曆：'YYYYMM'
 // 以「推薦日」為格子的月曆：那天推的那批股票，到現在（或全部結案後）合計賺賠多少
 function testCalendarHTML(){
@@ -4325,10 +4348,13 @@ function testCalendarHTML(){
   for(const e of ents)(byDate[e.firstDate]=byDate[e.firstDate]||[]).push(e);
   const arch=TEST_TRACK.arch||{};
   const last=(DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:ymd(new Date());
-  if(!TEST_MONTH)TEST_MONTH=last.slice(0,6);
-  // 每日盈虧永久保留，所以可以一路翻到有資料的最早那個月（明細只留兩個月，更早的點不進去）
-  const lastY=+last.slice(0,4), lastM=+last.slice(4,6);
+  // V246：能翻到的最後一個月＝「最新資料月／最新推薦月／今天所在月」取最大，10 月初資料還沒進來也翻得到本月
   const allKeys=[...Object.keys(byDate), ...Object.keys(arch)].sort();
+  const lastMon=[last.slice(0,6), allKeys.length?allKeys[allKeys.length-1].slice(0,6):'', ymd(new Date()).slice(0,6)].sort().pop();
+  if(!TEST_MONTH||!TEST_MONTH_USER)TEST_MONTH=[last.slice(0,6), allKeys.length?allKeys[allKeys.length-1].slice(0,6):''].sort().pop();
+  if(TEST_MONTH>lastMon)TEST_MONTH=lastMon;
+  // 每日盈虧永久保留，所以可以一路翻到有資料的最早那個月（明細只留兩個月，更早的點不進去）
+  const lastY=+lastMon.slice(0,4), lastM=+lastMon.slice(4,6);
   const first=allKeys.length?allKeys[0]:last;
   const minD=new Date(+first.slice(0,4), +first.slice(4,6)-1, 1);
   const maxD=new Date(lastY,lastM-1,1);
@@ -4361,8 +4387,8 @@ function testCalendarHTML(){
     const badge = allDone ? `<span class="cdone ${tot>0?'w':tot<0?'l':''}" title="這天推的 ${n} 檔已全數出場，損益定案">✔</span>`
                           : (open?`<span class="copen" title="還有 ${open} 檔在手上">${open}</span>`:'');
     cells+=`<div class="calcell ${openable?'has':'arch'}${allDone?' settled':''}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}${badge}</span>
-      <span class="cn">${openable?'':'🔒 '}推 ${n} 檔</span>
-      <span class="cv ${cls}" title="合計 ${Math.round(tot).toLocaleString()}／已實現 ${Math.round(r).toLocaleString()}／未實現 ${Math.round(u).toLocaleString()}">${shown>0?'+':''}${Math.round(shown).toLocaleString()}</span></div>`;
+      <span class="cn"><span class="cnf">${openable?'':'🔒 '}推 ${n} 檔</span><span class="cns">${openable?'':'🔒'}${n}檔</span></span>
+      <span class="cv ${cls}" title="合計 ${Math.round(tot).toLocaleString()}／已實現 ${Math.round(r).toLocaleString()}／未實現 ${Math.round(u).toLocaleString()}"><span class="cvf">${shown>0?'+':''}${Math.round(shown).toLocaleString()}</span><span class="cvs">${shown>0?'+':''}${Math.abs(shown)>=10000?(shown/10000).toFixed(Math.abs(shown)>=1e5?0:1)+'萬':Math.round(shown)}</span></span></div>`;
   }
   const mTot=mReal+mUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
@@ -4376,7 +4402,7 @@ function testCalendarHTML(){
         <button data-m="real" class="${TEST_CAL_MODE==='real'?'on':''}">已實現</button>
         <button data-m="unreal" class="${TEST_CAL_MODE==='unreal'?'on':''}">未實現</button>
       </span>
-      <span class="ihint" style="margin-left:auto">✔＝那天推的已全數出場（金色賺、紅框賠）．數字＝還在手上幾檔．明細只留兩個月，更早的標 🔒</span>
+      <span class="ihint calhint">✔＝那天推的已全數出場（金色賺、紅框賠）．數字＝還在手上幾檔．明細只留兩個月，更早的標 🔒</span>
     </div>
     <div class="calwrap"><div class="calgrid">${wk}${cells}</div></div>
     ${(()=>{
@@ -4432,9 +4458,17 @@ function shiftMonth(delta){   // 換月後 testRender 會依新月份重算上�
   const y=+TEST_MONTH.slice(0,4), m=+TEST_MONTH.slice(4,6);
   const d=new Date(y,m-1+delta,1);
   TEST_MONTH=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+  TEST_MONTH_USER=true;
   testRender();
 }
+function syncTestMonth(){   // V246：上方統計與月曆用同一個月份
+  if(TEST_MONTH&&TEST_MONTH_USER)return;
+  const last=(DB.dates&&DB.dates.length)?DB.dates[DB.dates.length-1]:ymd(new Date());
+  const keys=[...(TEST_TRACK.entries||[]).map(e=>String(e.firstDate)), ...Object.keys(TEST_TRACK.arch||{})].sort();
+  TEST_MONTH=[last.slice(0,6), keys.length?keys[keys.length-1].slice(0,6):''].sort().pop();
+}
 function testRender(){
+  syncTestMonth();
   const box=$('#testTable'), sum=$('#testSum');
   const all=TEST_TRACK.entries||[];
   // 統計一律以「月」為單位：月曆看目前翻到的月份，清單看目前選到那天所屬的月份；選「全部」才是全部
