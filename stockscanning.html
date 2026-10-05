@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V246</title>
+<title>盤後篩選台 V247</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -88,7 +88,9 @@ a{color:var(--amber)}
 .loadbtn:disabled{opacity:.6;cursor:wait}
 .loadbtn.done{background:#13392B}
 .hbtnbar{padding-top:40px}
-@media(max-width:760px){.hbtnbar{padding-top:38px}.loadbtn{font-size:13px;padding:7px 12px;letter-spacing:0}.steptip b{font-size:10px}}
+.hbreak{display:none}
+@media(max-width:900px){.hbtnbar .stepwrap{order:1}.hbtnbar .secbtn,.hbtnbar .mktstr{order:2}.hbtnbar .hbreak{display:block;order:1;flex-basis:100%;height:0}}
+@media(max-width:760px){.top .hbtnbar{padding-top:48px}.loadbtn{font-size:13px;padding:7px 12px;letter-spacing:0}.steptip b{font-size:10px}}
 .pwmask{position:fixed;inset:0;background:rgba(6,10,20,.78);z-index:2000;display:none;align-items:center;justify-content:center}
 .pwmask.on{display:flex}
 .pwbox{background:var(--panel);border:1px solid var(--amber-d);border-radius:12px;padding:18px 20px;width:min(320px,90vw);box-shadow:0 16px 50px rgba(0,0,0,.55)}
@@ -701,7 +703,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V246</span>
+    <h1>盤後篩選台</h1><span class="ver">V247</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -713,6 +715,7 @@ tbody tr{cursor:pointer}
     <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋產業全景樹狀圖">🏭 近期產業</button>
     <span class="stepwrap s1"><span class="steptip"><b>① 先按這裡讀取</b><i>⬇</i></span><button class="loadbtn" id="btnLoad" title="從雲端讀取最新資料（不用重新抓）"><small class="ldate" id="loadDate">資料 —</small><span id="loadTxt">⬇ 載入最新</span></button></span>
     <span class="stepwrap s2"><span class="steptip"><b>② 再按這裡</b><i>⬇</i></span><button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button></span>
+    <i class="hbreak"></i>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
   <div class="strip" id="strip"></div>
@@ -5408,16 +5411,20 @@ async function fbCloudLast(){
 }
 const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'—';
 function paintLoadBtn(){
+  // V247：一律以雲端（Firebase）為準，不再拿「今天」比
+  //   ✓ 綠字「已是雲端最新 MM/DD」＝這台跟雲端一樣
+  //   閃黃光「雲端 MM/DD · 這台 MM/DD」＝雲端比較新，按一下載入
   const b=$('#btnLoad'),t=$('#loadDate'); if(!b||!t||b.disabled)return;
   const local=DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:'';
-  const today=ymd(new Date());
   b.classList.remove('fresh','newer');
-  if(CLOUD_LAST&&CLOUD_LAST>local){
-    b.classList.add('newer'); t.textContent=`雲端有 ${md(CLOUD_LAST)} · 本機 ${md(local)}`;
-  }else if(local&&local===today){
-    b.classList.add('fresh'); t.textContent=`✓ 今日最新 ${md(local)}`;
+  if(!CLOUD_LAST){
+    t.textContent=`雲端 讀取中… · 這台 ${md(local)}`;
+  }else if(CLOUD_LAST>local){
+    b.classList.add('newer'); t.textContent=`雲端 ${md(CLOUD_LAST)} · 這台 ${md(local)}`;
+  }else if(CLOUD_LAST===local){
+    b.classList.add('fresh'); t.textContent=`✓ 已是雲端最新 ${md(local)}`;
   }else{
-    t.textContent=`資料 ${md(local)} · 今天 ${md(today)}`;
+    t.textContent=`這台 ${md(local)} · 雲端 ${md(CLOUD_LAST)}（還沒上傳）`;
   }
 }
 // 每次主畫面重畫（更新完、下載完、開頁）都順便更新按鈕上的日期
@@ -5548,11 +5555,12 @@ $('#btnTour').onclick=tourStart;
   const cfg=await store.get(KEY3);
   if(cfg){$('#fbUrl').value=cfg.url||'';if(cfg.path)$('#fbPath').value=cfg.path;$('#fbAuto').checked=cfg.auto!==false;}
   paintStrip(); paintFbAuth();
+  if(!$('#fbAuto').checked&&fbEnd())checkCloudNewer();
   if($('#fbAuto').checked){
     (async()=>{
       let url=$('#fbUrl').value.trim();
       if(!url){fbLog('偵測資料庫網址…');url=await fbDetect();}
-      if(url){await fbPull(true);checkCloudNewer();}
+      if(url){checkCloudNewer();await fbPull(true);checkCloudNewer();}
     })();
   }
   $('#log').innerHTML=migrated
