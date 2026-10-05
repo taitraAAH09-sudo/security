@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V247</title>
+<title>盤後篩選台 V248</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -703,7 +703,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V247</span>
+    <h1>盤後篩選台</h1><span class="ver">V248</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3359,6 +3359,28 @@ async function fbPush(quiet,authed){
     fbLog(`已上傳 ${new Date().toLocaleString('zh-TW')}`,'ok'); return true;
   }catch(err){ fbLog(`上傳失敗：${err.message}　多半是資料庫規則沒開放寫入。`,'err'); return false; }
 }
+/* V248：Firebase 會「改寫」陣列 ——
+   ① 陣列裡的 null 不存；開頭一大段 null（高低開只留 45 天、前面清成 null）時，
+      讀回來會變成 {45:…,46:…} 這種物件，不再是陣列 → 其他裝置一讀就壞（st.o.some is not a function）
+   ② 結尾的 null 會被砍掉，陣列變短
+   所以從雲端讀回來後，先把每檔股票的 c/q/h/l/o 還原成長度正確的陣列。 */
+function fbFixArrays(db){
+  const L=(db.dates||[]).length;
+  const toArr=v=>{
+    if(Array.isArray(v)){ const a=v.slice(); while(a.length<L)a.push(null); if(a.length>L)a.length=L; for(let i=0;i<a.length;i++)if(a[i]===undefined)a[i]=null; return a; }
+    const a=new Array(L).fill(null);
+    if(v&&typeof v==='object')for(const k in v){ const i=+k; if(Number.isInteger(i)&&i>=0&&i<L)a[i]=v[k]; }
+    return a;
+  };
+  if(Array.isArray(db.dates)===false&&db.dates&&typeof db.dates==='object')
+    db.dates=Object.keys(db.dates).sort((a,b)=>a-b).map(k=>db.dates[k]);
+  for(const c in (db.stocks||{})){
+    const st=db.stocks[c]; if(!st||typeof st!=='object')continue;
+    for(const k of ['c','q','h','l','o'])st[k]=toArr(st[k]);
+  }
+  if(db.nodata&&!Array.isArray(db.nodata))db.nodata=Object.values(db.nodata);
+  return db;
+}
 async function fbPull(quiet){
   const e=fbEnd(); if(!e){if(!quiet)fbLog('先填 Realtime Database 網址。','err');return false;}
   fbLog('下載中…');
@@ -3366,10 +3388,11 @@ async function fbPull(quiet){
     const r=await fetch(e,{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
+    if(j&&j.DB)fbFixArrays(j.DB);
     if(!j||!j.DB||!j.DB.dates||!j.DB.dates.length){fbLog('雲端還沒有資料。');return false;}
     // 直接檢查雲端資料裡有沒有開盤價（比版本號可靠）
     const sample=Object.values(j.DB.stocks||{}).slice(0,20);
-    const hasOpen=sample.some(st=>st.o&&st.o.some(x=>x!=null));
+    const hasOpen=sample.some(st=>Array.isArray(st.o)&&st.o.some(x=>x!=null));
     if(!hasOpen){fbLog('雲端資料沒有開盤價（舊結構），已略過、不覆蓋本機。請在本機「更新並篩選」補齊後按「上傳雲端」。','err');return false;}
     const cloudLast=j.DB.dates[j.DB.dates.length-1];
     const localLast=DB.dates.length?DB.dates[DB.dates.length-1]:'';
@@ -5443,7 +5466,7 @@ $('#btnLoad').onclick=async()=>{
     const last=DB.dates.length?DB.dates[DB.dates.length-1]:'';
     if(!ok&&last)run();
     await fbCloudLast();
-    msg=!last?'⚠ 雲端沒資料':ok?'✓ 已載入':'✓ 已是最新';
+    msg=!last?'⚠ 雲端沒資料':ok?'✓ 已載入':(CLOUD_LAST&&CLOUD_LAST>last)?'⚠ 讀取失敗，看左邊說明':'✓ 已是最新';
   }catch(err){msg='⚠ 讀取失敗';}
   finally{
     b.disabled=false; tx.textContent=msg; paintLoadBtn();
