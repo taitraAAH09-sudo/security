@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V243</title>
+<title>盤後篩選台 V245</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -69,6 +69,40 @@ a{color:var(--amber)}
 .mktstr.loading b .spin{display:inline-block;animation:strspin 1s linear infinite}
 @keyframes strpulse{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes strspin{to{transform:rotate(360deg)}}
+/* V244：載入按鈕＋閃爍步驟箭頭 */
+.stepwrap{position:relative;display:inline-flex}
+.steptip{position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;white-space:nowrap;z-index:2}
+.steptip b{font-size:11px;font-weight:800;color:#2FE0A6;background:rgba(14,22,30,.92);border:1px solid #1F9E6E;border-radius:10px;padding:1px 8px;letter-spacing:.04em}
+.steptip i{font-style:normal;font-size:22px;line-height:1;color:#2FE0A6;text-shadow:0 0 8px rgba(47,224,166,.9);margin-top:-1px}
+.steptip{animation:stepblink 1.1s ease-in-out infinite}
+.stepwrap.s2 .steptip{animation-delay:.55s}
+@keyframes stepblink{0%,100%{opacity:1;transform:translate(-50%,0)}50%{opacity:.15;transform:translate(-50%,5px)}}
+.loadbtn{padding:7px 18px;font-size:14px;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;color:#fff;background:linear-gradient(135deg,#127A52,#1F9E6E);border:2px solid #2FE0A6;box-shadow:0 3px 12px rgba(31,158,110,.45)}
+.loadbtn:hover{filter:brightness(1.12)}
+.loadbtn{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:4px 18px 6px}
+.loadbtn .ldate{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em;padding:1px 7px;border-radius:8px;margin-bottom:2px;background:rgba(0,0,0,.28);color:#FFD27A}
+.loadbtn.fresh .ldate{color:#7DFFC9}
+.loadbtn.newer{border-color:#FFD27A;animation:newerglow 1s ease-in-out infinite}
+.loadbtn.newer .ldate{background:#FFD27A;color:#1a1300}
+@keyframes newerglow{0%,100%{box-shadow:0 0 6px rgba(255,210,122,.5)}50%{box-shadow:0 0 20px rgba(255,210,122,.95)}}
+.loadbtn:disabled{opacity:.6;cursor:wait}
+.loadbtn.done{background:#13392B}
+.hbtnbar{padding-top:40px}
+@media(max-width:760px){.hbtnbar{padding-top:38px}.loadbtn{font-size:13px;padding:7px 12px;letter-spacing:0}.steptip b{font-size:10px}}
+.pwmask{position:fixed;inset:0;background:rgba(6,10,20,.78);z-index:2000;display:none;align-items:center;justify-content:center}
+.pwmask.on{display:flex}
+.pwbox{background:var(--panel);border:1px solid var(--amber-d);border-radius:12px;padding:18px 20px;width:min(320px,90vw);box-shadow:0 16px 50px rgba(0,0,0,.55)}
+.pwbox h3{margin:0 0 6px;font-size:15px;color:var(--amber)}
+.pwbox p{margin:0 0 10px;font-size:12px;color:var(--muted);line-height:1.6}
+.pwbox input{width:100%;box-sizing:border-box;padding:9px 10px;font-size:16px;font-family:var(--mono);letter-spacing:.3em;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--paper)}
+.pwbox input.bad{border-color:var(--up);animation:pwshake .3s}
+@keyframes pwshake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.pwbox .pwerr{min-height:16px;font-size:12px;color:var(--up);margin:6px 0 0}
+.pwbox .pwbtns{display:flex;gap:8px;margin-top:10px}
+.pwbox .pwbtns button{flex:1;padding:8px 0;border-radius:6px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+.pwbox .pwbtns button.pri{background:var(--amber);color:var(--ink);border-color:var(--amber)}
+.fbauth{display:block;margin-top:6px;font-size:11px;color:var(--dim)}
+.fbauth a{cursor:pointer;margin-left:6px}
 @keyframes helppulse{0%,100%{box-shadow:0 3px 12px rgba(31,158,110,.45)}50%{box-shadow:0 3px 20px rgba(31,158,110,.85)}}
 .easymask{position:fixed;inset:0;background:rgba(6,10,20,.82);z-index:80;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 14px}
 .easymask.on{display:flex}
@@ -645,7 +679,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V243</span>
+    <h1>盤後篩選台</h1><span class="ver">V245</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -655,12 +689,22 @@ tbody tr{cursor:pointer}
   </div>
   <div class="hbtnbar">
     <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋產業全景樹狀圖">🏭 近期產業</button>
-    <button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button>
+    <span class="stepwrap s1"><span class="steptip"><b>① 先按這裡讀取</b><i>⬇</i></span><button class="loadbtn" id="btnLoad" title="從雲端讀取最新資料（不用重新抓）"><small class="ldate" id="loadDate">資料 —</small><span id="loadTxt">⬇ 載入最新</span></button></span>
+    <span class="stepwrap s2"><span class="steptip"><b>② 再按這裡</b><i>⬇</i></span><button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button></span>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
   <div class="strip" id="strip"></div>
 </div>
 
+<div class="pwmask" id="pwMask">
+  <div class="pwbox">
+    <h3>🔒 上傳雲端需要密碼</h3>
+    <p>上傳會用這台電腦的資料<b>整份覆蓋</b>雲端。確定是你本人要上傳，再輸入密碼。</p>
+    <input type="password" id="pwInput" inputmode="numeric" autocomplete="off" maxlength="12">
+    <div class="pwerr" id="pwErr"></div>
+    <div class="pwbtns"><button id="pwCancel">取消</button><button class="pri" id="pwOk">確定上傳</button></div>
+  </div>
+</div>
 <div id="tourTop" class="tour-mask" style="display:none"></div>
 <div id="tourBottom" class="tour-mask" style="display:none"></div>
 <div id="tourLeft" class="tour-mask" style="display:none"></div>
@@ -805,9 +849,10 @@ tbody tr{cursor:pointer}
     <div class="fld"><span>資料路徑</span><input type="text" id="fbPath" value="twstk" style="width:120px"></div>
     <label class="row"><input type="checkbox" id="fbAuto" checked><span class="tx">自動同步<small>開啟頁面時下載、更新完成後上傳</small></span></label>
     <div class="duo">
-      <button class="btn ghost sm" id="fbUp">上傳雲端</button>
+      <button class="btn ghost sm" id="fbUp">🔒 上傳雲端</button>
       <button class="btn ghost sm" id="fbDown">下載雲端</button>
     </div>
+    <small class="fbauth" id="fbAuthTip"></small>
     <div class="log" id="fbLog"></div>
     <div class="duo" style="margin-top:8px">
       <button class="btn ghost sm" id="fbFind">重新偵測</button>
@@ -3229,8 +3274,58 @@ async function fbSaveCfg(){
   await store.set(KEY3,{url:$('#fbUrl').value.trim(),path:$('#fbPath').value.trim(),auto:$('#fbAuto').checked});
 }
 function fbLog(m,c){$('#fbLog').innerHTML=c?`<span class="${c}">${m}</span>`:m;}
-async function fbPush(quiet){
+/* ── V244：上傳密碼保護 ─────────────────────────────────────────
+   手動按「上傳雲端」每次都要輸入密碼。
+   自動同步（更新完、查個股後）只有在「這台裝置曾輸入過正確密碼」時才會上傳；
+   其他人的電腦沒授權，自動上傳一律略過，不會蓋掉雲端。 */
+const FB_PW_H='aymt76';   // 密碼雜湊（不放明碼）
+const FB_AUTH_KEY='twstk2_fbauth';
+function pwHash(t){let h=5381;for(const ch of String(t))h=((h*33)^ch.charCodeAt(0))>>>0;return (h^0x5bd1e995).toString(36);}
+function fbDevAuthed(){try{return localStorage.getItem(FB_AUTH_KEY)===FB_PW_H;}catch(e){return false;}}
+function fbSetAuth(on){try{on?localStorage.setItem(FB_AUTH_KEY,FB_PW_H):localStorage.removeItem(FB_AUTH_KEY);}catch(e){} paintFbAuth();}
+function paintFbAuth(){
+  const el=$('#fbAuthTip'); if(!el)return;
+  el.innerHTML=fbDevAuthed()
+    ?'✅ 這台裝置已授權自動上傳<a id="fbDeauth">取消授權</a>'
+    :'🔒 這台裝置未授權：自動同步只會下載、不會上傳';
+  const a=$('#fbDeauth'); if(a)a.onclick=()=>{fbSetAuth(false);fbLog('已取消這台裝置的上傳授權。');};
+}
+function askUploadPw(){
+  return new Promise(res=>{
+    const m=$('#pwMask'),inp=$('#pwInput'),err=$('#pwErr');
+    inp.value='';err.textContent='';inp.classList.remove('bad');
+    m.classList.add('on'); setTimeout(()=>inp.focus(),30);
+    const done=v=>{m.classList.remove('on');$('#pwOk').onclick=$('#pwCancel').onclick=inp.onkeydown=m.onclick=null;res(v);};
+    const ok=()=>{
+      if(pwHash(inp.value.trim())===FB_PW_H){done(true);return;}
+      err.textContent='密碼錯誤';inp.classList.remove('bad');void inp.offsetWidth;inp.classList.add('bad');inp.select();
+    };
+    $('#pwOk').onclick=ok; $('#pwCancel').onclick=()=>done(false);
+    inp.onkeydown=e=>{if(e.key==='Enter')ok();else if(e.key==='Escape')done(false);};
+    m.onclick=e=>{if(e.target===m)done(false);};
+  });
+}
+/* 手動上傳：密碼 → 檢查雲端是不是比本機新 → 上傳 */
+async function fbPushManual(){
+  const e=fbEnd(); if(!e){fbLog('先填 Realtime Database 網址。','err');return false;}
+  if(!await askUploadPw()){fbLog('已取消上傳。');return false;}
+  fbSetAuth(true);
+  try{
+    const r=await fetch(e.replace(/\.json$/,'/DB/dates.json'),{cache:'no-store'});
+    if(r.ok){
+      const cd=await r.json();
+      const cloudLast=Array.isArray(cd)&&cd.length?cd[cd.length-1]:'';
+      const localLast=DB.dates.length?DB.dates[DB.dates.length-1]:'';
+      if(cloudLast&&(!localLast||cloudLast>localLast)&&
+         !confirm(`雲端資料（${fmtD(cloudLast)}）比這台（${localLast?fmtD(localLast):'沒有資料'}）新。\n上傳會把雲端蓋回比較舊的版本，確定要上傳嗎？`)){
+        fbLog('已取消上傳（雲端比較新）。');return false;}
+    }
+  }catch(err){}
+  return fbPush(false,true);
+}
+async function fbPush(quiet,authed){
   const e=fbEnd(); if(!e){if(!quiet)fbLog('先填 Realtime Database 網址。','err');return false;}
+  if(!authed&&!fbDevAuthed()){fbLog('這台裝置未授權上傳，自動上傳已略過（雲端沒被動到）。要上傳請按「🔒 上傳雲端」輸入密碼。');return false;}
   const body=JSON.stringify({at:Date.now(),DB});
   fbLog(`上傳中…（${(body.length/1048576).toFixed(2)} MB）`);
   try{
@@ -5265,7 +5360,55 @@ $('#ipCode').oninput=()=>{
 };
 $('#ipCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ipGo();}};
 $('#fbFind').onclick=()=>fbDetect();
-$('#fbUp').onclick=()=>{fbSaveCfg();fbPush();};
+$('#fbUp').onclick=()=>{fbSaveCfg();fbPushManual();};
+/* V245：「載入最新」按鈕上方顯示資料日期，一眼看出是不是最新
+   ✓ 綠字＝資料就是今天／黃字＝資料不是今天（收盤資料約 14:30、法人約 16:00 才出來）
+   雲端有比本機新的資料 → 按鈕整顆閃黃光，寫「雲端有 MM/DD」 */
+let CLOUD_LAST='';
+async function fbCloudLast(){
+  const e=fbEnd(); if(!e)return '';
+  try{const r=await fetch(e.replace(/\.json$/,'/DB/dates.json'),{cache:'no-store'});
+    if(!r.ok)return CLOUD_LAST; const d=await r.json();
+    CLOUD_LAST=Array.isArray(d)&&d.length?d[d.length-1]:'';}catch(err){}
+  return CLOUD_LAST;
+}
+const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'—';
+function paintLoadBtn(){
+  const b=$('#btnLoad'),t=$('#loadDate'); if(!b||!t||b.disabled)return;
+  const local=DB.dates&&DB.dates.length?DB.dates[DB.dates.length-1]:'';
+  const today=ymd(new Date());
+  b.classList.remove('fresh','newer');
+  if(CLOUD_LAST&&CLOUD_LAST>local){
+    b.classList.add('newer'); t.textContent=`雲端有 ${md(CLOUD_LAST)} · 本機 ${md(local)}`;
+  }else if(local&&local===today){
+    b.classList.add('fresh'); t.textContent=`✓ 今日最新 ${md(local)}`;
+  }else{
+    t.textContent=`資料 ${md(local)} · 今天 ${md(today)}`;
+  }
+}
+// 每次主畫面重畫（更新完、下載完、開頁）都順便更新按鈕上的日期
+const _paintStrip=paintStrip;
+paintStrip=function(){const r=_paintStrip.apply(this,arguments);try{paintLoadBtn();}catch(e){}return r;};
+// 開著頁面時每 5 分鐘看一下雲端有沒有新資料（只抓日期清單，很小）
+async function checkCloudNewer(){ if(!fbEnd())return; await fbCloudLast(); paintLoadBtn(); }
+setInterval(checkCloudNewer,5*60*1000);
+
+$('#btnLoad').onclick=async()=>{
+  const b=$('#btnLoad'),tx=$('#loadTxt'); b.disabled=true; b.classList.remove('newer'); tx.textContent='讀取中…';
+  let msg='⬇ 載入最新';
+  try{
+    if(!fbEnd()){ if(!await fbDetect()){msg='⚠ 找不到雲端';return;} }
+    const ok=await fbPull(true);
+    const last=DB.dates.length?DB.dates[DB.dates.length-1]:'';
+    if(!ok&&last)run();
+    await fbCloudLast();
+    msg=!last?'⚠ 雲端沒資料':ok?'✓ 已載入':'✓ 已是最新';
+  }catch(err){msg='⚠ 讀取失敗';}
+  finally{
+    b.disabled=false; tx.textContent=msg; paintLoadBtn();
+    setTimeout(()=>{tx.textContent='⬇ 載入最新';},5000);
+  }
+};
 $('#fbDown').onclick=()=>{fbSaveCfg();fbPull();};
 ['#fbUrl','#fbPath'].forEach(k=>$(k).onchange=fbSaveCfg);
 $('#fbAuto').onchange=fbSaveCfg;
@@ -5370,12 +5513,12 @@ $('#btnTour').onclick=tourStart;
   $('#guard').querySelectorAll('input,select,button').forEach(x=>x.disabled=true);
   const cfg=await store.get(KEY3);
   if(cfg){$('#fbUrl').value=cfg.url||'';if(cfg.path)$('#fbPath').value=cfg.path;$('#fbAuto').checked=cfg.auto!==false;}
-  paintStrip();
+  paintStrip(); paintFbAuth();
   if($('#fbAuto').checked){
     (async()=>{
       let url=$('#fbUrl').value.trim();
       if(!url){fbLog('偵測資料庫網址…');url=await fbDetect();}
-      if(url)fbPull(true);
+      if(url){await fbPull(true);checkCloudNewer();}
     })();
   }
   $('#log').innerHTML=migrated
