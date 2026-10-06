@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V33</title>
+<title>點名台 V34</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -91,7 +91,7 @@ progress{width:100%;height:6px;margin-top:8px}
 .call .verdict.bull{background:var(--up-bg);color:var(--up)}
 .call .verdict.bear{background:var(--down-bg);color:var(--down)}
 .call .verdict.neutral{background:var(--neutral-bg);color:var(--neutral)}
-.call .quote{margin:10px 0 0;padding-left:11px;border-left:3px solid var(--line);font-size:13.5px;color:var(--muted);line-height:1.55}
+.call .quote{white-space:pre-wrap;margin:10px 0 0;padding-left:11px;border-left:3px solid var(--line);font-size:13.5px;color:var(--muted);line-height:1.55}
 .call .zh{margin:5px 0 0;padding-left:11px;border-left:3px solid var(--line);font-size:14.5px}
 .call .why{margin:9px 0 0;font-size:14px}
 .call .rel{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
@@ -133,7 +133,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V33</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V34</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -253,8 +253,9 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
-const DEFAULT_SOURCES = `#v5
+const DEFAULT_SOURCES = `#v6
 川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
+國會交易 | trades | 申報揭露 | https://www.capitoltrades.com/trades
 美國財經 | news | 頭條 | https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en
 關稅與貿易 | news | 主題新聞 | https://news.google.com/rss/search?q=(tariff+OR+tariffs+OR+%22trade+deal%22+OR+%22export+controls%22)+(Trump+OR+%22White+House%22+OR+Commerce)+when:3d&hl=en-US&gl=US&ceid=US:en
 聯準會與利率 | news | 主題新聞 | https://news.google.com/rss/search?q=(%22Federal+Reserve%22+OR+%22Fed+chair%22+OR+FOMC)+(rates+OR+inflation+OR+cut)+when:3d&hl=en-US&gl=US&ceid=US:en
@@ -274,7 +275,7 @@ function parseSources(raw){
   return String(raw||"").split("\n").map(line => {
     const [person, kind, note, url] = line.split("|").map(x => (x||"").trim());
     if (!person || !url) return null;
-    return { person, kind: kind === "news" ? "news" : "archive", note: note || "", url };
+    return { person, kind: ["news","trades"].includes(kind) ? kind : "archive", note: note || "", url };
   }).filter(Boolean);
 }
 function refreshSources(){ SOURCES = parseSources(SOURCE_RAW); }
@@ -332,7 +333,7 @@ async function boot(){
   try{
     const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
     if (typeof sr === "string" && sr.trim()){
-      if (!sr.includes("#v5")){
+      if (!sr.includes("#v6")){
         try{ await fbPut("sources_backup", sr); await fbPut("sources", DEFAULT_SOURCES); SOURCE_RAW = DEFAULT_SOURCES; }
         catch(e){ SOURCE_RAW = sr; }
       } else SOURCE_RAW = sr;
@@ -648,6 +649,105 @@ async function translate(text, signal){
   return "";
 }
 
+/* ---------- 國會交易 ---------- */
+const US2THEME = {
+  NVDA:"半導體", TSM:"半導體", AMD:"半導體", INTC:"半導體", MU:"半導體", AVGO:"半導體", ASML:"半導體",
+  MSFT:"AI 伺服器", GOOGL:"AI 伺服器", GOOG:"AI 伺服器", AMZN:"AI 伺服器", META:"AI 伺服器", ORCL:"AI 伺服器", SMCI:"AI 伺服器", DELL:"AI 伺服器", VRT:"電力與重電",
+  AAPL:"消費電子", TSLA:"汽車與電動車", GM:"汽車與電動車", F:"汽車與電動車",
+  BA:"航太與國防", LMT:"航太與國防", RTX:"航太與國防", NOC:"航太與國防", GD:"航太與國防", LHX:"航太與國防",
+  XOM:"塑化與石油", CVX:"塑化與石油", COP:"塑化與石油", SLB:"塑化與石油", OXY:"塑化與石油",
+  MP:"稀土磁材", FCX:"電線電纜與銅", NUE:"鋼鐵", X:"鋼鐵", CLF:"鋼鐵", NTR:"肥料", MOS:"肥料", CF:"肥料",
+  LLY:"生技製藥", PFE:"生技製藥", MRK:"生技製藥", JNJ:"生技製藥", UNH:"生技製藥",
+  FSLR:"太陽能", ENPH:"太陽能", GEV:"電力與重電", CEG:"電力與重電", NEE:"電力與重電",
+  ZIM:"航運", MATX:"航運", CAT:"工具機", DE:"工具機", HON:"機器人與自動化", ISRG:"機器人與自動化",
+  PANW:"資安", CRWD:"資安", ZS:"資安", ANET:"網通", CSCO:"網通", RKLB:"航太與國防", PLTR:"AI 伺服器"
+};
+function parseTrades(raw){
+  const text = toText(raw).replace(/[ \t]{2,}/g," ").replace(/\n+/g,"\n");
+  const out = [];
+  const DATE = "(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+\\w{3,9}\\s+\\d{4}|\\w{3,9}\\s+\\d{1,2},\\s+\\d{4})";
+  const SIZE = "(?:[<>]?\\s*\\$?[\\d.,]+\\s*[KMB]?\\s*[–\\-—]\\s*\\$?[\\d.,]+\\s*[KMB]?|\\$?[\\d.,]+[KMB])";
+  // 嚴格：一列一筆，順序是 人名 黨籍 院別 … 代號 日期 日期 … 方向 金額
+  const strict = new RegExp(
+    "([A-Z][A-Za-z.'\\-]+(?:\\s+[A-Z][A-Za-z.'\\-]+){1,3})\\s+(Democrat|Republican|Independent)\\s+(House|Senate)" +
+    "[\\s\\S]{0,80}?\\b([A-Z]{1,5}):(?:US|NASDAQ|NYSE|N\\/A)\\b" +
+    "[\\s\\S]{0,120}?(" + DATE + ")[\\s\\S]{0,40}?(" + DATE + ")" +
+    "[\\s\\S]{0,80}?\\b(buy|bought|purchase|sell|sold|sale|exchange)\\b" +
+    "[\\s\\S]{0,40}?(" + SIZE + ")", "gi");
+  let m;
+  while ((m = strict.exec(text)) !== null){
+    const rawName = m[1].split(/\n/).pop().replace(/\b(?:Type|Size|Owner|Trade|Issuer|Politician|Published|Filed|Traded|after)\b/gi,"").replace(/\s{2,}/g," ").trim();
+    out.push({ member: rawName,
+      party: m[2], chamber: m[3], ticker: m[4].toUpperCase(),
+      type: /s(ell|old|ale)/i.test(m[7]) ? "sell" : (/exchange/i.test(m[7]) ? "exchange" : "buy"),
+      filedDate: m[5], tradeDate: m[6], amount: m[8].replace(/\s+/g,"") });
+  }
+  if (!out.length){
+    // 寬鬆：以代號為錨點，只在那一列的範圍內找方向與金額
+    const re = new RegExp("\\b([A-Z]{1,5}):(?:US|NASDAQ|NYSE)\\b", "g");
+    const marks = [];
+    let x; while ((x = re.exec(text)) !== null) marks.push({ tk:x[1], at:x.index });
+    marks.forEach((mk, i) => {
+      const rowStart = i ? Math.max(marks[i-1].at + 10, mk.at - 400) : Math.max(0, mk.at - 400);
+      const rowEnd = i + 1 < marks.length ? Math.min(marks[i+1].at - 10, mk.at + 400) : mk.at + 400;
+      const row = text.slice(rowStart, rowEnd);
+      const after = text.slice(mk.at, rowEnd);
+      const t = /\b(sell|sold|sale)\b/i.test(after) ? "sell" : (/\b(buy|bought|purchase)\b/i.test(after) ? "buy" : "");
+      if (!t) return;
+      const dates = (row.match(new RegExp(DATE, "g")) || []);
+      const amt = (row.match(new RegExp(SIZE)) || [])[0] || "";
+      const nm = (row.match(/([A-Z][a-z]+(?:\s+[A-Z][A-Za-z.'\-]+){1,2})(?=\s+(?:Democrat|Republican|Independent|House|Senate))/) || [])[1]
+              || (row.match(/([A-Z][a-z]+\s+[A-Z][A-Za-z.'\-]+)/) || [])[1] || "";
+      if (!nm) return;
+      out.push({ member: nm.trim(), ticker: mk.tk.toUpperCase(), type: t,
+        filedDate: dates[0] || "", tradeDate: dates[1] || dates[0] || "", amount: amt.replace(/\s+/g,"") });
+    });
+  }
+  const seen = new Set();
+  return out.filter(t => {
+    const k = t.member + "|" + t.ticker + "|" + t.type + "|" + t.tradeDate;
+    if (seen.has(k)) return false; seen.add(k); return true;
+  });
+}
+function tradesToCalls(rows, src){
+  const byTicker = {};
+  rows.forEach(t => { (byTicker[t.ticker] ||= []).push(t); });
+  const out = [];
+  Object.entries(byTicker).forEach(([tk, list]) => {
+    const buyers = [...new Set(list.filter(x=>x.type==="buy").map(x=>x.member))];
+    const sellers = [...new Set(list.filter(x=>x.type==="sell").map(x=>x.member))];
+    if (!buyers.length && !sellers.length) return;
+    const stance = buyers.length > sellers.length ? "bull" : (sellers.length > buyers.length ? "bear" : "neutral");
+    const concentrated = (buyers.length + sellers.length) <= 1;
+    const detail = list.slice(0, 8).map(x =>
+      `${x.member}　${x.type === "buy" ? "買進" : "賣出"}${x.amount ? "　" + x.amount : ""}${x.tradeDate ? "　成交 " + x.tradeDate : ""}${x.filedDate ? "　申報 " + x.filedDate : ""}`).join("\n");
+    out.push({ id: safeKey("ct-" + tk + "-" + (list[0].tradeDate || "")), postId: "ct-" + tk,
+      ts: Date.now(), link: src.url, person: "國會交易", note: src.note || "申報揭露", outlet: "capitoltrades.com",
+      target: tk, targetEn: tk, kind: "美股", stance,
+      quote: `${buyers.length} 人買進 / ${sellers.length} 人賣出　共 ${list.length} 筆申報\n${detail}`,
+      zh: "", why: concentrated ? "只有一個人在動，屬個人部位調整，不算共識。"
+        : `${buyers.length} 位買進、${sellers.length} 位賣出，分散在多人，才算得上共識訊號。申報有法定延遲，成交日通常早於申報日。`,
+      theme: US2THEME[tk] || "", related: [tk], local: true, trade: true });
+  });
+  return out.sort((a,b) => (b.quote.length - a.quote.length));
+}
+async function fetchTrades(src, signal){
+  const order = CONFIG.proxy === "auto" ? ["jina","allorigins","codetabs","direct"] : [CONFIG.proxy];
+  for (const via of order){
+    try{
+      const res = await fetch(PROXIES[via](src.url), { signal });
+      if (!res.ok) continue;
+      const raw = await res.text();
+      const rows = parseTrades(raw);
+      if (rows.length) return tradesToCalls(rows, src);
+      NEWS_ERR["國會交易"] = via + " 抓到頁面但讀不出交易列";
+      TRADE_SAMPLE = toText(raw).replace(/\s+/g," ").slice(0, 240);
+    }catch(e){ if (e.name === "AbortError") throw e; NEWS_ERR["國會交易"] = via + " " + e.message; }
+  }
+  return [];
+}
+let TRADE_SAMPLE = "";
+
 /* ---------- 「要打誰」偵測 ---------- */
 const COUNTRIES = [
   ["Cuba","古巴"],["Venezuela","委內瑞拉"],["Iran","伊朗"],["Russia","俄羅斯"],["China","中國"],
@@ -872,6 +972,15 @@ $("#update").onclick = async () => {
     catch(e){ if (e.name === "AbortError") throw e; setStatus(e.message, true); }
     const perSource = [];
     if (items.length) perSource.push(`川普 ${items.length} 則`);
+    for (const src of SOURCES.filter(x => x.kind === "trades")){
+      setStatus("抓取國會交易申報…");
+      try{
+        const calls = await fetchTrades(src, CTL.signal);
+        calls.forEach(c => { CALLS[c.id] = c; fbPut("calls/" + c.id, c).catch(()=>{}); });
+        perSource.push(`國會交易 ${calls.length} 檔${calls.length ? "" : "（" + (NEWS_ERR["國會交易"] || "沒有結果") + "）"}`);
+        cache(); render();
+      }catch(e){ if (e.name === "AbortError") throw e; perSource.push("國會交易 抓取失敗"); }
+    }
     for (const src of SOURCES.filter(x => x.kind === "news")){
       setStatus(`抓取 ${src.person} 的新聞…`);
       try{
@@ -1120,7 +1229,7 @@ function render(){
   });
   const uniq = Object.values(best).sort((a,b) => b.ts - a.ts);
 
-  const VOICES = ["川普","馬斯克","黃仁勳"];
+  const VOICES = ["川普","馬斯克","黃仁勳","國會交易"];
   const lead = uniq.filter(c => VOICES.includes(c.person || "川普"));
   const news = uniq.filter(c => !VOICES.includes(c.person || "川普"));
   const usedNews = new Set();
