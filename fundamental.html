@@ -20,6 +20,17 @@ button{font-family:inherit;cursor:pointer}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;
   background:linear-gradient(180deg,#1a2230,#141a24);border:1px solid var(--line);border-radius:10px}
 header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.5px}
+.ldbtn{display:flex;flex-direction:column;align-items:center;gap:4px;
+  background:linear-gradient(180deg,#1f8f63,#167452);color:#fff;border:2px solid #3ee39b;
+  border-radius:12px;padding:6px 16px 7px;font-family:inherit;cursor:pointer;
+  box-shadow:0 0 16px rgba(62,227,155,.28);transition:.15s}
+.ldbtn:hover{filter:brightness(1.12)}
+.ldbtn:disabled{opacity:.6;cursor:wait}
+.ldbtn b{font-size:14.5px;letter-spacing:.5px}
+.ldpill{font-size:11px;font-weight:700;border-radius:20px;padding:1px 10px;
+  background:rgba(0,0,0,.28);color:#c8f7df;white-space:nowrap}
+.ldpill.new{background:#f0b429;color:#1a1206}
+.ldpill.warn{background:#5c2b32;color:#ffc9c9}
 .ver{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 6px;font-weight:700}
 .hspace{flex:1}
 .btn{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:7px;
@@ -388,14 +399,15 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V61</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V74</span>
   <div class="hspace"></div>
   <div class="modebtns" id="modeBtns">
     <button class="mbtn on" data-mode="chip" title="投信在買誰、我進場的成本跟他們差多遠">卡位模式</button>
     <button class="mbtn" data-mode="fund" title="不看籌碼，只看營收獲利與估值">純基本面</button>
     <button class="mbtn" data-mode="momo" title="不看法人，只看技術面四關有沒有轉強">動能趨勢</button>
   </div>
-  <button class="btn pri" id="btnRun">更新並篩選</button>
+  <button class="ldbtn" id="btnLoad" title="只讀雲端，不連證交所，幾秒就好"><span class="ldpill" id="ldPill">檢查雲端…</span><b>⬇ 載入最新</b></button>
+  <button class="btn pri" id="btnRun" title="雲端沒有的日子才去證交所抓，抓完自動存上雲端">更新並篩選</button>
   <div class="hspace"></div>
   <button class="btn" id="btnFund">強制重抓基本面</button>
   <button class="btn" id="btnHot" data-chiponly="1">強勢版 15 檔</button>
@@ -643,7 +655,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V73';
+const VER = 'V74';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -1180,6 +1192,135 @@ async function loadFromCloud(fails){
 
 /* 把本機已有的東西一次全部灌上雲端。
    給「在通的網路上跑一次」的那個人用，跑完同事就有得讀了。 */
+/* ==========================================================================
+   V74：雲端最新（跟盤後選股台一樣的「載入最新」）
+   任何人掃過一次，資料就留在 /kawei/days，另外記一筆 /kawei/meta
+   {last:最新交易日, at, fundAt}。之後打開網頁只讀雲端、不再重掃。
+   ========================================================================== */
+function mmdd(d){ return d ? d.slice(4,6) + '/' + d.slice(6,8) : '—'; }
+function localLast(){ return DATA.dates[DATA.dates.length-1] || ''; }
+
+/* 雲端上「真的有資料」的交易日。shallow 查詢下，物件回 true、
+   字串 'holiday' 原樣回來，所以只收 true 就能濾掉非交易日標記。 */
+async function cloudDayKeys(){
+  const idx = await fbGet('kawei/days?shallow=true');
+  if(!idx) return [];
+  return Object.keys(idx).filter(k => /^\d{8}$/.test(k) && idx[k] === true).sort();
+}
+async function cloudMeta(){
+  let meta = null;
+  try{ meta = await fbGet('kawei/meta'); }catch(e){}
+  if(meta && meta.last) return meta;
+  // 舊資料沒有 meta：從索引推出來
+  const keys = await cloudDayKeys();
+  return keys.length ? {last: keys[keys.length-1], at:0, fundAt:0, derived:true} : null;
+}
+async function fbWriteMeta(){
+  if(!fbReady() || fbOnlyMode() || !DATA.dates.length) return;
+  try{
+    const old = await fbGet('kawei/meta') || {};
+    const last = localLast() > (old.last || '') ? localLast() : old.last;
+    await fbPut('kawei/meta', {last, at: Date.now(),
+      fundAt: Math.max(DATA.fundAt || 0, old.fundAt || 0)});
+  }catch(e){}
+}
+
+function setPill(txt, cls){
+  const el = document.getElementById('ldPill');
+  if(!el) return;
+  el.textContent = txt;
+  el.className = 'ldpill' + (cls ? ' ' + cls : '');
+}
+/* 只看雲端最新是哪天，不下載。用來決定小標籤怎麼寫。 */
+async function refreshPill(){
+  if(!fbReady()){ setPill('雲端未啟用', 'warn'); return null; }
+  try{
+    const meta = await cloudMeta();
+    if(!meta){ setPill('雲端還是空的', 'warn'); return null; }
+    const loc = localLast();
+    if(loc && loc >= meta.last) setPill('✓ 已是雲端最新 ' + mmdd(meta.last));
+    else setPill('雲端有新資料 ' + mmdd(meta.last), 'new');
+    return meta;
+  }catch(e){ setPill('連不上雲端', 'warn'); return null; }
+}
+
+/* 載入最新：只跟 Firebase 要，絕不碰證交所。 */
+let LOADING = false;
+async function loadLatest(auto){
+  if(LOADING) return;
+  const btn = document.getElementById('btnLoad');
+  if(!fbReady()){
+    setPill('雲端未啟用', 'warn');
+    if(!auto) setStatus('<span style="color:#ff9d9d">雲端快取沒啟用。</span>按「展開設定」→「資料源」填 Firebase 網址並勾選啟用。', false, true);
+    return;
+  }
+  LOADING = true; btn.disabled = true; setPill('讀取雲端…');
+  const fails = [];
+  try{
+    const meta = await cloudMeta();
+    if(!meta){ setPill('雲端還是空的', 'warn');
+      setStatus('雲端還沒有任何資料。先按一次「更新並篩選」，掃完會自動存上雲端，之後就只要按「載入最新」。', false, true);
+      return; }
+
+    const keys = await cloudDayKeys();
+    const span = Math.max(+document.getElementById('fDays').value || 60, MOMO_NEED);
+    const have = new Set(DATA.dates);
+    const need = keys.slice(-span).filter(d => !have.has(d));
+
+    // 六筆一組並行下載，比一天一天等快得多
+    let got = 0;
+    for(let i = 0; i < need.length; i += 6){
+      const batch = need.slice(i, i+6);
+      setStatus(`從雲端載入 ${mmdd(batch[0])}～${mmdd(batch[batch.length-1])}（${Math.min(i+6,need.length)}/${need.length}）`,
+                true, false, Math.round(i/Math.max(need.length,1)*80));
+      const res = await Promise.all(batch.map(d =>
+        fbGet('kawei/days/' + d).then(v => [d, v]).catch(e => { fails.push(`${d}：${e.message}`); return [d, null]; })));
+      for(const [d, day] of res){
+        if(day && day.ins && day.px){ pushDay(d, day.ins, day.px); got++; }
+      }
+    }
+
+    // 基本面快照很大，只有雲端比本機新才下載
+    let fundNew = false;
+    if(!DATA.fundAt || (meta.fundAt || 0) > (DATA.fundAt || 0) || meta.derived){
+      setStatus('從雲端載入基本面快照…', true, false, 88);
+      try{
+        const snap = await fbGet('kawei/fund');
+        if(snap && snap.data && (snap.at || 0) > (DATA.fundAt || 0)){
+          for(const c in snap.data){
+            const src = snap.data[c], dst = fRec(c);
+            ['name','ind','mkt','rev','is','bs','val','co','foreignPct'].forEach(k => {
+              if(src[k] !== undefined && src[k] !== null) dst[k] = src[k]; });
+          }
+          DATA.fundAt = snap.at || Date.now();
+          fundNew = true;
+        }
+      }catch(e){ fails.push('基本面：' + e.message); }
+      try{
+        const hist = await fbGet('kawei/hist');
+        if(hist){ DATA.hist = DATA.hist || {};
+          for(const p in hist) DATA.hist[p] = Object.assign({}, hist[p], DATA.hist[p] || {}); }
+      }catch(e){}
+    }
+
+    DATA.runAt = Date.now();
+    cacheSave(); cacheInfo();
+    score();
+    const cloudLast = keys.length ? keys[keys.length-1] : meta.last;
+    setPill('✓ 已是雲端最新 ' + mmdd(cloudLast));
+    setStatus((got || fundNew)
+      ? `已從雲端載入 <b>${got}</b> 個新交易日${fundNew ? '＋基本面' : ''}，資料到 <b>${mmdd(localLast())}</b>。`
+        + (fails.length ? ` <span style="color:#ff9d9d">${fails.length} 筆讀取失敗。</span>` : '')
+      : `本機已經是雲端最新（${mmdd(cloudLast)}）。雲端也沒有更新的日子時，才需要按「更新並篩選」去證交所抓。`,
+      false, fails.length > 0);
+  }catch(e){
+    setPill('連不上雲端', 'warn');
+    setStatus(`<span style="color:#ff9d9d">讀雲端失敗：${e.message}</span>`, false, true);
+  }finally{
+    LOADING = false; btn.disabled = false;
+  }
+}
+
 async function pushAllToCloud(){
   const btn = document.getElementById('btnFbPush');
   const el  = document.getElementById('fbState');
@@ -1213,6 +1354,7 @@ async function pushAllToCloud(){
   btn.disabled = false;
   el.innerHTML = `已上傳 <b style="color:var(--tx)">${ok}</b> 個交易日、基本面 ${Object.keys(DATA.fund).length} 檔`
                + (bad ? `，<span style="color:#ff9d9d">${bad} 項失敗</span>` : '。同事現在勾「只讀雲端」就能用了。');
+  await fbWriteMeta(); refreshPill();
   setStatus(`灌雲端完成：${ok} 個交易日。`, false, bad > 0);
 }
 
@@ -1884,6 +2026,8 @@ async function runAll(){
   const btn = document.getElementById('btnRun');
   try{
     await runAllInner();
+    await fbWriteMeta();
+    refreshPill();
   }catch(e){
     console.error(e);
     btn.disabled = false;
@@ -2559,9 +2703,9 @@ function renderGuide(){
   if(st.key === 'pick'){
     next = '<b>第一步：先選模式</b>（表頭那三顆）。不確定就用卡位模式。';
   } else if(st.key === 'nodata'){
-    next = '<b>第二步：按「更新並篩選」。</b>第一次約兩三分鐘，之後只補新的。';
+    next = '<b>第二步：先按綠色「載入最新」</b>（直接讀雲端，幾秒）。雲端也沒有的日子才需要按「更新並篩選」。';
   } else if(st.key === 'short'){
-    next = `<b>再按一次「更新並篩選」。</b>目前只有 ${n} 個交易日，`
+    next = `<b>按「載入最新」或「更新並篩選」。</b>目前只有 ${n} 個交易日，`
          + `動能欄位至少要 ${MOMO_NEED} 天才算得出來，還缺 ${Math.max(0, 60-n)} 天。`;
   } else if(MODE === 'chip'){
     next = '<b>資料夠了。</b>卡位模式：投信在買誰、我的成本跟他們差多遠。'
@@ -6235,6 +6379,12 @@ cacheInfo();
 renderProbe();
 renderVintage();
 if(DATA.dates.length) score();
+document.getElementById('btnLoad').onclick = () => loadLatest(false);
+/* 打開網頁就自動對雲端：雲端比本機新就直接載入，不用按任何按鈕、也不重掃。 */
+setTimeout(async () => {
+  const meta = await refreshPill();
+  if(meta && meta.last > localLast()) loadLatest(true);
+}, 300);
 </script>
 </body>
 </html>
