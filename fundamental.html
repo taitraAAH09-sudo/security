@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法人卡位選股台 V73</title>
+<title>法人卡位選股台 V75</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b24; --panel2:#1b222d; --line:#28313f;
@@ -399,7 +399,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
 <div class="wrap">
 
 <header>
-  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V74</span>
+  <h1>法人卡位選股台</h1><span class="ver" id="vtag">V75</span>
   <div class="hspace"></div>
   <div class="modebtns" id="modeBtns">
     <button class="mbtn on" data-mode="chip" title="投信在買誰、我進場的成本跟他們差多遠">卡位模式</button>
@@ -655,7 +655,7 @@ body.touring header > .tlit{opacity:1;position:relative;border-radius:9px;
    ========================================================================== */
 /* 版號只在這裡改一次，標題與右上角徽章都從這裡推出去。
    每交付一版就 +1。 */
-const VER = 'V74';
+const VER = 'V75';
 document.getElementById('vtag').textContent = VER;
 document.title = '法人卡位選股台 ' + VER;
 
@@ -838,22 +838,68 @@ const CACHE_KEY = 'kawei_cache_v2';
 let DATA = {dates:[], px:{}, ins:{}, fund:{}, hist:{}, fundAt:0, epAt:{}};
 let ROWS = [], PROBE = {}, SORT = {k:'score', dir:-1}, SELECTED = null;
 
-function cacheLoad(){
-  try{
-    const o = JSON.parse(localStorage.getItem(CACHE_KEY));
-    if(o && o.dates) DATA = Object.assign(DATA, o);
-  }catch(e){}
+/* V75：快取從 localStorage 搬到 IndexedDB。
+   localStorage 是 taitraaah09-sudo.github.io 底下所有工具共用、只有約 10MB；
+   這份快取一個就 5MB 以上，會把空間塞滿，連帶讓 Firebase 工具（專卷、Gurus…）全部連不上。
+   IndexedDB 上限是 GB 等級，也不跟其他工具搶 localStorage。 */
+const KW_IDB = 'kaweiDB';
+let CACHE_SZ = 0, _cacheT = null;
+function kwIdb(mode, fn){
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open(KW_IDB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+    rq.onerror = () => rej(rq.error);
+    rq.onsuccess = () => {
+      const db = rq.result, tx = db.transaction('kv', mode), r = fn(tx.objectStore('kv'));
+      let out; if(r) r.onsuccess = () => { out = r.result; };
+      tx.oncomplete = () => { db.close(); res(out); };
+      tx.onerror = tx.onabort = () => { db.close(); rej(tx.error); };
+    };
+  });
+}
+async function cacheLoad(){
+  let o = null;
+  try{ o = await kwIdb('readonly', st => st.get(CACHE_KEY)); }catch(e){ console.warn('IndexedDB 讀取失敗', e); }
+  /* 搬家：舊版留在 localStorage 的快取，搬進 IndexedDB 後才刪掉 */
+  let legacy = null;
+  try{ legacy = localStorage.getItem(CACHE_KEY); }catch(e){}
+  if(legacy){
+    try{
+      const lo = JSON.parse(legacy);
+      if(lo && lo.dates && (!o || !o.dates || lo.dates.length > o.dates.length)) o = lo;
+    }catch(e){}
+    try{
+      if(o) await kwIdb('readwrite', st => st.put(o, CACHE_KEY));
+      localStorage.removeItem(CACHE_KEY);
+      console.log('[卡位] 快取已從 localStorage 搬到 IndexedDB');
+    }catch(e){ console.warn('快取搬家失敗，先沿用 localStorage', e); }
+  }
+  if(o && o.dates){
+    DATA = Object.assign(DATA, o);
+    try{ CACHE_SZ = JSON.stringify(o).length; }catch(e){}
+  }
 }
 function cacheSave(){
-  try{ localStorage.setItem(CACHE_KEY, JSON.stringify(DATA)); }
-  catch(e){ console.warn('快取寫入失敗（可能超過瀏覽器容量）', e); }
+  clearTimeout(_cacheT);          // 連續存檔合併成一次，避免每抓一天就整份重寫
+  _cacheT = setTimeout(async () => {
+    try{
+      await kwIdb('readwrite', st => st.put(DATA, CACHE_KEY));
+      try{ CACHE_SZ = JSON.stringify(DATA).length; }catch(e){}
+      cacheInfo();
+    }catch(e){ console.warn('快取寫入失敗', e); }
+    _cacheT = null;
+  }, 300);
 }
+/* 關分頁前還有沒寫完的就立刻寫 */
+addEventListener('pagehide', () => {
+  if(_cacheT){ clearTimeout(_cacheT); _cacheT = null; kwIdb('readwrite', st => st.put(DATA, CACHE_KEY)).catch(()=>{}); }
+});
 function cacheInfo(){
   const el = document.getElementById('cacheInfo');
   if(!el) return;
   const d = DATA.dates;
   let sz = 0;
-  try{ sz = (localStorage.getItem(CACHE_KEY)||'').length; }catch(e){}
+  sz = CACHE_SZ;
   el.innerHTML = d.length
     ? `本機已快取 <b style="color:var(--tx)">${d.length}</b> 個交易日（${d[0]} → ${d[d.length-1]}），個股 <b style="color:var(--tx)">${Object.keys(DATA.px).length}</b> 檔，基本面 <b style="color:var(--tx)">${Object.keys(DATA.fund).length}</b> 檔，約 ${(sz/1048576).toFixed(1)} MB。`
     : '本機還沒有快取。';
@@ -6176,7 +6222,7 @@ document.getElementById('docOut').innerHTML = `
 <li><b>基本面</b>：<code>openapi.twse.com.tw</code> 的月營收、綜合損益表、資產負債表、本益比，加 TPEx 對應端點。這些只有最新一期快照，但卡位主題只需要「當期基本面好不好」，不需要歷史。</li>
 </ul>
 <p>第一次執行抓約 25 個交易日（在「資料源」可調到 70），大概一兩分鐘。
-之後每天只補新的那一天。資料存在瀏覽器 localStorage（<code>${CACHE_KEY}</code>）。</p>
+之後每天只補新的那一天。資料存在瀏覽器 IndexedDB（<code>${CACHE_KEY}</code>），不佔其他工具共用的 localStorage。</p>
 
 <h3>目前的限制</h3>
 <ul>
@@ -6351,7 +6397,10 @@ document.getElementById('btnFixHoliday').onclick = async () => {
 
 document.getElementById('btnClear').onclick = () => {
   if(!confirm('清空本機快取？下次執行會重新抓一次。')) return;
+  clearTimeout(_cacheT);
+  kwIdb('readwrite', st => st.delete(CACHE_KEY)).catch(()=>{});
   try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
+  CACHE_SZ = 0;
   DATA = {dates:[], px:{}, ins:{}, fund:{}, fundAt:0};
   ROWS = []; render(); cacheInfo();
 };
@@ -6361,7 +6410,8 @@ document.getElementById('btnCols').onclick = () =>
 document.getElementById('btnColsCore').onclick = () => colSet(COL_CORE);
 document.getElementById('btnColsAll').onclick = () => { COL_HIDDEN = new Set(); colApply(); colPanel(); };
 
-cacheLoad();
+(async () => {
+await cacheLoad();
 fbLoad();
 myProxyLoad();
 myProxySave();
@@ -6385,6 +6435,7 @@ setTimeout(async () => {
   const meta = await refreshPill();
   if(meta && meta.last > localLast()) loadLatest(true);
 }, 300);
+})();
 </script>
 </body>
 </html>
