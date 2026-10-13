@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V248</title>
+<title>盤後篩選台 V249</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -703,7 +703,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V248</span>
+    <h1>盤後篩選台</h1><span class="ver">V249</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -968,16 +968,44 @@ function unpackDB(db){
   }
   return db;
 }
+/* V249：主資料（twstk2_cache）改存 IndexedDB。
+   localStorage 是 taitraaah09-sudo.github.io 底下所有工具共用、只有約 10MB，
+   這份資料一個就近 2MB，塞滿後 Firebase 工具（專卷、Gurus…）會全部連不上。
+   IndexedDB 上限是 GB 等級，也不用再為了塞進 5MB 而砍歷史天數。設定等小東西仍留在 localStorage。 */
+const TW_IDB='twstkDB';
+const useIdb=k=>k===KEY&&!window.storage&&typeof indexedDB!=='undefined';
+function twIdb(mode,fn){
+  return new Promise((res,rej)=>{
+    const rq=indexedDB.open(TW_IDB,1);
+    rq.onupgradeneeded=()=>rq.result.createObjectStore('kv');
+    rq.onerror=()=>rej(rq.error);
+    rq.onsuccess=()=>{const db=rq.result,tx=db.transaction('kv',mode),r=fn(tx.objectStore('kv'));
+      let out;if(r)r.onsuccess=()=>{out=r.result;};
+      tx.oncomplete=()=>{db.close();res(out);};
+      tx.onerror=tx.onabort=()=>{db.close();rej(tx.error);};};
+  });
+}
 const store={
   async get(k){try{
     let v=null;
     if(window.storage){const r=await window.storage.get(k);v=r?JSON.parse(r.value):null;}
+    else if(useIdb(k)){
+      let t=null;try{t=await twIdb('readonly',st=>st.get(k));}catch(e){}
+      const old=window.localStorage&&localStorage.getItem(k);   // 舊版留在 localStorage 的，搬過去再刪
+      if(old){
+        if(!t||old.length>t.length)t=old;
+        try{await twIdb('readwrite',st=>st.put(t,k));localStorage.removeItem(k);console.log('[盤後] 主資料已從 localStorage 搬到 IndexedDB');}catch(e){}
+      }
+      v=t?JSON.parse(t):null;
+    }
     else{const t=window.localStorage&&localStorage.getItem(k);v=t?JSON.parse(t):null;}
     return k===KEY?unpackDB(v):v;}catch(e){return null;}},
   async set(k,v){try{const s=JSON.stringify(k===KEY?packDB(v):v);
     if(window.storage){await window.storage.set(k,s);return true;}
+    if(useIdb(k)){await twIdb('readwrite',st=>st.put(s,k));return true;}
     if(window.localStorage){localStorage.setItem(k,s);return true;}return false;}catch(e){return false;}},
   async del(k){try{if(window.storage){await window.storage.delete(k);return;}
+    if(useIdb(k)){try{await twIdb('readwrite',st=>st.delete(k));}catch(e){}}
     if(window.localStorage)localStorage.removeItem(k);}catch(e){}}
 };
 
@@ -1436,7 +1464,7 @@ function trimSideData(){
   }
 }
 // 存檔：存不下就一路瘦身重試（120→100→85→75 天），最後才放棄。
-// 5MB 是瀏覽器本機上限，雲端不受影響，所以最壞情況也只是本機少留幾天歷史。
+// （V249 起主資料存 IndexedDB，上限 GB 等級，正常不會走到瘦身；保留當最後防線）
 async function saveDB(){
   const tryset=async()=>{ try{ return await store.set(KEY,DB); }catch(e){ return false; } };
   if(await tryset())return true;
