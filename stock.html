@@ -92,7 +92,7 @@ footer b{color:var(--dim)}
 <div class="wrap">
 
 <header>
-  <h1>選股工具</h1>
+  <h1>選股工具</h1><span class="sub">V2</span>
   <span class="sub">每支工具各回答不同的問題，資料互不相通</span>
   <span class="clock" id="clock"></span>
 </header>
@@ -185,9 +185,12 @@ function updateClock(){
     note.className = 'note live';
     note.textContent = '今天的收盤資料已經公告，可以按「更新」了。';
   } else {
-    const left = 17 - d.getHours() - (d.getMinutes() > 0 ? 1 : 0);
+    const mins = (17 - d.getHours()) * 60 - d.getMinutes();
+    const left = mins >= 60
+      ? `${Math.floor(mins/60)} 小時${mins%60 ? ' ' + (mins%60) + ' 分' : ''}`
+      : `${mins} 分鐘`;
     note.className = 'note wait';
-    note.textContent = `今天的收盤資料 17:00 之後才會公告，還要等約 ${left} 小時。`
+    note.textContent = `今天的收盤資料 17:00 之後才會公告，還要等約 ${left}。`
       + '現在按「更新」只會拿到昨天的。';
   }
 }
