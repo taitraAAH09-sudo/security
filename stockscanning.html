@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V256</title>
+<title>盤後篩選台 V257</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -707,7 +707,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V256</span>
+    <h1>盤後篩選台</h1><span class="ver">V257</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4470,6 +4470,9 @@ const halfPL=(exit,entry)=>HALF*(exit/entry-1);
 const NEW_START='20261101';
 const isNewSys=d=>String(d||'')>=NEW_START;
 const legPL=(exit,entry,d)=>isNewSys(d)?halfPL(exit,entry):(exit-entry)*LOT;
+// 新制 10 萬約買多少：滿 1000 股寫「約 X.X 張」，不滿寫「約 N 股」（取到十位）
+const lotsTxt=px=>{ if(!px)return ''; const sh=UNIT/px;
+  return sh>=1000?`約 ${(sh/1000).toFixed(1)} 張`:`約 ${Math.max(10,Math.round(sh/10)*10)} 股`; };
 const sysTag=d=>isNewSys(d)?'新制·每筆 10 萬':'舊制·每筆各 1 張';
 function testPnL(en){
   const entry=en.entryPx; if(entry==null)return null;
@@ -4837,12 +4840,13 @@ function testRender(){
       <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="systag ${isNewSys(d)?'new':'old'}">${sysTag(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       ${daySum}
       <div class="testdbody">
-        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①第一張·觸及+5%賣</span><span>②最後一張·移動停損</span><span>盈虧</span></div>
+        <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>${isNewSys(d)?'①前一半·摸到+5%賣':'①第一張·觸及+5%賣'}</span><span>${isNewSys(d)?'②後一半·移動停損':'②最後一張·移動停損'}</span><span>盈虧</span></div>
         ${rows.map(r=>{
           const px=r.curPx!=null?r.curPx:simPx(r.code);
           const a=r.lotA||{}, b=r.lotB||{};
           let aTxt,aCls;
-          if(a.done){aTxt=`已賣 ${a.px!=null?(+a.px).toFixed(2):''}`;aCls='tp';}
+          const withStop=a.done&&a.why&&a.why.indexOf('跟著')>=0;   // ①還沒摸到 +5%、跟著②停損一起賣
+          if(a.done){aTxt=`${withStop?'隨停損賣':'+5% 賣'} ${a.px!=null?(+a.px).toFixed(2):''}`;aCls=withStop?'out':'tp';}
           else {aTxt='等漲到 '+(r.entryPx!=null?(r.entryPx*1.05).toFixed(2):'+5%');aCls='hold';}
           let bTxt,bCls;
           if(b.done){bTxt=`停損賣 ${b.px!=null?(+b.px).toFixed(2):''}`;bCls='out';}
@@ -4870,7 +4874,7 @@ function testRender(){
           }
           return `<div class="testrow${bothOut?' exited':''}">
             <span class="tnm" data-px="${r.entryPx!=null?r.entryPx.toFixed(2):'—'} → ${px!=null?(+px).toFixed(2):'—'}"><b class="testk" data-code="${r.code}" style="cursor:pointer;text-decoration:underline dotted" title="點看 K 線">${r.code} ${r.name}</b>${flag}</span>
-            <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}</span>
+            <span>${r.entryPx!=null?r.entryPx.toFixed(2):'—'}${isNewSys(r.firstDate)&&r.entryPx?`<br><em style="font-style:normal;font-size:11px;color:var(--dim)">${lotsTxt(r.entryPx)}</em>`:''}</span>
             <span${stale?' title="這檔已掉出更新名單，價格停在最後一次抓到的那天" style="color:var(--dim)"':''}>${px!=null?(+px).toFixed(2):'—'}${stale?' <em style="font-style:normal;font-size:9px">舊價</em>':''}</span>
             <span class="tstat ${aCls}">${aTxt}${a.done&&a.date?`<br><span style="font-size:9px">${fmtD(a.date)}</span>`:''}</span>
             <span class="tstat ${bCls}">${bTxt}${b.done&&b.date?`<br><span style="font-size:9px">${fmtD(b.date)}</span>`:''}</span>
