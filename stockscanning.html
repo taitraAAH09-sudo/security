@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V255</title>
+<title>盤後篩選台 V256</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -227,6 +227,9 @@ a{color:var(--amber)}
 .cdone.w{background:var(--amber);color:#1a1408}
 .cdone.l{background:transparent;color:var(--up);border:1px dashed var(--up)}
 .copen{position:absolute;top:4px;right:4px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;font-weight:900;line-height:1.1;padding:0;border-radius:8px;background:rgba(242,181,68,.18);color:var(--amber)}
+.systag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle;letter-spacing:0;font-family:var(--sans)}
+.systag.new{background:rgba(31,158,110,.18);color:#3DBB8A;border:1px solid rgba(31,158,110,.5)}
+.systag.old{background:rgba(255,255,255,.06);color:var(--dim);border:1px dashed var(--line)}
 @media(max-width:760px){.cdone,.copen{width:24px;height:24px;font-size:11px;top:2px;right:2px;border-radius:5px}.copen{font-size:9px}}
 .calcell .cd{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .calcell .cv{font-family:var(--mono);font-size:11px;font-weight:800;margin-top:auto}
@@ -704,7 +707,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V255</span>
+    <h1>盤後篩選台</h1><span class="ver">V256</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -759,7 +762,7 @@ tbody tr{cursor:pointer}
     <div class="easybody" id="easyBody"></div>
     <div class="easybody" id="easyPaneSec" style="display:none"></div>
     <div class="easybody" id="easyPaneTest" style="display:none">
-      <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br>每一筆<b>固定投入 10 萬</b>，拆成兩半各 5 萬：<b>①</b>盤中摸到推薦價 <b>+5%</b> 就<b>賣掉前一半</b>入袋；<b>②</b>後一半續抱，<b>跌破移動停損才賣掉</b>（此時①若還沒成交，兩半一起認賠出場）。每筆金額一樣，賺多賺少才比得出來。</div>
+      <div class="ihint" style="margin-bottom:10px">上面推薦清單裡的股票，每天按「更新並篩選」後會<b>自動進到這裡追蹤</b>，用來檢驗推得準不準。同一檔<b>同時只追一筆</b>，等兩張單都出場（標 done）之後再被推薦，才會重新開一筆。<br><b>新制（11/1 起）</b>每一筆固定投入 10 萬，拆成兩半各 5 萬；<b>舊制（11 月前）</b>①②各買 1 張。規則一樣：<b>①</b>盤中摸到推薦價 <b>+5%</b> 就<b>賣掉前一半</b>入袋；<b>②</b>後一半續抱，<b>跌破移動停損才賣掉</b>（此時①若還沒成交，兩半一起認賠出場）。新制每筆金額一樣，賺多賺少才比得出來。</div>
       <div class="testctl">
         <button id="testViewList" class="testbtn on">📋 清單</button>
         <button id="testViewCal" class="testbtn">📅 月曆</button>
@@ -4463,18 +4466,23 @@ function testDaysHeld(firstDate){
 // 原本是各買 1 張，高價股一筆賺賠幾十萬、低價股只有幾千，根本沒辦法比；改成等額才看得出紀律下賺多賺少。
 const UNIT=100000, HALF=UNIT/2;
 const halfPL=(exit,entry)=>HALF*(exit/entry-1);
+// V256：11/1 以前推薦的＝舊制（①②各買 1 張，盈虧按張數算）；11/1 起＝新制（每筆 10 萬，兩半各 5 萬）
+const NEW_START='20261101';
+const isNewSys=d=>String(d||'')>=NEW_START;
+const legPL=(exit,entry,d)=>isNewSys(d)?halfPL(exit,entry):(exit-entry)*LOT;
+const sysTag=d=>isNewSys(d)?'新制·每筆 10 萬':'舊制·每筆各 1 張';
 function testPnL(en){
   const entry=en.entryPx; if(entry==null)return null;
   const a=en.lotA||{}, b=en.lotB||{};
   const px=en.curPx!=null?en.curPx:simPx(en.code);
   let realized=0, unreal=0;
   // A 單：停利賣出＝已實現；還沒賣＝用現價估未實現
-  if(a.done && a.px!=null) realized += halfPL(a.px,entry);
-  else if(px!=null)        unreal   += halfPL(px,entry);
+  if(a.done && a.px!=null) realized += legPL(a.px,entry,en.firstDate);
+  else if(px!=null)        unreal   += legPL(px,entry,en.firstDate);
   // B 單：移動停損賣出＝已實現；還抱著＝用現價估未實現
-  if(b.done && b.px!=null) realized += halfPL(b.px,entry);
-  else if(px!=null)        unreal   += halfPL(px,entry);
-  return {realized, unreal, total:realized+unreal, cost:UNIT};
+  if(b.done && b.px!=null) realized += legPL(b.px,entry,en.firstDate);
+  else if(px!=null)        unreal   += legPL(px,entry,en.firstDate);
+  return {realized, unreal, total:realized+unreal, cost:isNewSys(en.firstDate)?UNIT:entry*2*LOT};
 }
 let TEST_MONTH_USER=false;   // V246：使用者自己翻過月份才固定，否則永遠跟著最新月份
 let TEST_VIEW='list', TEST_MONTH=null, TEST_CAL_MODE='total';   // 月曆格子顯示：total／real／unreal   // 月曆：'YYYYMM'
@@ -4514,9 +4522,8 @@ function testCalendarHTML(){
       else { mClosed++;
         if(a.done && !(a.why&&a.why.indexOf('跟著')>=0))mHit++; else mNoTouch++; }
     } n+=rows.length; }
-    const oldOnly = !rows && ar && ar.unit!=='cash';
-    if(ar && ar.unit!=='cash'){ n+=ar.n||0; mOldArch+=ar.n||0; }
-    else if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0;
+    const oldOnly=false;
+    if(ar){ r+=ar.realized||0; u+=ar.unreal||0; n+=ar.n||0;
       if(ar.hit!=null||ar.miss!=null){ mHit+=ar.hit||0; mNoTouch+=ar.miss||0; mClosed+=ar.n||0; } else mOldArch+=ar.n||0; }   // 已封存的日子：明細沒了，盈虧還在
     const tot=r+u; mReal+=r; mUnreal+=u; mDays++; mStocks+=n;
     const shown = TEST_CAL_MODE==='real'?r : TEST_CAL_MODE==='unreal'?u : tot;
@@ -4528,7 +4535,7 @@ function testCalendarHTML(){
                           : (open?`<span class="copen" title="這天推的還有 ${open} 檔沒出場，金額會再變">持有<br>${open}</span>`:'');
     cells+=`<div class="calcell ${openable?'has':'arch'}${allDone?' settled':''}" ${openable?`data-date="${key}"`:'title="超過兩個月，明細已清除，只保留當天盈虧"'}><span class="cd">${d}${badge}</span>
       <span class="cn"><span class="cnf">${openable?'':'🔒 '}推 ${n} 檔</span><span class="cns">${openable?'':'🔒'}${n}檔</span></span>
-      ${oldOnly?`<span class="cv" style="color:var(--dim)" title="V250 以前封存的，按「1 張」算、明細已刪，無法換算成 10 萬制，不列入加總">舊制不計</span>`:`<span class="cv ${cls}" title="合計 ${Math.round(tot).toLocaleString()}／已實現 ${Math.round(r).toLocaleString()}／未實現 ${Math.round(u).toLocaleString()}"><span class="cvf">${shown>0?'+':''}${Math.round(shown).toLocaleString()}</span><span class="cvs">${shown>0?'+':''}${Math.abs(shown)>=10000?(shown/10000).toFixed(Math.abs(shown)>=1e5?0:1)+'萬':Math.round(shown)}</span></span>`}</div>`;
+      ${oldOnly?'':`<span class="cv ${cls}" title="合計 ${Math.round(tot).toLocaleString()}／已實現 ${Math.round(r).toLocaleString()}／未實現 ${Math.round(u).toLocaleString()}"><span class="cvf">${shown>0?'+':''}${Math.round(shown).toLocaleString()}</span><span class="cvs">${shown>0?'+':''}${Math.abs(shown)>=10000?(shown/10000).toFixed(Math.abs(shown)>=1e5?0:1)+'萬':Math.round(shown)}</span></span>`}</div>`;
   }
   const mTot=mReal+mUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
@@ -4536,6 +4543,7 @@ function testCalendarHTML(){
   return `<div class="calhd">
       <button class="calnav" id="calPrev" ${cur<=minD?'disabled':''}>‹ 上個月</button>
       <b>${y} / ${String(m).padStart(2,'0')}</b>
+      <span class="systag ${isNewSys(`${y}${String(m).padStart(2,'0')}01`)?'new':'old'}">${sysTag(`${y}${String(m).padStart(2,'0')}01`)}</span>
       <button class="calnav" id="calNext" ${cur>=maxD?'disabled':''}>下個月 ›</button>
       <span class="calmode">
         <button data-m="total" class="${TEST_CAL_MODE==='total'?'on':''}">合計</button>
@@ -4550,7 +4558,7 @@ function testCalendarHTML(){
       const rate=dec?Math.round(mHit/dec*100):null;
       const pc=v=>dec?Math.round(v/dec*100):0;
       return `<div class="mrace">
-        <div class="racettl">本月推的：先摸到 +5% ｜ 全程沒摸到　<span style="color:var(--dim)">（只算已結案的 ${dec} 筆；另有 ${mRun} 筆還在跑${mLocked?`，其中 ${mLocked} 筆①已入袋、②還抱著`:''}${mOldArch?`；${mOldArch} 筆是 V250 以前封存的，按舊制「1 張」算、明細已刪，不列入`:''}）</span></div>
+        <div class="racettl">本月推的：先摸到 +5% ｜ 全程沒摸到　<span style="color:var(--dim)">（只算已結案的 ${dec} 筆；另有 ${mRun} 筆還在跑${mLocked?`，其中 ${mLocked} 筆①已入袋、②還抱著`:''}${mOldArch?`；${mOldArch} 筆是 V250 以前封存的，沒記到摸沒摸到 +5%，不列入`:''}）</span></div>
         <div class="racebar">
           <i class="a" style="width:${pc(mHit)}%"></i>
           <i class="b" style="width:${pc(mNoTouch)}%"></i>
@@ -4629,18 +4637,29 @@ function testRender(){
   let archN=0;
   for(const d in (TEST_TRACK.arch||{})){
     if(curMon && d.slice(0,6)!==curMon)continue;
-    const ar=TEST_TRACK.arch[d]; if(ar.unit!=='cash')continue;
+    const ar=TEST_TRACK.arch[d];
     archN+=ar.n||0;
     sumReal+=ar.realized||0; sumUnreal+=ar.unreal||0;
     aHit+=ar.n||0; bStop+=ar.n||0;            // 封存的都是兩張已出場的
   }
+  // V256：「全部」時新舊制混在一起加沒有意義 → 主數字只算新制，舊制另列
+  let oldNote='';
+  if(!curMon){
+    let oR=0,oU=0,nR=0,nU=0;
+    for(const e of ents){ const pl=testPnL(e); if(!pl)continue; if(isNewSys(e.firstDate)){nR+=pl.realized;nU+=pl.unreal;} else {oR+=pl.realized;oU+=pl.unreal;} }
+    for(const d in (TEST_TRACK.arch||{})){ const ar=TEST_TRACK.arch[d]; if(!isNewSys(d)){oR+=ar.realized||0;oU+=ar.unreal||0;} }
+    sumReal=nR; sumUnreal=nU;
+    const oT=oR+oU;
+    oldNote=`<i style="font-style:normal;font-size:11px;color:var(--dim);display:block">只算新制；舊制（11 月前）另計 ${(oT>0?'+':'')+Math.round(oT).toLocaleString()}</i>`;
+  }
   const sumTot=sumReal+sumUnreal;
   const cls=v=>v>0?'up':v<0?'dn':'';
+  const sysLbl=curMon?`<span class="systag ${isNewSys(curMon+'01')?'new':'old'}">${sysTag(curMon+'01')}</span>`:'<span class="systag new">新制·每筆 10 萬</span>';
   sum.innerHTML=`
-    <div class="sc"><s>追蹤筆數（每筆 2 張）<i style="font-style:normal;color:var(--amber)">${curMon?`·${curMon.slice(0,4)}/${curMon.slice(4)}`:'·全部'}</i></s><b>${ents.length+archN}</b>${archN?`<i style="font-style:normal;font-size:11px;color:var(--dim);display:block">其中 ${archN} 筆已封存🔒</i>`:''}</div>
+    <div class="sc"><s>追蹤筆數 ${sysLbl}<i style="font-style:normal;color:var(--amber)">${curMon?`·${curMon.slice(0,4)}/${curMon.slice(4)}`:'·全部'}</i></s><b>${ents.length+archN}</b>${archN?`<i style="font-style:normal;font-size:11px;color:var(--dim);display:block">其中 ${archN} 筆已封存🔒</i>`:''}</div>
     <div class="sc"><s>已實現損益</s><b class="${cls(sumReal)}">${(sumReal>0?'+':'')+Math.round(sumReal).toLocaleString()}</b></div>
     <div class="sc"><s>未實現損益</s><b class="${cls(sumUnreal)}">${(sumUnreal>0?'+':'')+Math.round(sumUnreal).toLocaleString()}</b></div>
-    <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b></div>
+    <div class="sc"><s>總損益（含未實現）</s><b class="${cls(sumTot)}">${(sumTot>0?'+':'')+Math.round(sumTot).toLocaleString()}</b>${oldNote}</div>
     <div class="sc"><s>①已賣出／②已賣出／②續抱中<i style="font-style:normal;color:var(--dim)">（含未結案）</i></s><b>${aHit} / ${bStop} / ${bFly}</b></div>`;
   // 依「推薦日」分組，上方做日期分頁（預設看最新一天）
   const byDate={};
@@ -4788,7 +4807,7 @@ function testRender(){
           + (distN?`　·　初始停損平均離進場 <b>${(dist/distN).toFixed(1)}%</b>`:'')
           + (daysN?`　·　平均 ${(days/daysN).toFixed(1)} 天出場`:'') + `</span>`;
       })();
-      html+=`<div class="testday"><div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span>${diag}<span class="tcount">推薦 ${picks.length} 檔　·　沒有新開單</span></div>
+      html+=`<div class="testday"><div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="systag ${isNewSys(d)?'new':'old'}">${sysTag(d)}</span>${diag}<span class="tcount">推薦 ${picks.length} 檔　·　沒有新開單</span></div>
         <div class="testdbody"><div class="ihint" style="padding:10px 14px">這天推薦的股票<b>全部都已經在追蹤中</b>（同一檔同時只追一筆），所以沒有新開單。</div>${lines}</div></div>`;
       continue;
     }
@@ -4815,7 +4834,7 @@ function testRender(){
       </div>`;
     })();
     html+=`<div class="testday">
-      <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
+      <div class="testdhd"><span class="tdate">📅 ${fmtD(d)}</span><span class="systag ${isNewSys(d)?'new':'old'}">${sysTag(d)}</span><span class="tcount">推薦 ${rows.length} 檔　·　追蹤第 ${held} 天　·　當日損益 <b class="${cls(dTot)}">${(dTot>0?'+':'')+Math.round(dTot).toLocaleString()}</b></span></div>
       ${daySum}
       <div class="testdbody">
         <div class="testrow head"><span>股票</span><span>推薦價</span><span>現價</span><span>①第一張·觸及+5%賣</span><span>②最後一張·移動停損</span><span>盈虧</span></div>
@@ -5088,7 +5107,7 @@ function easyLots(entry, firstDate){
     if(base!=null && aPx!=null && bPx!=null)
       return { A: a.done?{px:a.px,date:a.date}:null,
                B: b.done?{px:b.px,date:b.date}:null,
-               base, aPx, bPx, pl:halfPL(aPx,base)+halfPL(bPx,base),
+               base, aPx, bPx, pl:legPL(aPx,base,tk.firstDate)+legPL(bPx,base,tk.firstDate),
                stop: tk.mvStop, settled: !!(a.done&&b.done), last, src:'track',
                inherited, srcDate: tk.firstDate, mvWhy: tk.mvWhy||'' };
   }
@@ -5121,7 +5140,7 @@ function easyLots(entry, firstDate){
   let last=null; for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null){last=s.c[i];break;}
   const aPx=A?A.px:last, bPx=B?B.px:last;
   if(aPx==null||bPx==null)return null;
-  const pl=halfPL(aPx,base)+halfPL(bPx,base);
+  const pl=legPL(aPx,base,firstDate)+legPL(bPx,base,firstDate);
   return {A,B,base,aPx,bPx,pl,stop:cur,settled:!!(A&&B),last};
 }
 // DONE/FAIL 只看「兩張合計是賺是賠」，而且要等②續抱單出場（結案）才蓋章
@@ -5146,7 +5165,7 @@ function easyCardHTML(entry, firstDate){
   const curStop = (L&&L.stop!=null)?L.stop:entry.mvStop;
   // 兩張合計損益，擺在四個方塊的正上方
   const lotLine = L ? `<div class="epnl">
-      <span class="epl ${st.pl>0?'up':st.pl<0?'dn':''}">10 萬合計 <b>${money(st.pl)}</b> 元</span>
+      <span class="epl ${st.pl>0?'up':st.pl<0?'dn':''}">${isNewSys(firstDate)?'10 萬合計':'兩張合計（舊制）'} <b>${money(st.pl)}</b> 元</span>
       <span class="eplsub">${L.inherited?`<b style="color:var(--amber)">沿用 ${fmtD(L.srcDate)} 開的那筆</b>　·　`:''}①先賣 ${L.A?`已賣 ${L.A.px.toFixed(2)}（${fmtD(L.A.date)}）`:`等漲到 ${(L.base*1.05).toFixed(2)}`}　·　②續抱 ${L.B?`停損賣 ${L.B.px.toFixed(2)}（${fmtD(L.B.date)}）`:`續抱中，停損 ${L.stop!=null?L.stop.toFixed(2):'—'}`}</span>
     </div>` : '';
   // 停利目標＝推薦價 +5%（與 DONE 判定、追蹤成績的「①先賣」同一條規則）；前高壓力只當參考
