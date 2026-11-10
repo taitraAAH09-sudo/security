@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V249</title>
+<title>盤後篩選台 V250</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -703,7 +703,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V249</span>
+    <h1>盤後篩選台</h1><span class="ver">V250</span>
     <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -3849,16 +3849,28 @@ async function simSyncNow(){
 // 結構：TEST_TRACK = { entries:[ {code,name,firstDate,entryPx,mvStop,mvWhy,target,rideName,tags,exited,exitDate,exitPx,hitTP,hitTPDate} ], updatedAt }
 const TEST_KEY='test_track_v1';
 let TEST_TRACK={entries:[]}, TEST_SEL_DATE=null;   // TEST_SEL_DATE：上方日期分頁目前選哪一天（'ALL'＝全部）
+/* V250：修正月曆「推 1712 檔」灌水。
+   舊版 testArchive 把超過兩個月的結案紀錄搬進 arch（n++、金額累加）後刪掉，
+   但下一次 testFbPush 跟雲端合併時又把同一批紀錄撿回來 → 下次再封存一次 → arch 每同步一次就重複累加。
+   新版：① 用 archK 記住「哪幾筆已經封存過」，封存一次就不會再加；合併雲端時也跳過已封存的。
+         ② 舊的 arch 數字已經灌水救不回來，第一次開 V250 時整個清掉，從現存紀錄重新封存。 */
+function testArchRepair(){
+  if(TEST_TRACK.archV===2)return false;
+  TEST_TRACK.arch={}; TEST_TRACK.archK={}; TEST_TRACK.archV=2;
+  return true;
+}
+let TEST_FORCE_PUSH=false;   // 全部重算後要用本機版本整份覆蓋雲端，否則被刪掉的又會從雲端合併回來
 async function testLoad(){
   await ensureFbUrl();          // 手機沒設定過也能先找到雲端網址
   // 先試雲端（跨裝置），失敗再本機
   let cloud=null;
   try{ cloud=await testFbPull(); }catch(e){}
-  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; purgeBeforeStart(); purgeFinancials(); purgeLowVolume(); purgeHighPrice(); testDedupeExisting();
+  if(cloud&&Array.isArray(cloud.entries)){ TEST_TRACK=cloud; testArchRepair(); purgeBeforeStart(); purgeFinancials(); purgeLowVolume(); purgeHighPrice(); testDedupeExisting();
     try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
     try{await testFbPush(true);}catch(e){}      // 把清乾淨的版本推回雲端，否則下次又被塞回來
     return; }
   try{ const r=await store.get(TEST_KEY); TEST_TRACK=(r&&Array.isArray(r.entries))?r:{entries:[]}; }catch(e){ TEST_TRACK={entries:[]}; }
+  if(testArchRepair())TEST_FORCE_PUSH=true;
   purgeBeforeStart();
   purgeFinancials();
   purgeLowVolume(); purgeHighPrice();
@@ -3866,7 +3878,8 @@ async function testLoad(){
 }
 async function testSave(){
   try{ await store.set(TEST_KEY,TEST_TRACK); }catch(e){}
-  try{ await testFbPush(); }catch(e){}   // 同步到雲端，任何裝置都看得到
+  const f=TEST_FORCE_PUSH; TEST_FORCE_PUSH=false;
+  try{ await testFbPush(f); }catch(e){}   // 同步到雲端，任何裝置都看得到
 }
 // Firebase：Test 追蹤存在 DB 網址同 host 的另一個路徑 testtrack
 function testFbEnd(){
@@ -3877,13 +3890,16 @@ async function testFbPush(force){ const e=testFbEnd(); if(!e)return false;
   try{
     if(!force){
       const cur=await testFbPull();
+      TEST_TRACK.archK=TEST_TRACK.archK||{};
+      if(cur&&cur.archV===2&&cur.archK)Object.assign(TEST_TRACK.archK,cur.archK);
+      const ak=TEST_TRACK.archK;
       if(cur&&Array.isArray(cur.entries)&&cur.entries.length){
         const have=new Set((TEST_TRACK.entries||[]).map(x=>x.code+'|'+x.firstDate));
-        const add=cur.entries.filter(x=>x&&!have.has(x.code+'|'+x.firstDate)&&!(x.firstDate<RECO_START));
+        const add=cur.entries.filter(x=>x&&!have.has(x.code+'|'+x.firstDate)&&!ak[x.code+'|'+x.firstDate]&&!(x.firstDate<RECO_START));
         if(add.length)TEST_TRACK.entries=(TEST_TRACK.entries||[]).concat(add);
       }
       // 封存的每日盈虧永久保留：雲端有而本機沒有的日子要補回來
-      if(cur&&cur.arch){ const a=Object.assign({},cur.arch,TEST_TRACK.arch||{});
+      if(cur&&cur.arch&&cur.archV===2){ const a=Object.assign({},cur.arch,TEST_TRACK.arch||{});
         for(const d in a)if(d<RECO_START)delete a[d];
         TEST_TRACK.arch=a; }
       if(!TEST_TRACK.entries||!TEST_TRACK.entries.length)return false;
@@ -3902,15 +3918,18 @@ function testArchive(){
   const ly=+last.slice(0,4), lm=+last.slice(4,6);
   const keepFrom=new Date(ly,lm-2,1);                       // 保留本月＋上個月的明細
   const cut=`${keepFrom.getFullYear()}${String(keepFrom.getMonth()+1).padStart(2,'0')}01`;
-  TEST_TRACK.arch=TEST_TRACK.arch||{};
+  TEST_TRACK.arch=TEST_TRACK.arch||{}; TEST_TRACK.archK=TEST_TRACK.archK||{}; TEST_TRACK.archV=2;
   const keep=[]; let n=0;
   for(const en of ents){
     const closed=(en.lotA&&en.lotA.done)&&(en.lotB&&en.lotB.done);
     if(en.firstDate>=cut || !closed){ keep.push(en); continue; }
+    const k=en.code+'|'+en.firstDate; n++;
+    if(TEST_TRACK.archK[k])continue;              // 已經封存過 → 只刪明細，不再重複加總
+    TEST_TRACK.archK[k]=1;
     const pl=testPnL(en);
     const a=TEST_TRACK.arch[en.firstDate]||{n:0,realized:0,unreal:0,total:0};
     a.n++; if(pl){ a.realized+=pl.realized; a.unreal+=pl.unreal; a.total+=pl.total; }
-    TEST_TRACK.arch[en.firstDate]=a; n++;
+    TEST_TRACK.arch[en.firstDate]=a;
   }
   if(n)TEST_TRACK.entries=keep;
   return n;
@@ -4027,6 +4046,7 @@ function testRefreshStatus(){
 // 每次更新並篩選後自動呼叫：把今天推薦併入、重算狀態、存檔（含雲端）
 // 用現在的規則把推薦日快照與追蹤紀錄整批重算（規則改版時自動觸發）
 async function recalcAll(){
+  TEST_FORCE_PUSH=true;
   try{ backfillExDiv(); }catch(e){}
   purgeBeforeStart();
   purgeFinancials();
