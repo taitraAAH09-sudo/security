@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V34</title>
+<title>點名台 V35</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -74,6 +74,21 @@ progress{width:100%;height:6px;margin-top:8px}
 .pcard .st .b{color:var(--up)} .pcard .st .s{color:var(--down)} .pcard .st .n{color:var(--muted);font-size:13px;font-family:var(--body);font-weight:400;align-self:center}
 .pcard .tg{display:flex;gap:4px;flex-wrap:wrap}
 .pcard .quiet{font-size:12.5px;color:var(--muted)}
+.mv{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px}
+.mv h3{margin:0 0 4px;font-size:16px}
+.mv .sub{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+.mv .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.mv .cols{grid-template-columns:1fr}}
+.mv .col h4{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:500}
+.mv .row{display:flex;gap:9px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
+.mv .row:first-of-type{border-top:0}
+.mv .tk{font-family:var(--num);font-size:17px;font-weight:700;min-width:52px}
+.mv .pc{font-family:var(--num);font-size:16px;font-weight:700;min-width:62px;text-align:right}
+.mv .pc.up{color:var(--up)} .mv .pc.dn{color:var(--down)}
+.mv .rs{flex:1;font-size:13px;line-height:1.5}
+.mv .rs .none{color:var(--muted)}
+.mv .rs a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.mv .rs a:hover{color:var(--brand);border-bottom-color:var(--brand)}
 .pulse .k{font-size:12px;color:var(--muted)}
 .pulse .v{font-family:var(--num);font-size:28px;font-weight:700;line-height:1.1}
 .chips{display:flex;gap:5px;flex-wrap:wrap}
@@ -133,7 +148,7 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V34</span></h1>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V35</span></h1>
     <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
@@ -165,6 +180,7 @@ a.btn{text-decoration:none;display:inline-block}
     </div>
   </div>
 
+  <div id="movers"></div>
   <div id="pulse"></div>
   <div id="wall" hidden></div>
 
@@ -649,6 +665,74 @@ async function translate(text, signal){
   return "";
 }
 
+/* ---------- 美股異動與原因 ---------- */
+const US_NAMES = {
+  NVDA:"Nvidia", AMD:"AMD", INTC:"Intel", MU:"Micron", AVGO:"Broadcom", TSM:"TSMC", ASML:"ASML",
+  MSFT:"Microsoft", GOOGL:"Google", AMZN:"Amazon", META:"Meta", ORCL:"Oracle", SMCI:"Supermicro", PLTR:"Palantir",
+  AAPL:"Apple", TSLA:"Tesla", GM:"General Motors", F:"Ford",
+  BA:"Boeing", LMT:"Lockheed", RTX:"RTX", NOC:"Northrop", GD:"General Dynamics", RKLB:"Rocket Lab",
+  XOM:"Exxon", CVX:"Chevron", COP:"ConocoPhillips", SLB:"SLB", OXY:"Occidental",
+  MP:"MP Materials", FCX:"Freeport", NUE:"Nucor", CLF:"Cleveland-Cliffs", NTR:"Nutrien", MOS:"Mosaic", CF:"CF Industries",
+  LLY:"Eli Lilly", PFE:"Pfizer", MRK:"Merck", JNJ:"Johnson", UNH:"UnitedHealth",
+  FSLR:"First Solar", ENPH:"Enphase", GEV:"GE Vernova", CEG:"Constellation", NEE:"NextEra",
+  CAT:"Caterpillar", DE:"Deere", HON:"Honeywell", ISRG:"Intuitive", PANW:"Palo Alto", CRWD:"CrowdStrike", ANET:"Arista", CSCO:"Cisco"
+};
+let MOVERS = [];
+async function fetchQuotes(signal){
+  const syms = Object.keys(US_NAMES).map(t => t.toLowerCase() + ".us").join("+");
+  const url = "https://stooq.com/q/l/?s=" + syms + "&f=sd2t2ohlc&h&e=csv";
+  const order = CONFIG.proxy === "auto" ? ["direct","jina","allorigins","codetabs"] : [CONFIG.proxy];
+  for (const via of order){
+    try{
+      const res = await fetch(PROXIES[via](url), { signal });
+      if (!res.ok) continue;
+      let raw = await res.text();
+      if (via === "allorigins"){ try{ raw = JSON.parse(raw).contents || raw; }catch(e){} }
+      const lines = raw.trim().split(/\r?\n/).filter(x => x.includes(","));
+      const rows = [];
+      for (const ln of lines){
+        const c = ln.split(",");
+        if (c.length < 7 || /^symbol/i.test(c[0])) continue;
+        const tk = c[0].replace(/\.us$/i,"").toUpperCase();
+        const open = parseFloat(c[3]), close = parseFloat(c[6]);
+        if (!isFinite(open) || !isFinite(close) || open <= 0) continue;
+        rows.push({ ticker: tk, date: c[1], open, close, pct: (close - open) / open * 100 });
+      }
+      if (rows.length >= 5) return rows;
+    }catch(e){ if (e.name === "AbortError") throw e; }
+  }
+  return [];
+}
+function reasonsFor(tk){
+  const name = US_NAMES[tk] || tk;
+  const since = Date.now() - 3 * 86400000;
+  const re = new RegExp("\\b" + tk + "\\b|" + name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "i");
+  return Object.values(CALLS)
+    .filter(c => c.ts >= since && !c.trade && re.test([c.quote, c.zh, c.target, (c.related||[]).join(" ")].join(" ")))
+    .sort((a,b) => b.ts - a.ts).slice(0, 2);
+}
+function renderMovers(){
+  const el = $("#movers");
+  if (!MOVERS.length){ el.innerHTML = ""; return; }
+  const sorted = [...MOVERS].sort((a,b) => b.pct - a.pct);
+  const up = sorted.slice(0, 5), dn = sorted.slice(-5).reverse();
+  const line = m => {
+    const rs = reasonsFor(m.ticker);
+    const L = rs.map(c => { const l = srcLink(c); const t = (c.zh || c.quote || "").split("\n")[0].slice(0, 70);
+      return l ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(t)}</a>` : esc(t); });
+    return `<div class="row"><span class="tk">${esc(m.ticker)}</span>
+      <span class="pc ${m.pct >= 0 ? "up" : "dn"}">${m.pct >= 0 ? "+" : ""}${m.pct.toFixed(2)}%</span>
+      <span class="rs">${L.length ? L.join("<br>") : `<span class="none">近三天沒有抓到相關新聞</span>`}</span></div>`;
+  };
+  el.innerHTML = `<div class="mv">
+    <h3>美股異動與可能原因</h3>
+    <p class="sub">${esc(MOVERS[0].date || "")}　當日開盤到收盤的變動（免費報價源沒有前一日收盤，跳空的部分不計）；原因取自近三天抓到的新聞，只是時間相近，不代表因果。</p>
+    <div class="cols">
+      <div class="col"><h4>漲幅前五</h4>${up.map(line).join("")}</div>
+      <div class="col"><h4>跌幅前五</h4>${dn.map(line).join("")}</div>
+    </div></div>`;
+}
+
 /* ---------- 國會交易 ---------- */
 const US2THEME = {
   NVDA:"半導體", TSM:"半導體", AMD:"半導體", INTC:"半導體", MU:"半導體", AVGO:"半導體", ASML:"半導體",
@@ -990,6 +1074,12 @@ $("#update").onclick = async () => {
         via += (via?"、":"") + src.person + " 新聞";
       }catch(e){ if (e.name === "AbortError") throw e; perSource.push(`${src.person} 抓取失敗`); }
     }
+    setStatus("抓取美股報價…");
+    try{
+      MOVERS = await fetchQuotes(CTL.signal);
+      perSource.push(MOVERS.length ? `報價 ${MOVERS.length} 檔` : "報價 抓取失敗");
+      renderMovers();
+    }catch(e){ if (e.name === "AbortError") throw e; }
     SRC_REPORT = perSource.join("、");
     if (!items.length) return;
     const cutoff = Date.now() - (+$("#days").value) * 86400000;
@@ -1182,6 +1272,7 @@ function render(){
   });
   $("#count").textContent = `顯示 ${rows.length} / 共 ${all.length} 個點名`;
   if (!$("#wall").hidden) renderWall(all);
+  renderMovers();
   autoTranslate(rows);
 
   const freq = {};
