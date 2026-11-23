@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V265</title>
+<title>盤後篩選台 V266</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -734,7 +734,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V265</span>
+    <h1>盤後篩選台</h1><span class="ver">V266</span>
     <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -4921,8 +4921,24 @@ function testRender(){
     if(!byDate[d]){
       // 這天有推薦，但推的都是已經在追蹤中的股票 → 沒開新單，講清楚是哪幾檔、在追哪一筆
       const picks=(RH[d]||[]);
-      const lines=picks.map(pk=>{ const prev=ents.filter(e=>e.code===pk.code).sort((x,y)=>x.firstDate<y.firstDate?1:-1)[0];
-        return `<div class="testrow"><span class="tnm">${pk.code} ${pk.name||''}</span><span style="grid-column:2/-1;color:var(--dim);font-size:12px">${prev?`已在追蹤中（${fmtD(prev.firstDate)} 那筆還沒結束）`:'—'}</span></div>`; }).join('');
+      // 擋住這天開單的，只可能是「這天以前開的、而且那時還沒結案」的那一筆。
+      // 舊版沒限日期、直接抓最新一筆，結果會把「這天之後」才開的單寫成擋單原因（例：11/19 的頁面寫 11/23 那筆擋的，時間根本反了）。
+      const blockerOf=(code,day)=>{
+        const cand=(TEST_TRACK.entries||[]).filter(e=>e.code===code&&e.firstDate<day)
+          .sort((x,y)=>x.firstDate<y.firstDate?1:-1);
+        return cand.find(x=>{ const a=x.lotA||{}, b=x.lotB||{}; const closed=a.done&&b.done;
+          const cd=closed?[a.date,b.date].filter(Boolean).sort().pop():null;
+          return !closed || !cd || cd>=day; })||null;      // 那天還在場上，或當天才剛出場
+      };
+      const lines=picks.map(pk=>{
+        const prev=blockerOf(pk.code,d);
+        const later=(TEST_TRACK.entries||[]).filter(e=>e.code===pk.code&&e.firstDate>d)
+          .sort((x,y)=>x.firstDate<y.firstDate?-1:1)[0];
+        let why;
+        if(prev)why=`已在追蹤中（${fmtD(prev.firstDate)} 那筆當時還沒結束）`;
+        else if(later)why=`<span style="color:var(--amber)">這天沒開成，後來 ${fmtD(later.firstDate)} 才開一筆</span>`;
+        else why=`<span style="color:var(--amber)">這天沒開單，追蹤紀錄裡也查不到這檔</span>`;
+        return `<div class="testrow"><span class="tnm">${pk.code} ${pk.name||''}</span><span style="grid-column:2/-1;color:var(--dim);font-size:12px">${why}</span></div>`; }).join('');
       // 這天的出場診斷：幾筆結案、其中幾筆是「連 +5% 都沒碰到就被停損」、初始停損平均離進場多遠、平均活幾天
       const diag=(()=>{
         const rows=byDate[d]||[]; if(!rows.length)return '';
