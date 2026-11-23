@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V260</title>
+<title>盤後篩選台 V265</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -592,6 +592,22 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
 .patdot.t2{background:var(--up)}
+/* 生命線(10MA)與月線(20MA)雙雙跌破＝危險。依「距月線%」分三級，
+   越嚴重越安靜——越到後面能做的越少，衝出去常常賣在反彈前。 */
+tbody tr.flee{background:rgba(31,158,110,.07)}
+tbody tr.flee:hover{background:rgba(31,158,110,.14)}
+tbody tr.flee2{background:rgba(31,158,110,.045)}
+tbody tr.flee3{background:rgba(255,255,255,.025)}
+.fleetag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
+.fleetag.t1{color:#9BFFD8;background:rgba(47,224,166,.18);border:1px solid rgba(47,224,166,.6);animation:fleepulse1 1.6s ease-in-out infinite}
+.fleetag.t2{color:#8FD9BC;background:rgba(31,158,110,.12);border:1px solid rgba(31,158,110,.4);animation:fleepulse2 2.6s ease-in-out infinite}
+.fleetag.t3{color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line)}
+@keyframes fleepulse1{0%,100%{opacity:.55;box-shadow:none}50%{opacity:1;box-shadow:0 0 10px rgba(47,224,166,.55)}}
+@keyframes fleepulse2{0%,100%{opacity:.45}50%{opacity:.95;box-shadow:0 0 7px rgba(31,158,110,.3)}}
+@media (prefers-reduced-motion:reduce){.fleetag{animation:none!important;opacity:.85}}
+/* 這檔最後一筆行情不是基準日（通常是掉出買超名單後就沒再抓）→ 收盤價是舊的 */
+td.stalepx{color:var(--dim)}
+.staleD{font-style:normal;font-size:9px;color:var(--amber);margin-left:5px;border:1px solid rgba(242,181,68,.45);border-radius:3px;padding:0 4px;white-space:nowrap}
 .gapt.filled{color:var(--dim);font-weight:400}
 .ago{color:var(--dim);font-size:10.5px;margin-left:5px}
 
@@ -718,8 +734,8 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V260</span>
-    <span class="sub">名單制 · 只追蹤外資／投信買超排行內的股票</span>
+    <h1>盤後篩選台</h1><span class="ver">V265</span>
+    <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
@@ -871,7 +887,9 @@ tbody tr{cursor:pointer}
         </select>
       </div>
       <div class="fld adv"><span>爆量倍數</span><input type="number" id="volX" value="2" min="1.2" step="0.1"></div>
-      <div class="fld adv"><span>名單取前幾名</span><input type="number" id="nRank" value="200" min="20" max="300" step="10"></div>
+      <div class="fld adv"><span>名單取前幾名（買超）</span><input type="number" id="nRank" value="200" min="20" max="300" step="10"></div>
+      <div class="fld adv"><span>賣超也收前幾名</span><input type="number" id="nSell" value="100" min="0" max="300" step="10"></div>
+      <div class="note adv" style="margin-top:0">被法人賣的股票會掉出「買超排行」，不收進名單的話就不會再抓它的新行情，價格會凍在舊的那天——反手做空清單就會全是過期價。設 0 代表不收（回到舊行為）。每日行情本來就是一次撈全市場再過濾，所以收越多<b>不會多打任何一次網路請求</b>，只是本機多存幾檔、新進來的要分批補歷史。</div>
       <div class="fld adv"><span>排除量低於 (張)</span><input type="number" id="minVol" value="1000" min="0" step="100"></div>
       <div class="fld adv"><span>回補交易日</span><input type="number" id="days" value="130" min="65" max="140" step="5"></div>
       <div class="note adv" style="margin-top:0">K 線預設看最近 60 天，要讓 MA60（60日均線）在這 60 天裡完整畫出來，回補天數至少要 120 天以上，這裡設 130 較保險；設越少，60MA 線會從中間才開始出現，甚至看不到。爆量的均量基準期也跟著變短。</div>
@@ -1174,6 +1192,9 @@ async function fetchInst(d){
   return res;
 }
 const topN=(o,n)=>Object.entries(o||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]);
+// 賣超排行前 n 名（買賣超最負的那幾檔）。反手做空要用，否則被賣的股票一掉出買超榜就不再更新價格。
+const bottomN=(o,n)=>n>0?Object.entries(o||{}).filter(([,v])=>v<0).sort((a,b)=>a[1]-b[1]).slice(0,n).map(x=>x[0]):[];
+const sellRankN=()=>{const v=$('#nSell');return v?Math.max(0,+v.value||0):100;};
 /* 連續買超天數：從最新往回數，法人對該檔連續 >0 的天數（最多看已存的 insts 天數） */
 function contBuy(code,which){
   const days=Object.keys(DB.insts||{}).sort();  // 舊→新
@@ -1216,6 +1237,13 @@ function makeUniverse(n,dates){
   const u=new Set();
   for(const d of dates){const r=DB.insts[d];if(!r)continue;
     topN(r.f,n).forEach(c=>u.add(c));topN(r.i,n).forEach(c=>u.add(c));}
+  const nS=sellRankN();
+  if(nS>0){
+    let sAdd=0;
+    for(const d of dates){const r=DB.insts[d];if(!r)continue;
+      for(const c of [...bottomN(r.f,nS),...bottomN(r.i,nS)]) if(!u.has(c)){ u.add(c); sAdd++; } }
+    if(sAdd)log(`另收 ${sAdd} 檔法人賣超前 ${nS} 名（反手做空要用，否則價格會凍住）`,'ok');
+  }
   let added=0;
   for(const c of contBuyUniverse()){ if(!u.has(c)){ u.add(c); added++; } }
   if(added)log(`另收 ${added} 檔「外資＋投信同步連買 ${CONT_DAYS} 日」（張數不拘）`,'ok');
@@ -1442,9 +1470,12 @@ function pruneStaleStocks(uni,nRank){
   for(const t of (SIM||[]))keep.add(t.code);
   const N=Math.max(20,+nRank||200);
   const days=(DB.dates||[]).slice(-RANK_WINDOW);
+  const NS=sellRankN();
   for(const d of days){ const r=DB.insts&&DB.insts[d]; if(!r)continue;
     topN(r.f,N).forEach(c=>keep.add(c));
-    topN(r.i,N).forEach(c=>keep.add(c)); }
+    topN(r.i,N).forEach(c=>keep.add(c));
+    bottomN(r.f,NS).forEach(c=>keep.add(c));
+    bottomN(r.i,NS).forEach(c=>keep.add(c)); }
   let n=0;
   for(const c of Object.keys(DB.stocks||{}))if(!keep.has(c)){ delete DB.stocks[c]; n++; }
   return n;
@@ -2138,7 +2169,7 @@ function run(){
   CONT_DAYS=+$('#contDays').value||3;
   let cand=[],st={base:0,vol:0,ma:0,ord:0,cont:0,inst:0,hhll:0,w:0};let noHL=0;
   for(const code in DB.stocks){
-    const s=DB.stocks[code],{c,q,h,l}=series(s,cut);
+    const s=DB.stocks[code],{c,q,h,l,d:ds}=series(s,cut);
     if(c.length<61)continue;
     st.base++;
     const px=c[c.length-1],prev=c[c.length-2],vol=q[q.length-1];
@@ -2185,10 +2216,13 @@ function run(){
     const hi20=Math.max(...c.slice(-20));
     const near20High=hi20>0?(px>=hi20*0.985):false;           // 逼近 20 日高點
     // 離月線（20MA）、季線（60MA）還有多遠：正＝收盤在均線上方，負＝已跌破多少
-    const d20=(m20>0)?(px-m20)/m20*100:null, d60=(m60>0)?(px-m60)/m60*100:null;
+    const d10=(m10>0)?(px-m10)/m10*100:null,
+          d20=(m20>0)?(px-m20)/m20*100:null,
+          d60=(m60>0)?(px-m60)/m60*100:null;
     cand.push({code,name:s.n,mkt:s.m,px,chg:prev?(px-prev)/prev*100:0,vol,ratio,r5,lamps,gap:gp,
       r30:p30?(px-p30)/p30*100:null,volTrend,near20High,hhll,wpat,
-      ma20:m20,ma60:m60,d20,d60,
+      ma10:m10,ma20:m20,ma60:m60,d10,d20,d60,
+      last:ds[ds.length-1], stale:ds[ds.length-1]!==baseDate,
       f:fv,i:iv,contD,days:c.length,
       sellD:SHORTONLY?contSellDays(code):0});
   }
@@ -2213,6 +2247,8 @@ function run(){
     warn.push(`今天（${fmtD(today)}）的收盤資料還沒出來，目前顯示的是 ${fmtD(baseDate)}。行情約 14:30 後、法人買賣超約 16:00 後才公布。`);
   if(!instReady)
     warn.push(`${fmtD(baseDate)} 的法人買賣超還沒載入，「外資／投信排行」這兩項判斷不了。按一次「更新並篩選」就會補抓。`);
+  const nStale=RESULT.filter(r=>r.stale).length;
+  if(nStale>0)warn.push(`有 <b>${nStale} 檔</b>的收盤價不是 ${fmtD(baseDate)} 的（收盤欄位旁邊有橘色日期標記）。這些股票最近掉出外資／投信「買超」排行，就不再被抓新行情，所以價格停在舊的那天——漲跌%、距均線%、快逃分級全部都是用舊價算的，<b>不能當今天的狀況看</b>。`);
   if(noHL>0)warn.push(`有 ${noHL} 檔沒有最高／最低價（舊版快取留下的），無法判斷多缺口。按一次「清除全部快取」再重新更新就會補齊。`);
   $('#warnBox').innerHTML=warn.map(w=>`<div class="warn">${w}</div>`).join('')
     + (SHORTONLY?`<div class="shortnote">🔻 <b>反手做空清單</b>　條件：<b>收盤跌破 5／10／20／60 全部四條均線</b>（第一基準）→ <b>外資賣超且投信也賣超</b>（第二基準）→ 成交量 ≥ ${MIN_VOL.toLocaleString()} 張。<br>這是「趨勢壞掉、法人同步減碼」的名單，<b>手上有的先想清楚要不要停損</b>；要放空請自己確認可不可借券、留意軋空與回補風險。這不是投資建議。<br>清單依「法人連賣天數」排序，<b>只列前 ${SHORT_CAP} 檔</b>；「距月線／距季線」是收盤離 20MA／60MA 的百分比，負的越多代表跌得越深、反彈要走的路越長。</div>`:'');
@@ -2271,7 +2307,9 @@ function paintFunnel(){
 // 反手做空清單只列前 100 檔（依目前排序），多的不看
 const SHORT_CAP=100;
 function sortedRaw(){
-  let R=TAB==='f'?RESULT.filter(r=>r.f>0):TAB==='i'?RESULT.filter(r=>r.i>0):RESULT;
+  // 做空模式的 f/i 一定是負的，若還用「買超>0」過濾會永遠空白 → 改成不過濾、只改排序
+  let R=SHORTONLY?RESULT
+    :TAB==='f'?RESULT.filter(r=>r.f>0):TAB==='i'?RESULT.filter(r=>r.i>0):RESULT;
   if(GROUP_FILTER)R=R.filter(r=>classify(r)===GROUP_FILTER);
   return[...R].sort((a,b)=>{const k=SORT.k;let x=a[k],y=b[k];
   if(k==='lamps'){x=a.lamps.filter(Boolean).length;y=b.lamps.filter(Boolean).length;}
@@ -2310,7 +2348,7 @@ function paintPerf(){
 }
 
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['d20','距月線%'],['d60','距季線%'],['f','外資(張)'],['i','投信(張)'],['cont','法人(連買3天)']];
+  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['d10','距生命線%'],['d20','距月線%'],['d60','距季線%'],['f','外資(張)'],['i','投信(張)'],['cont','法人(連買3天)']];
 function patCell(r){
   const dots=[];
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
@@ -2369,10 +2407,18 @@ function paintTable(){
   const R=sorted();
   let h='<table><thead><tr>'+COLS.map(([k,t])=>
     `<th data-k="${k}" class="${SORT.k===k?'on':''}">${k==='ratio'?`量比 (${VOLBASE}日)`:k==='gap'?`多缺口 (近${$('#gapDays').value}日)`:k==='cont'?(SHORTONLY?'法人連賣(天)':`法人(連買${CONT_DAYS}天)`):t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
-  for(const r of R)h+=`<tr data-code="${r.code}">`+
+  for(const r of R){
+    // 生命線(10MA)與月線(20MA)雙雙跌破才算危險；深度看「距月線%」
+    const dbl=(r.d10!=null&&r.d10<0&&r.d20!=null&&r.d20<0);
+    const deep=dbl?-r.d20:0;                                   // 破月線幾 %（正數）
+    const tier=!dbl?0:deep<5?1:deep<10?2:3;   // 破月線 0-5／5-10／10% 以上
+    const flee=tier>0;
+    const fleeTxt=['','快逃','腿軟了','腿麻了'][tier];
+    const fleeWhy=['','剛跌破不久，跑還來得及','跌一段了，還是要走，但別市價砍在最低點','跌很深了，這時候衝出去常常賣在反彈前，分批出場'][tier];
+    h+=`<tr data-code="${r.code}" class="${tier===1?'flee':tier===2?'flee2':tier===3?'flee3':''}">`+
     `<td class="code" onclick="drawChart('${r.code}')" style="cursor:pointer;text-decoration:underline">${r.code}</td>`+
     `<td class="nm">${r.name}<span class="mkt">${r.mkt}</span></td>`+
-    `<td>${r.px.toFixed(2)}</td>`+
+    `<td class="${r.stale?'stalepx':''}" title="${r.stale?`這是 ${fmtD(r.last)} 的收盤價，不是基準日的。這檔最近沒被抓到新行情，下面所有百分比都是用這個舊價算的。`:''}">${r.px.toFixed(2)}${r.stale?`<em class="staleD">${fmtD(r.last).slice(5)}</em>`:''}</td>`+
     `<td class="${r.chg>0?'up':r.chg<0?'dn':''}">${r.chg>0?'+':''}${r.chg.toFixed(2)}</td>`+
     `<td>${r.vol.toLocaleString()}</td>`+
     `<td>${burstCell(r.ratio)}</td>`+
@@ -2380,13 +2426,15 @@ function paintTable(){
     `<td>${patCell(r)}</td>`+
     `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
-    `<td class="${r.d20>0?'up':r.d20<0?'dn':''}" title="月線(20MA) ${r.ma20!=null?r.ma20.toFixed(2):'—'}">${r.d20==null?'—':(r.d20>0?'+':'')+r.d20.toFixed(2)}</td>`+
+    `<td class="${r.d10>0?'up':r.d10<0?'dn':''}" title="生命線(10MA) ${r.ma10!=null?r.ma10.toFixed(2):'—'}">${r.d10==null?'—':(r.d10>0?'+':'')+r.d10.toFixed(2)}</td>`+
+    `<td class="${r.d20>0?'up':r.d20<0?'dn':''}" title="月線(20MA) ${r.ma20!=null?r.ma20.toFixed(2):'—'}">${r.d20==null?'—':(r.d20>0?'+':'')+r.d20.toFixed(2)}${flee?`<span class="fleetag t${tier}" title="生命線與月線雙雙跌破，破月線 ${deep.toFixed(1)}%｜${fleeWhy}">${fleeTxt}</span>`:''}</td>`+
     `<td class="${r.d60>0?'up':r.d60<0?'dn':''}" title="季線(60MA) ${r.ma60!=null?r.ma60.toFixed(2):'—'}">${r.d60==null?'—':(r.d60>0?'+':'')+r.d60.toFixed(2)}</td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
     `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
     `<td>${SHORTONLY
         ? (r.sellD>=2?`<span class="contchip sell" title="外資與投信同步連賣 ${r.sellD} 日（不看張數）">▼ 同步連賣 ${r.sellD} 日</span>`:'<span style="color:var(--dim)">今日同步賣</span>')
         : (($('#cCont').checked&&r.contD>=CONT_DAYS)?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>')}</td></tr>`;
+  }
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
@@ -3219,7 +3267,7 @@ function paintInspect(code){
   const e=evaluate(code);
   if(!e){
     const has=DB.stocks[code];
-    box.innerHTML=`<div class="ihint">${has?`${code} 資料還不足以判斷條件。`:`${code} 不在追蹤名單裡（名單只含外資／投信買超前 ${$('#nRank').value} 名）。`}<br>可以單獨把它的歷史抓下來，約 10 秒。</div>
+    box.innerHTML=`<div class="ihint">${has?`${code} 資料還不足以判斷條件。`:`${code} 不在追蹤名單裡（名單含外資／投信買超前 ${$('#nRank').value} 名、賣超前 ${sellRankN()} 名）。`}<br>可以單獨把它的歷史抓下來，約 10 秒。</div>
       <button class="ibtn" id="ipFetch">抓 ${code} 的歷史</button>`;
     $('#ipFetch').onclick=()=>fetchOne(code);
     // 即使條件算不出，只要有價格序列就先把 K 線畫出來
@@ -3586,6 +3634,13 @@ function applyMode(m){
   }
   if(m!=='cont')CONTONLY=false;
   if(m!=='short'){ SHORTONLY=false; if(SORT.k==='cont')SORT={k:'vol',d:-1}; }
+  // 做空模式下，外資／投信分頁的意思從「只看買超」變成「照賣超排序」，標籤跟著改
+  try{
+    const tb=$('#segTab').querySelectorAll('button');
+    tb[1].textContent=SHORTONLY?'外資賣最多':'外資';
+    tb[2].textContent=SHORTONLY?'投信賣最多':'投信';
+    tb[1].title=tb[2].title=SHORTONLY?'做空模式：這裡是排序，不是過濾':'';
+  }catch(e){}
   run();
 }
 $('#modeseg').onclick=e=>{
@@ -3656,7 +3711,10 @@ $('#segLogic').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   LOGIC=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));};
 $('#segTab').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   TAB=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));
-  if(TAB==='f'){SORT={k:'f',d:-1};}else if(TAB==='i'){SORT={k:'i',d:-1};}else{SORT={k:'vol',d:-1};}
+  // 做空模式：外資／投信分頁＝照「賣超最多」排（由負到正），不是過濾
+  if(TAB==='f'){SORT={k:'f',d:SHORTONLY?1:-1};}
+  else if(TAB==='i'){SORT={k:'i',d:SHORTONLY?1:-1};}
+  else{SORT=SHORTONLY?{k:'cont',d:-1}:{k:'vol',d:-1};}
   paintTable();paintPerf();};
 $('#segAsOf').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   OFFSET=+b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));
@@ -3666,7 +3724,7 @@ $('#volBase').onchange=()=>{if(DB.dates.length)run();};
 $('#cGap').onchange=()=>{if(RESULT.length)paintTable();};
 ['#gapDays','#gapPct'].forEach(k=>$(k).onchange=()=>{if(DB.dates.length)run();});
 $('#gapUnf').onchange=()=>{if(DB.dates.length)run();};
-['#nRank','#days','#gap'].forEach(s=>$(s).oninput=()=>{
+['#nRank','#nSell','#days','#gap'].forEach(s=>$(s).oninput=()=>{
   document.querySelectorAll('.nrk').forEach(e=>e.textContent=$('#nRank').value);paintStrip();});
 $('#mOtc').onchange=paintStrip;
 let DRAG_CODE='';
