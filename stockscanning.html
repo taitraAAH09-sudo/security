@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V266</title>
+<title>盤後篩選台 V267</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -221,6 +221,9 @@ a{color:var(--amber)}
 .calwk{text-align:center;font-size:11px;color:var(--dim);font-weight:700;padding:2px 0}
 .calcell{position:relative;min-height:64px;border:1px solid var(--line);border-radius:6px;padding:3px 5px;background:var(--panel2);display:flex;flex-direction:column;gap:1px}
 .calcell .cvs,.calcell .cns{display:none}
+.calcell.nonew{border-style:dashed;opacity:.85}
+.cnone{font-size:9px;font-weight:800;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:0 4px;white-space:nowrap}
+@media(max-width:760px){.cnone{display:none}}
 .calsum .sc{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;flex:1;min-width:130px}
 .calsum .sc s{text-decoration:none;color:var(--dim);font-size:11px;display:block}
 .calcell.blank{background:transparent;border-color:transparent}
@@ -734,7 +737,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V266</span>
+    <h1>盤後篩選台</h1><span class="ver">V267</span>
     <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
     <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -1586,11 +1589,18 @@ async function refreshStaleTracked(note){
       if(!rows||!rows.length){ rows=await yahooChart(c+'.TWO','6mo'); mk='上櫃'; }
       if(rows&&rows.length){ rs=rows; rs.mkt=mk; }
     }catch(e){}
+    // V267：Yahoo（含代理）全掛時再退一步，用 STOCK_DAY／TPEx 那條路抓近 2 個月。
+    // 比較慢，但來源不同，常常 Yahoo 不通它反而通。只在真的抓不到時才跑。
+    if(!rs.length && !ABORT && Date.now()-T0<=LIMIT){
+      if(note)note.textContent=`${c} Yahoo 不通，改走備援來源…`;
+      try{ const rs2=await backfillOneFast(c,2);
+        if(rs2&&rs2.length){ rs=rs2; rs.mkt=rs2.mkt||rs2[rs2.length-1]?.mkt; } }catch(e){}
+    }
     const mkt=rs.mkt||DB.stocks[c]?.m||'上市';
     const nm=DB.stocks[c]?.n||rs.nm||((TEST_TRACK.entries||[]).find(x=>x.code===c)||{}).name||c;
     for(const r of rs)put(c,nm,mkt,r.date,r.c,r.q,r.h,r.l,r.o);
     if(rs.length)ok++;
-    log(`  ${c} ${rs.length?'補到 '+rs.length+' 筆':'仍抓不到（來源不通，下次再試）'}`, rs.length?'ok':'warn');
+    log(`  ${c} ${rs.length?'補到 '+rs.length+' 筆':'兩個來源都不通（免費代理時好時壞），下次更新會再試'}`, rs.length?'ok':'warn');
     await sleep(300);
   }
   if(ok)try{ sanitizeDB(); await saveDB(); }catch(e){}
@@ -4650,7 +4660,13 @@ function testCalendarHTML(){
   for(let d=1;d<=dim;d++){
     const key=`${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
     const rows=byDate[key], ar=arch[key];
-    if(!rows && !ar){ cells+=`<div class="calcell"><span class="cd">${d}</span></div>`; continue; }
+    if(!rows && !ar){
+      // 那天有推薦、但全被「同一檔同時只追一筆」擋掉 → 以前整格空白，看起來像沒推薦。標出來。
+      const rec=(RECO_HIST&&RECO_HIST[key])||null;
+      cells+= rec&&rec.length
+        ? `<div class="calcell has nonew" data-date="${key}" title="這天推薦 ${rec.length} 檔，但都已經在追蹤中，所以沒有開新單。點進去看是哪幾檔。"><span class="cd">${d}<span class="cnone">無新單</span></span><span class="cn"><span class="cnf">推 ${rec.length} 檔</span><span class="cns">${rec.length}檔</span></span></div>`
+        : `<div class="calcell"><span class="cd">${d}</span></div>`;
+      continue; }
     let r=0,u=0,n=0,open=0;
     if(rows){ for(const e of rows){ const pl=testPnL(e); if(pl){ r+=pl.realized; u+=pl.unreal; }
       const a=e.lotA||{}, b=e.lotB||{};
