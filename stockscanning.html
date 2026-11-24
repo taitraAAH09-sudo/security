@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V267</title>
+<title>盤後篩選台 V269</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -464,6 +464,14 @@ a{color:var(--amber)}
 .main{padding:18px 20px 80px;min-width:0}
 
 .blk{margin-bottom:26px}
+/* 收合式區塊：平常只露出標題，點一下才展開。欄位仍留在 DOM 裡，程式照樣讀得到 fbUrl／fbPath。 */
+.blk.fold>h2{cursor:pointer;user-select:none}
+.blk.fold>*:not(h2){display:none}
+.blk.fold.open>*{display:revert}
+.blk.fold.open>.duo{display:grid}
+.blk.fold.open>label.row{display:flex}
+.foldi{flex:0 0 auto;order:10;font-style:normal;font-size:10px;color:var(--dim);transition:transform .15s}
+.blk.fold.open .foldi{transform:rotate(180deg);color:var(--amber)}
 .blk>h2{margin:0 0 12px;font-size:11px;letter-spacing:.2em;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:9px}
 .blk>h2::after{content:"";flex:1;height:1px;background:var(--line)}
 .blk>h2 .lk{flex:0 0 auto;font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:transparent;border:1px solid var(--line);border-radius:3px;padding:2px 8px;color:var(--dim);cursor:pointer;order:9}
@@ -737,13 +745,12 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V267</span>
+    <h1>盤後篩選台</h1><span class="ver">V269</span>
     <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
-    <span class="quota" id="quota" title="本機瀏覽器儲存用量，接近 100% 時建議清除本機快取再重抓">
+    <span class="quota" id="quota" title="本機資料用量">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
     <button class="tourbtn" id="btnTour" title="重新看一次教學">?</button>
-    <button class="simbtn" id="btnSim">模擬下單</button>
   </div>
   <div class="hbtnbar">
     <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋產業全景樹狀圖">🏭 近期產業</button>
@@ -801,37 +808,11 @@ tbody tr{cursor:pointer}
       </div>
       <div class="testsum" id="testSum"></div>
       <div class="simtable" id="testTable"></div>
-      <div class="simft">此追蹤存在雲端（Firebase），任何裝置打開都看得到同一份紀錄。跟「模擬下單」是兩套獨立系統，互不影響。<button id="testClear" class="simclr">清空追蹤紀錄</button></div>
+      <div class="simft">此追蹤存在雲端（Firebase），任何裝置打開都看得到同一份紀錄。<button id="testClear" class="simclr">清空追蹤紀錄</button></div>
     </div>
   </div>
 </div>
 
-<div class="simmask" id="simMask">
-  <div class="simwin">
-    <div class="simhd"><b>模擬下單</b><span class="simsub">以目前已收集到的收盤資料為準，每天更新後自動重算損益</span><button class="simx" id="simX">✕</button></div>
-    <div class="simbody" id="simPaneTrade">
-      <div class="simname-row">
-        <label>帳戶</label>
-        <input id="simName" placeholder="輸入名字＝建立/選擇帳戶（本金無限）" maxlength="12" list="simAccts">
-        <datalist id="simAccts"></datalist>
-      </div>
-      <div class="simform">
-        <input id="simCode" placeholder="代號" maxlength="6" inputmode="numeric">
-        <input id="simQty" type="number" placeholder="張數" min="1" value="1">
-        <select id="simSide"><option value="buy">買進</option><option value="sell">賣出</option></select>
-        <select id="simDate" title="要補登以前忘了點的單，就選那一天；成交價會用那天的收盤價"></select>
-        <button id="simAdd">送出</button>
-      </div>
-      <div class="testctl">
-        <button id="simSync" class="testbtn">↻ 從雲端重新載入</button>
-        <span class="testnote" id="simNote"></span>
-      </div>
-      <div class="simsum" id="simSum"></div>
-      <div class="simtable" id="simTable"></div>
-      <div class="simft">以最新收盤價計算未實現損益。這是紙上模擬，不會真的下單。<button id="simClear" class="simclr">清空「所有帳戶」的紀錄</button></div>
-    </div>
-  </div>
-</div>
 
 <div class="wrap">
 <aside class="side">
@@ -852,12 +833,6 @@ tbody tr{cursor:pointer}
       <button data-m="gap">多缺口篩選</button>
       <button data-m="cont">法人連買篩選</button>
       <button data-m="short" class="short" title="四條均線全跌破＋外資投信同步賣超">🔻 反手做空</button>
-    </div>
-    <div class="fld asof"><span>基準日</span>
-      <div class="seg" id="segAsOf">
-        <button data-v="0" aria-pressed="true">今日</button>
-        <button data-v="1" aria-pressed="false">前一天</button>
-      </div>
     </div>
     <div class="locknote show" id="locknote"><b>條件已鎖定</b>，全部套用中。按上方「解鎖」可調整。</div>
     <div class="guard locked" id="guard">
@@ -905,8 +880,8 @@ tbody tr{cursor:pointer}
   </div>
 
 
-  <div class="blk">
-    <h2>雲端同步 · Firebase</h2>
+  <div class="blk fold" id="fbBlk">
+    <h2>雲端同步 · Firebase<i class="foldi">▾</i></h2>
     <div class="fld"><span>Realtime Database 網址</span></div>
     <input type="text" id="fbUrl" placeholder="https://xxx-default-rtdb.firebaseio.com">
     <div class="fld"><span>資料路徑</span><input type="text" id="fbPath" value="twstk" style="width:120px"></div>
@@ -1011,7 +986,13 @@ function unpackDB(db){
    這份資料一個就近 2MB，塞滿後 Firebase 工具（專卷、Gurus…）會全部連不上。
    IndexedDB 上限是 GB 等級，也不用再為了塞進 5MB 而砍歷史天數。設定等小東西仍留在 localStorage。 */
 const TW_IDB='twstkDB';
-const useIdb=k=>k===KEY&&!window.storage&&typeof indexedDB!=='undefined';
+/* V268：原本只有主資料走 IndexedDB，追蹤成績／推薦歷史／結算紀錄仍留在 localStorage，
+   天數一多就又把共用的 10MB 吃掉。這三個也搬進 IndexedDB——寫死字串而不是引用常數，
+   因為那些 const 宣告在檔案後段，提早引用會踩到 TDZ。
+   只有 twstk2_fb（雲端網址設定，幾百 bytes）留在 localStorage，萬一 IndexedDB 被清掉還連得回雲端。*/
+const IDB_KEYS=new Set(['twstk2_cache','test_track_v1','easy_reco_hist_v1','easy_reco_settled_v1']);
+const idbOn=()=>!window.storage&&typeof indexedDB!=='undefined';
+const useIdb=k=>IDB_KEYS.has(k)&&idbOn();
 function twIdb(mode,fn){
   return new Promise((res,rej)=>{
     const rq=indexedDB.open(TW_IDB,1);
@@ -1023,6 +1004,56 @@ function twIdb(mode,fn){
       tx.onerror=tx.onabort=()=>{db.close();rej(tx.error);};};
   });
 }
+/* ── 共用儲存空間（localStorage）健檢 ──────────────────────────────
+   localStorage 是 taitraaah09-sudo.github.io 底下「所有工具共用」的一塊，瀏覽器只給約 5MB。
+   這支工具的資料量遠大於其他工具，一旦把它塞爆，專卷、Gurus、活動頁那些
+   把 Firebase 設定／狀態存在 localStorage 的工具會一起壞掉——而且是靜悄悄地壞。
+   所以原則是：大東西一律走 IndexedDB，localStorage 只放幾百 bytes 的設定。
+   這一段負責三件事：量、清、擋。 */
+const LS_LIMIT=5*1024*1024;
+const LS_MAX_ONE=512*1024;                 // 單一 key 可以寫進 localStorage 的上限
+const LS_KEEP=new Set(['twstk2_fb','twstk2_fbauth','tour_seen_v1']);   // 這支工具該留在 localStorage 的小設定
+const lsMine=k=>LS_KEEP.has(k)||IDB_KEYS.has(k)||k==='sim_trades_v2'||/^twstk/.test(k);
+function lsScan(){
+  const o={total:0,mine:0,other:0,rows:[]};
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i); if(k==null)continue;
+      const v=localStorage.getItem(k)||'';
+      const b=(k.length+v.length)*2;       // localStorage 以 UTF-16 計費
+      const mine=lsMine(k);
+      o.total+=b; mine?o.mine+=b:o.other+=b;
+      o.rows.push({k,b,mine});
+    }
+    o.rows.sort((x,y)=>y.b-x.b);
+  }catch(e){}
+  return o;
+}
+// 把這支工具殘留在共用空間的大東西搬進 IndexedDB 或刪掉，把位子還給其他工具
+async function lsCleanup(){
+  const before=lsScan(); const moved=[],killed=[];
+  try{
+    if(idbOn())for(const k of IDB_KEYS){
+      const old=localStorage.getItem(k); if(old==null)continue;
+      try{
+        let cur=null; try{ cur=await twIdb('readonly',st=>st.get(k)); }catch(e){}
+        const t=(!cur||old.length>cur.length)?old:cur;   // 取比較完整的那一份，不要用舊的蓋掉新的
+        await twIdb('readwrite',st=>st.put(t,k));
+        localStorage.removeItem(k); moved.push(k);
+      }catch(e){}
+    }
+    const drop=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i); if(k==null)continue;
+      if(k==='sim_trades_v2'){drop.push(k);continue;}                    // 模擬下單已移除
+      if(/^twstk/.test(k)&&!LS_KEEP.has(k)&&!IDB_KEYS.has(k))drop.push(k); // 舊版殘留
+    }
+    for(const k of drop){ localStorage.removeItem(k); killed.push(k); }
+  }catch(e){}
+  const after=lsScan();
+  return {freed:Math.max(0,before.total-after.total),moved,killed,before,after};
+}
+let LS_WARNED=false;
 const store={
   async get(k){try{
     let v=null;
@@ -1032,7 +1063,7 @@ const store={
       const old=window.localStorage&&localStorage.getItem(k);   // 舊版留在 localStorage 的，搬過去再刪
       if(old){
         if(!t||old.length>t.length)t=old;
-        try{await twIdb('readwrite',st=>st.put(t,k));localStorage.removeItem(k);console.log('[盤後] 主資料已從 localStorage 搬到 IndexedDB');}catch(e){}
+        try{await twIdb('readwrite',st=>st.put(t,k));localStorage.removeItem(k);console.log('[盤後] '+k+' 已從 localStorage 搬到 IndexedDB');}catch(e){}
       }
       v=t?JSON.parse(t):null;
     }
@@ -1041,7 +1072,19 @@ const store={
   async set(k,v){try{const s=JSON.stringify(k===KEY?packDB(v):v);
     if(window.storage){await window.storage.set(k,s);return true;}
     if(useIdb(k)){await twIdb('readwrite',st=>st.put(s,k));return true;}
-    if(window.localStorage){localStorage.setItem(k,s);return true;}return false;}catch(e){return false;}},
+    if(window.localStorage){
+      // 關鍵保護：這台裝置用不了 IndexedDB 時，寧可這支工具存不了，也不能把共用的 5MB 吃光——
+      // 那會讓專卷、Gurus、活動頁一起存不了東西，而且不會有任何錯誤訊息。
+      if(IDB_KEYS.has(k)&&s.length*2>LS_MAX_ONE){
+        console.warn(`[盤後] 這台裝置用不了 IndexedDB，${k} 有 ${(s.length*2/1048576).toFixed(1)}MB，不寫進共用的 localStorage，以免其他工具（專卷／Gurus…）壞掉。`);
+        if(!LS_WARNED){ LS_WARNED=true;
+          try{ log('⚠ 這台瀏覽器用不了 IndexedDB，資料無法保存（為了不壓垮專卷等其他工具）。請換 Chrome／Edge，或關閉無痕模式。','err'); }catch(e){}
+        }
+        return false;
+      }
+      localStorage.setItem(k,s);return true;
+    }
+    return false;}catch(e){return false;}},
   async del(k){try{if(window.storage){await window.storage.delete(k);return;}
     if(useIdb(k)){try{await twIdb('readwrite',st=>st.delete(k));}catch(e){}}
     if(window.localStorage)localStorage.removeItem(k);}catch(e){}}
@@ -1459,7 +1502,7 @@ function trimAll(maxD){
 const validCount=s=>Array.isArray(s&&s.c)?s.c.reduce((a,x)=>a+(x!=null?1:0),0):0;
 // 把跟不上主資料的附屬資料一起裁掉（法人、類股、指數歷史都是按日期存的）
 // 名單瘦身：只保留「還用得到」的股票，其餘整檔刪掉。
-// 保留條件：今天的更新名單內／追蹤成績還沒結案／模擬下單持有中／最近 20 個交易日曾進過法人排行。
+// 保留條件：今天的更新名單內／追蹤成績還沒結案／最近 20 個交易日曾進過法人排行。
 // 「最近幾個交易日曾進過法人排行」的保留窗口。窗口越短、留下的股票越少、本機越省。
 // 縮短完全不影響計算（推薦與篩選只看當天名單），只是舊股票的歷史要重查時得重抓。
 const RANK_WINDOW=3;
@@ -1470,7 +1513,6 @@ const RANK_WINDOW=3;
 function pruneStaleStocks(uni,nRank){
   const keep=new Set(uni||[]);
   for(const en of ((TEST_TRACK&&TEST_TRACK.entries)||[]))keep.add(en.code);
-  for(const t of (SIM||[]))keep.add(t.code);
   const N=Math.max(20,+nRank||200);
   const days=(DB.dates||[]).slice(-RANK_WINDOW);
   const NS=sellRankN();
@@ -1608,7 +1650,7 @@ async function refreshStaleTracked(note){
 }
 async function doFetch(){
   sanitizeDB();
-  await simLoad();   // 先載入模擬下單清單，才能把持有的代號一起併入更新名單
+  await purgeSim();   // 模擬下單已移除，順手清掉本機殘留
   // 清掉最近 5 個日曆日的「休市」標記，避免之前因資料未公布而被誤記、之後就永遠不再重抓
   if(Array.isArray(DB.nodata)&&DB.nodata.length){
     const lim=ymd(new Date(Date.now()-5*86400000));
@@ -1645,13 +1687,6 @@ async function doFetch(){
   const ik=Object.keys(DB.insts).sort(); while(ik.length>6)delete DB.insts[ik.shift()];
   DB.inst={date:iDays[0],f:DB.insts[iDays[0]].f,i:DB.insts[iDays[0]].i};
   const uni=makeUniverse(nR,iDays);
-  // 把模擬下單「目前有部位」的代號也併入更新名單，確保模擬損益永遠用最新收盤價計算
-  const simCodes=new Set(
-    SIM.filter(t=>/^[1-9]\d{3}$/.test(t.code))
-       .map(t=>t.code)
-  );
-  let simAdded=0;
-  for(const c of simCodes){ if(!uni.has(c)){ uni.add(c); simAdded++; } }
   // 追蹤成績裡「還沒結案」的也要併入，否則它一旦掉出法人排行就抓不到新價、現價會凍在那天
   try{ await testLoad(); }catch(e){}
   let trkAdded=0;
@@ -1660,7 +1695,7 @@ async function doFetch(){
     if(closed)continue;
     if(/^[1-9]\d{3}$/.test(en.code)&&!uni.has(en.code)){ uni.add(en.code); trkAdded++; }
   }
-  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）${simAdded?`，含模擬下單 ${simAdded} 檔`:''}${trkAdded?`，含追蹤中 ${trkAdded} 檔`:''}`,'ok');
+  log(`名單 ${uni.size} 檔（${iDays.map(fmtD).join(' + ')}）${trkAdded?`，含追蹤中 ${trkAdded} 檔`:''}`,'ok');
 
   // 2. 缺的交易日 → 全市場（只留名單）
   // 判斷某天是否「已完整」：該天有收盤價的檔數需達名單的一定比例，否則視為不完整要重抓
@@ -1765,7 +1800,6 @@ async function doFetch(){
   try{ $('#costNote').textContent=`完成，這次共花 ${fmtS((Date.now()-T0)/1000)}（補了 ${need.length} 天）`; }catch(e){}
 }
 function finish(){$('#btnFetch').disabled=false;$('#btnStop').style.display='none';$('#pbar').style.width='0';
-  if($('#simMask')&&$('#simMask').classList.contains('on'))simRender();   // 若模擬下單視窗開著，更新完順便刷新損益
 }
 
 /* ═══ 指標 ═══ */
@@ -2260,10 +2294,17 @@ function run(){
   const nStale=RESULT.filter(r=>r.stale).length;
   if(nStale>0)warn.push(`有 <b>${nStale} 檔</b>的收盤價不是 ${fmtD(baseDate)} 的（收盤欄位旁邊有橘色日期標記）。這些股票最近掉出外資／投信「買超」排行，就不再被抓新行情，所以價格停在舊的那天——漲跌%、距均線%、快逃分級全部都是用舊價算的，<b>不能當今天的狀況看</b>。`);
   if(noHL>0)warn.push(`有 ${noHL} 檔沒有最高／最低價（舊版快取留下的），無法判斷多缺口。按一次「清除全部快取」再重新更新就會補齊。`);
+  // 共用空間吃緊 → 要講，因為先壞的通常不是這支工具，是專卷那些
+  try{
+    const ls=lsScan(), p=ls.total/LS_LIMIT*100;
+    if(p>=70)warn.unshift(`⚠ <b>瀏覽器共用儲存空間已用 ${(ls.total/1048576).toFixed(1)}MB／約 5MB（${p.toFixed(0)}%）</b>。`
+      +`這一塊是 <b>本站所有工具共用</b>的（專卷、Gurus、活動頁…），塞滿之後它們會<b>靜悄悄存不了東西</b>。`
+      +`其中本工具佔 ${(ls.mine/1048576).toFixed(1)}MB —— 點右上角容量條可以清掉本工具的殘留。`);
+  }catch(e){}
   $('#warnBox').innerHTML=warn.map(w=>`<div class="warn">${w}</div>`).join('')
     + (SHORTONLY?`<div class="shortnote">🔻 <b>反手做空清單</b>　條件：<b>收盤跌破 5／10／20／60 全部四條均線</b>（第一基準）→ <b>外資賣超且投信也賣超</b>（第二基準）→ 成交量 ≥ ${MIN_VOL.toLocaleString()} 張。<br>這是「趨勢壞掉、法人同步減碼」的名單，<b>手上有的先想清楚要不要停損</b>；要放空請自己確認可不可借券、留意軋空與回補風險。這不是投資建議。<br>清單依「法人連賣天數」排序，<b>只列前 ${SHORT_CAP} 檔</b>；「距月線／距季線」是收盤離 20MA／60MA 的百分比，負的越多代表跌得越深、反彈要走的路越長。</div>`:'');
   paintFunnel(); paintGroups(); paintTable(); paintPerf();
-  $('#foot').textContent=`基準日 ${fmtD(baseDate)}${OFFSET?'（前一天）':''}`;
+  $('#foot').textContent=`資料日 ${fmtD(baseDate)}`;
 }
 
 /* ═══ 畫面 ═══ */
@@ -2455,40 +2496,58 @@ function paintTable(){
     tr.ondragstart=ev=>{DRAG_CODE=c;try{ev.dataTransfer.setData('text/plain',c);}catch(_){}ev.dataTransfer.effectAllowed='copy';};
   });
 }
-const QUOTA_LIMIT=5*1024*1024;   // 5MB，window.storage / localStorage 常見上限
+const QUOTA_LIMIT=5*1024*1024;        // localStorage 這條線才是真的
+const IDB_SOFT=200*1024*1024;         // IndexedDB 沒有 5MB 這回事，給一條寬鬆的參考線免得條子永遠滿格
 // 瀏覽器本機儲存是用 UTF-16 計費，一個字元算 2 bytes；中文字串更是每字 2 bytes。
 // 舊版直接用「字元數」當 bytes，等於少算一半——顯示 2.6MB 時其實已經 5.2MB，難怪存不下。
 // 量的是「真的會被寫進本機的那份」——DB 走壓縮後的版本，否則會比實際佔用高估一大截。
+const _sz=o=>{ try{ return JSON.stringify(o).length*2; }catch(e){ return 0; } };
 function dbBytes(){
   let n=0;
-  const add=o=>{ try{ n+=JSON.stringify(o).length*2; }catch(e){} };
-  try{ add(packDB(DB)); }catch(e){ add(DB); }
-  try{ add(SIM); }catch(e){}
-  try{ add(TEST_TRACK); }catch(e){}
-  try{ add(RECO_HIST); }catch(e){}
+  try{ n+=_sz(packDB(DB)); }catch(e){ n+=_sz(DB); }
+  n+=_sz(typeof TEST_TRACK!=='undefined'?TEST_TRACK:null);
+  n+=_sz(typeof RECO_HIST!=='undefined'?RECO_HIST:null);
   return n;
 }
+/* V268 修正：以前這條把「行情快取＋追蹤成績＋推薦歷史」通通拿去跟 5MB 比，
+   但這些自 V249／V268 起全都存在 IndexedDB（GB 等級），根本不受 5MB 管。
+   結果就是條子衝到 100% 變紅、看起來像快爆了，其實什麼事都沒有。
+   走 IndexedDB 時改用寬鬆的參考線，只有真的退回 localStorage 才拿 5MB 來比。*/
 function updateQuota(){
   const box=$('#quota'); if(!box)return;
   let bytes=0;
   try{ bytes=dbBytes(); }catch(e){}
-  const pct=Math.min(100,bytes/QUOTA_LIMIT*100);
-  box.classList.toggle('warn',pct>=70&&pct<90);
-  box.classList.toggle('danger',pct>=90);
-  $('#quotaBar').style.setProperty('--pct',pct.toFixed(0)+'%');
-  $('#quotaBar').style.setProperty('--ok',pct>=90?'var(--up)':pct>=70?'var(--amber)':'#1F9E6E');
-  $('#quotaTxt').textContent=`${(bytes/1024/1024).toFixed(1)}MB／${(QUOTA_LIMIT/1024/1024).toFixed(0)}MB（${pct.toFixed(0)}%）`;
-  box.title=pct>=90
-    ? '本機快取快滿了（≥90%）。存不下時會自動精簡交易日數再重試；仍不行才需要按「清除本機快取」重抓。'
-    : '本機瀏覽器儲存用量（含行情快取、模擬下單、追蹤成績、推薦歷史，UTF-16 實際佔用）。';
+  const onIdb=idbOn();
+  const lim=onIdb?IDB_SOFT:QUOTA_LIMIT;
+  const pct=Math.min(100,bytes/lim*100);
+  const hot=!onIdb&&pct>=90, warm=!onIdb&&pct>=70&&pct<90;
+  box.classList.toggle('warn',warm);
+  box.classList.toggle('danger',hot);
+  $('#quotaBar').style.setProperty('--pct',Math.max(3,pct).toFixed(0)+'%');
+  $('#quotaBar').style.setProperty('--ok',hot?'var(--up)':warm?'var(--amber)':'#1F9E6E');
+  // 真正會害別的工具壞掉的是「共用空間」，所以紅燈給它，不給自己的資料庫
+  const ls=lsScan(), lsPct=ls.total/LS_LIMIT*100;
+  const lsHot=lsPct>=75;
+  box.classList.toggle('danger',hot||lsHot);
+  box.classList.toggle('warn',(warm||lsPct>=55)&&!lsHot&&!hot);
+  const mb=x=>(x/1048576).toFixed(1);
+  $('#quotaTxt').textContent=onIdb
+    ? `${mb(bytes)}MB 資料庫 · 共用 ${mb(ls.total)}MB`
+    : `${mb(bytes)}MB／5MB（${pct.toFixed(0)}%）`;
+  const top=ls.rows.slice(0,4).map(r=>`  ${r.k} ${mb(r.b)}MB${r.mine?'（本工具）':''}`).join('\n');
+  box.title=(onIdb
+    ? `這支工具的資料放在 IndexedDB（上限 GB 等級）：${mb(bytes)}MB，不受 5MB 限制。\n\n`
+    : `⚠ 這台裝置用不了 IndexedDB，資料只能放共用空間。\n\n`)
+    + `共用空間 localStorage：${mb(ls.total)}MB／約 5MB（${lsPct.toFixed(0)}%）\n`
+    + `這一塊是本站所有工具（專卷、Gurus、活動頁…）共用的。塞滿了它們會存不了東西。\n`
+    + `其中本工具只佔 ${mb(ls.mine)}MB，其他工具 ${mb(ls.other)}MB。\n\n最大的幾項：\n${top}\n\n點一下可以清掉本工具的殘留。`;
 }
 function paintStrip(){
   $('#strip').innerHTML=[
     ['行情日期',fmtD(DB.dates[DB.dates.length-1])],
     ['交易日數',DB.dates.length],
     ['追蹤檔數',Object.keys(DB.stocks).length],
-    ['法人日期',fmtD(DB.inst.date)],
-    ['基準日',fmtD(DB.dates[DB.dates.length-1-OFFSET])+(OFFSET?' ←前一天':'')]
+    ['法人日期',fmtD(DB.inst.date)]
   ].map(([a,b])=>`<div class="cellx"><s>${a}</s><b>${b}</b></div>`).join('');
   const need=Math.max(65,+$('#days').value||100),miss=Math.max(0,need-DB.dates.length);
   const gap=Math.max(600,+$('#gap').value||1600),mul=$('#mOtc').checked?2:1;
@@ -3319,7 +3378,7 @@ function paintInspect(code){
     `<div class="chk"><span class="m ${e.ratio>=e.vx?'y':'n'}">${e.ratio>=e.vx?'✓':'✕'}</span>
       <span class="t">爆量（不列入條件）<em>${e.vb}日均量比 ${e.ratio.toFixed(2)}x（5日 ${e.ratio5.toFixed(2)}x／60日 ${e.ratio60.toFixed(2)}x）<br>成交 ${e.vol.toLocaleString()} 張</em></span></div>`+
     `<div class="iscore"><s>符合已啟用條件</s><b class="${hits===total&&total?'up':''}">${hits} / ${total}</b></div>`+
-    `<div class="ihint" style="margin-top:11px">基準日 ${fmtD(e.baseDate)}${OFFSET?'（前一天）':''}</div>`+
+    `<div class="ihint" style="margin-top:11px">資料日 ${fmtD(e.baseDate)}</div>`+
     `<button class="ibtn" id="ipDraw" style="margin-top:10px;background:var(--amber);color:var(--ink);font-weight:700;border:0">📈 畫出 K 線 / 成交量</button>`;
   INSPECTED=code;
   const drawBtn=document.getElementById('ipDraw');
@@ -3726,7 +3785,8 @@ $('#segTab').onclick=e=>{const b=e.target.closest('button');if(!b)return;
   else if(TAB==='i'){SORT={k:'i',d:SHORTONLY?1:-1};}
   else{SORT=SHORTONLY?{k:'cont',d:-1}:{k:'vol',d:-1};}
   paintTable();paintPerf();};
-$('#segAsOf').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+// 基準日切換鈕已於 V268 移除；OFFSET 保留，因為重算／回放（evalAtDate、scanEasyPicks）內部會暫時借用它切到某一天
+const _asOfGone=e=>{const b=e.target.closest('button');if(!b)return;
   OFFSET=+b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));
   paintStrip(); if(DB.dates.length)run();};
 $('#volX').oninput=()=>{if(RESULT.length)paintTable();};
@@ -3778,276 +3838,27 @@ $('#tblwrap').addEventListener('click',ev=>{
   $('#ipCode').value=c; paintInspect(c);
   const big=document.getElementById('cbig'); if(big)big.scrollIntoView({behavior:'smooth',block:'nearest'});
 });
-// ── 模擬下單 ──────────────────────────
+// ── 模擬下單已於 V268 移除 ─────────────────────────────
+// 只保留「追蹤成績」真正會用到的三個小工具，其餘帳戶／下單／雲端 /simtrades 全部拿掉。
+//   LOT       舊制每筆 1 張＝1000 股，testPnL 要用
+//   simPx     取某檔最新收盤價，追蹤成績的「現價」要用
+//   ensureFbUrl 雲端網址自動偵測，追蹤成績與推薦歷史的同步要用
 const SIM_KEY='sim_trades_v2';
-let SIM=[];   // 交易流水：{name,code,qty,side:'buy'|'sell',px,date}
-let SIM_OPEN=new Set();   // 目前展開中的帳戶名字
-// 確保 fbUrl 有值：欄位空（例如手機第一次開、沒設定過）就自動偵測，讓跨裝置抓得到雲端
+let SIM=[];              // 永遠空的，留著是為了舊程式碼萬一還有引用不會爆
+const LOT=1000;          // 1 張 = 1000 股
+function simPx(code){ const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
+  for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null)return s.c[i];
+  return null; }
 async function ensureFbUrl(){
   let u=$('#fbUrl').value.trim();
   if(u)return u;
   try{ u=await fbDetect(); }catch(e){ u=null; }
   return u||'';
 }
-async function simLoad(){
-  await ensureFbUrl();          // 手機沒設定過也能先找到雲端網址
-  let cloud=null;
-  try{ cloud=await simFbPull(); }catch(e){}
-  // 讀本機既有紀錄
-  let local=[];
-  try{const r=await store.get(SIM_KEY); if(Array.isArray(r))local=r; else if(r&&Array.isArray(r.trades))local=r.trades;}catch(e){}
-  const cloudArr = Array.isArray(cloud)?cloud:null;
-  if(cloudArr && cloudArr.length){
-    // 雲端有資料 → 以雲端為主，並把本機有、雲端沒有的舊紀錄併進去（避免舊紀錄消失）
-    const key=t=>`${t.name}|${t.code}|${t.side}|${t.px}|${t.qty}|${t.date}`;
-    const dead=new Set(simTomb());                       // 你刪掉的不要再從雲端撿回來
-    const kept=cloudArr.filter(t=>!dead.has(key(t)));
-    const removed=cloudArr.length-kept.length;
-    const seen=new Set(kept.map(key));
-    const merged=kept.slice();
-    let mergedIn=0;
-    for(const t of local){ if(!seen.has(key(t))){ merged.push(t); seen.add(key(t)); mergedIn++; } }
-    SIM=merged;
-    try{await store.set(SIM_KEY,SIM);}catch(e){}
-    if(mergedIn||removed)try{ await simFbPush(true); }catch(e){}   // 補上本機獨有的、順便把刪掉的從雲端清乾淨
-    return;
-  }
-  // 雲端是空的 → 用本機，並「首次上雲」把本機舊紀錄推上去，讓其他裝置看得到
-  SIM=local;
-  if(local.length){ try{ await simFbPush(true); }catch(e){} }
-}
-async function simSave(){
-  try{await store.set(SIM_KEY,SIM);}catch(e){}
-  try{ await simFbPush(); }catch(e){}   // 同步雲端，任何裝置都看得到同一份
-}
-function simFbEnd(){ const u=$('#fbUrl').value.trim().replace(/\/+$/,''); return u?`${u}/simtrades.json`:null; }
-const simKeyOf=t=>`${t.name}|${t.code}|${t.side}|${t.px}|${t.qty}|${t.date}`;
-// 刪掉的交易要記成墓碑，否則下次跟雲端合併時又會被別台裝置那份補回來（使用者遇到「刪了帳號又彈回來」）
-function simTomb(){ DB.simTomb=DB.simTomb||[]; return DB.simTomb; }
-async function simTombAdd(list){
-  const t=simTomb(); const have=new Set(t);
-  for(const x of list){ const k=simKeyOf(x); if(!have.has(k)){ t.push(k); have.add(k); } }
-  DB.simTomb=t.slice(-3000);
-  try{ await saveDB(); }catch(e){}
-}
-async function simFbPush(force){ const e=simFbEnd(); if(!e)return false;
-  try{
-    // 沒有明確按刪除／清空時，一律先跟雲端合併再寫回：雲端有、本機沒有的紀錄要補回來，
-    // 避免「在新網域開一次、加一筆交易」就用 1 筆蓋掉雲端整份。
-    if(!force){
-      const cur=await simFbPull();
-      if(Array.isArray(cur)&&cur.length){
-        const have=new Set((SIM||[]).map(simKeyOf));
-        const dead=new Set(simTomb());
-        const add=cur.filter(t=>t&&!have.has(simKeyOf(t))&&!dead.has(simKeyOf(t)));
-        if(add.length){ SIM=(SIM||[]).concat(add); try{await store.set(SIM_KEY,SIM);}catch(_){}
-          try{ if($('#simMask').classList.contains('on'))simRender(); }catch(_){} }
-      }
-      if(!SIM||!SIM.length)return false;   // 本機空、雲端也空 → 不用寫
-    }
-    const r=await fetch(e,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(SIM)}); return r.ok;
-  }catch(err){ return false; } }
-async function simFbPull(){ const e=simFbEnd(); if(!e)return null;
-  try{ const r=await fetch(e,{cache:'no-store'}); if(!r.ok)return null; return await r.json(); }catch(err){ return null; } }
-function simPx(code){ const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c)return null;
-  for(let i=s.c.length-1;i>=0;i--)if(s.c[i]!=null)return s.c[i]; return null; }
-function simNm(code){ const s=DB.stocks&&DB.stocks[code]; return s&&s.n||code; }
-function simLastDate(){ return DB.dates&&DB.dates.length?fmtD(DB.dates[DB.dates.length-1]):'—'; }
-const LOT=1000;   // 1 張=1000 股
-
-/* 依帳戶結算：跑過該帳戶所有交易，用平均成本法算已實現損益 + 目前持倉 */
-function simAccount(name){
-  const trades=SIM.map((t,idx)=>({t,idx})).filter(x=>x.t.name===name);
-  const pos={};   // code -> {qty, avgCost}  qty=張
-  let realized=0;      // 已實現損益（元）
-  let boughtCost=0;    // 累計買進投入本金（元）
-  let realizedWin=0, realizedLoss=0;
-  for(const {t} of trades){
-    const q=t.qty, amt=t.px*q*LOT;
-    if(!pos[t.code])pos[t.code]={qty:0,avg:0};
-    const P=pos[t.code];
-    if(t.side==='buy'){
-      P.avg=(P.avg*P.qty + t.px*q)/(P.qty+q);
-      P.qty+=q; boughtCost+=amt;
-    }else{ // sell：實現損益 =（賣價-均成本）×股數
-      const sellQ=Math.min(q,P.qty);
-      const pl=(t.px-P.avg)*sellQ*LOT;
-      realized+=pl; if(pl>0)realizedWin+=pl; else realizedLoss+=pl;
-      P.qty-=sellQ;
-      if(P.qty<=0){P.qty=0;P.avg=0;}
-    }
-  }
-  // 未實現：目前持倉用最新收盤估
-  let unreal=0, holdCost=0, holdVal=0;
-  const holdings=[];
-  for(const code in pos){ const P=pos[code]; if(P.qty<=0)continue;
-    const cur=simPx(code); const cost=P.avg*P.qty*LOT;
-    holdCost+=cost;
-    let u=null,uPct=null,val=null;
-    if(cur!=null){ val=cur*P.qty*LOT; u=(cur-P.avg)*P.qty*LOT; uPct=(cur-P.avg)/P.avg*100; unreal+=u; holdVal+=val; }
-    holdings.push({code,qty:P.qty,avg:P.avg,cur,u,uPct,val});
-  }
-  return {name,trades,realized,realizedWin,realizedLoss,boughtCost,holdings,holdCost,holdVal,unreal,
-    totalPL:realized+unreal};
-}
-// 已了結交易：先進先出配對買賣，算出每一趟「幾號買→哪天賣、賺賠多少」
-function simClosed(name){
-  const ts=SIM.filter(t=>t.name===name).slice().sort((a,b)=>String(a.date)<String(b.date)?-1:1);
-  const lots={}, out=[];
-  for(const t of ts){
-    const L=lots[t.code]=lots[t.code]||[];
-    if(t.side==='buy'){ L.push({qty:t.qty,px:t.px,date:t.date}); continue; }
-    let q=t.qty;
-    while(q>0&&L.length){
-      const l=L[0], use=Math.min(q,l.qty);
-      out.push({code:t.code,qty:use,buyPx:l.px,buyDate:l.date,sellPx:t.px,sellDate:t.date,
-        pl:(t.px-l.px)*use*LOT, pct:(t.px-l.px)/l.px*100});
-      l.qty-=use; q-=use; if(l.qty<=0)L.shift();
-    }
-  }
-  return out.sort((a,b)=>String(a.sellDate)<String(b.sellDate)?1:-1);   // 最近賣出的排最上面
-}
-// 持有幾個交易日（兩端都在資料裡就用交易日，否則退回日曆天）
-function simHeld(d1,d2){
-  if(DB.dates&&DB.dates.length){ const i=DB.dates.indexOf(d1), j=DB.dates.indexOf(d2); if(i>=0&&j>=0)return j-i; }
-  const a=new Date(d1.slice(0,4),+d1.slice(4,6)-1,d1.slice(6)), b=new Date(d2.slice(0,4),+d2.slice(4,6)-1,d2.slice(6));
-  return Math.round((b-a)/86400000);
-}
-function simAccounts(){ return [...new Set(SIM.map(t=>t.name||'（未命名）'))]; }
-
-// 補單日期下拉：最近 30 個交易日，預設最新一天
-function simFillDates(){
-  const sel=$('#simDate'); if(!sel||!DB.dates)return;
-  const days=DB.dates.slice(-30).reverse();
-  const cur=sel.value;
-  sel.innerHTML=days.map((d,i)=>`<option value="${d}">${i===0?'今天 ':''}${fmtD(d)}</option>`).join('');
-  if(cur&&days.includes(cur))sel.value=cur;
-}
-// 某一天的收盤價（補單用；沒有那天資料就退回最新收盤）
-function simPxOn(code,d){
-  const s=DB.stocks&&DB.stocks[code]; if(!s||!s.c||!DB.dates)return null;
-  const i=DB.dates.indexOf(d);
-  if(i>=0&&s.c[i]!=null)return s.c[i];
-  return simPx(code);
-}
-function simRender(){
-  const box=$('#simTable'), sum=$('#simSum');
-  // 更新帳戶 datalist
-  const dl=$('#simAccts'); if(dl)dl.innerHTML=simAccounts().map(n=>`<option value="${n}">`).join('');
-  if(!SIM.length){
-    const url=$('#fbUrl').value.trim();
-    box.innerHTML='<div class="ihint" style="padding:24px 0;text-align:center">這台裝置目前看不到任何交易。<br>'
-      + (url ? '已連到雲端 <b>'+url.replace('https://','').split('.')[0]+'</b>，但雲端也是空的——可能是你的紀錄還沒上傳過。'
-             : '<b>還沒連上雲端</b>（這個版本／這台裝置的網址欄是空的），所以只讀得到本機紀錄。請按上面「↻ 從雲端重新載入」，或到左邊「雲端同步」貼上 Realtime Database 網址。')
-      + '<br>要新增交易：輸入帳戶名字、代號、張數，選買進送出。本金無限。</div>';
-    sum.innerHTML=''; return; }
-
-  let allReal=0,allUnreal=0,allBought=0,allWin=0,allLoss=0;
-  let html='';
-  for(const name of simAccounts()){
-    const a=simAccount(name);
-    allReal+=a.realized; allUnreal+=a.unreal; allBought+=a.boughtCost;
-    allWin+=a.realizedWin; allLoss+=a.realizedLoss;
-    // 持倉表
-    const holdRows=a.holdings.length?a.holdings.map(h=>{
-      const cls=h.u==null?'':h.u>0?'up':h.u<0?'dn':'';
-      return `<tr>
-        <td>${h.code} ${simNm(h.code)}</td>
-        <td>${h.avg.toFixed(2)}</td><td>${h.qty}</td>
-        <td>${h.cur!=null?h.cur.toFixed(2):'—'}</td>
-        <td class="${cls}">${h.u==null?'—':(h.u>0?'+':'')+Math.round(h.u).toLocaleString()}</td>
-        <td class="${cls}">${h.uPct==null?'—':(h.uPct>0?'+':'')+h.uPct.toFixed(2)+'%'}</td>
-        <td><button class="simsell" data-code="${h.code}" data-name="${name}" data-qty="${h.qty}">賣出</button></td>
-      </tr>`;
-    }).join(''):`<tr><td colspan="7" style="color:var(--dim);text-align:center">目前無持倉（都已賣出）</td></tr>`;
-    const plCls=a.totalPL>0?'up':a.totalPL<0?'dn':'';
-    const rCls=a.realized>0?'up':a.realized<0?'dn':'';
-    const open=SIM_OPEN.has(name);
-    html+=`<div class="simperson">
-      <div class="simphd">
-        <span class="simphd-toggle" data-name="${name}" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-          <span class="simcaret">${open?'▾':'▸'}</span>
-          <span class="simpname">${name}</span>
-          <span class="simptot">
-            總損益 <b class="${plCls}">${(a.totalPL>0?'+':'')+Math.round(a.totalPL).toLocaleString()}</b>
-          </span>
-        </span>
-        <button class="simpdel" data-name="${name}" title="只刪除 ${name} 這個帳戶的所有紀錄">刪除此帳戶</button>
-      </div>
-      <div class="simpbody" style="display:${open?'block':'none'}">
-        <div class="simptot2">
-          已實現 <b class="${rCls}">${(a.realized>0?'+':'')+Math.round(a.realized).toLocaleString()}</b>
-          ｜未實現 <b class="${a.unreal>0?'up':a.unreal<0?'dn':''}">${(a.unreal>0?'+':'')+Math.round(a.unreal).toLocaleString()}</b>
-        </div>
-        <table><thead><tr><th>持倉</th><th>均成本</th><th>張</th><th>現價</th><th>未實現</th><th>報酬%</th><th></th></tr></thead>
-        <tbody>${holdRows}</tbody></table>
-        ${(()=>{const cl=simClosed(name); if(!cl.length)return '<div class="ihint" style="margin:10px 0 4px">還沒有已了結的交易（賣出後才會出現買賣配對明細）。</div>';
-          const tot=cl.reduce((x,r)=>x+r.pl,0);
-          return `<div class="closedhd">已了結交易 ${cl.length} 趟　·　合計 <b class="${tot>0?'up':tot<0?'dn':''}">${(tot>0?'+':'')+Math.round(tot).toLocaleString()}</b></div>
-          <table><thead><tr><th>股票</th><th>買進日</th><th>買價</th><th>賣出日</th><th>賣價</th><th>張</th><th>持有</th><th>損益</th><th>報酬%</th></tr></thead><tbody>`
-          + cl.map(r=>`<tr><td>${r.code} ${simNm(r.code)}</td><td>${fmtD(r.buyDate)}</td><td>${r.buyPx.toFixed(2)}</td>
-              <td>${fmtD(r.sellDate)}</td><td>${r.sellPx.toFixed(2)}</td><td>${r.qty}</td><td>${simHeld(r.buyDate,r.sellDate)} 天</td>
-              <td class="${r.pl>0?'up':r.pl<0?'dn':''}">${(r.pl>0?'+':'')+Math.round(r.pl).toLocaleString()}</td>
-              <td class="${r.pl>0?'up':r.pl<0?'dn':''}">${(r.pct>0?'+':'')+r.pct.toFixed(2)}%</td></tr>`).join('')
-          + `</tbody></table>`;})()}
-        <div class="simhist" data-name="${name}">全部進出紀錄 ${a.trades.length} 筆　<button class="simhistbtn" data-name="${name}">展開/收合</button>
-          <div class="simhistbody" style="display:none">${a.trades.map(({t,idx})=>`
-            <div class="simhrow"><span>${fmtD(t.date)}</span><span class="${t.side==='buy'?'up':'dn'}">${t.side==='buy'?'買':'賣'}</span>
-              <span>${t.code} ${simNm(t.code)}</span><span>${t.px.toFixed(2)} × ${t.qty}張</span>
-              <button class="delx" data-i="${idx}">✕</button></div>`).join('')}</div>
-        </div>
-      </div>
-    </div>`;
-  }
-  box.innerHTML=html;
-
-  const allPL=allReal+allUnreal;
-  sum.innerHTML=`
-    <div class="sc"><s>總投入本金</s><b>${Math.round(allBought).toLocaleString()}</b></div>
-    <div class="sc"><s>總營利（已實現獲利）</s><b class="up">+${Math.round(allWin).toLocaleString()}</b></div>
-    <div class="sc"><s>總虧損（已實現虧損）</s><b class="dn">${Math.round(allLoss).toLocaleString()}</b></div>
-    <div class="sc"><s>已實現淨損益</s><b class="${allReal>0?'up':allReal<0?'dn':''}">${(allReal>0?'+':'')+Math.round(allReal).toLocaleString()}</b></div>
-    <div class="sc"><s>含未實現總損益</s><b class="${allPL>0?'up':allPL<0?'dn':''}">${(allPL>0?'+':'')+Math.round(allPL).toLocaleString()}</b></div>
-    <div class="sc"><s>資料日期</s><b style="font-size:15px">${simLastDate()}</b></div>`;
-
-  // 綁定
-  box.querySelectorAll('.simphd-toggle').forEach(h=>h.onclick=()=>{
-    const nm=h.dataset.name;
-    if(SIM_OPEN.has(nm))SIM_OPEN.delete(nm); else SIM_OPEN.add(nm);
-    simRender();
-  });
-  box.querySelectorAll('.delx').forEach(b=>b.onclick=async()=>{ const gone=SIM.splice(+b.dataset.i,1); await simTombAdd(gone); await store.set(SIM_KEY,SIM); await simFbPush(true); simRender(); });
-  box.querySelectorAll('.simpdel').forEach(b=>b.onclick=async(ev)=>{
-    ev.stopPropagation();
-    const nm=b.dataset.name;
-    if(!confirm(`確定只刪除「${nm}」這個帳戶的所有交易紀錄？其他帳戶不受影響。`))return;
-    const gone=SIM.filter(t=>t.name===nm);
-    SIM=SIM.filter(t=>t.name!==nm);
-    SIM_OPEN.delete(nm);
-    await simTombAdd(gone);
-    await store.set(SIM_KEY,SIM); await simFbPush(true); simRender();
-  });
-  box.querySelectorAll('.simsell').forEach(b=>b.onclick=async()=>{
-    const code=b.dataset.code, nm=b.dataset.name, maxQ=+b.dataset.qty;
-    const q=prompt(`賣出 ${code} ${simNm(code)}，目前持有 ${maxQ} 張，要賣幾張？`, maxQ);
-    if(q==null)return; const qty=Math.min(maxQ,Math.max(1,+q||0)); if(qty<1)return;
-    const px=simPx(code); if(px==null){alert('無現價');return;}
-    SIM.push({name:nm,code,qty,side:'sell',px,date:DB.dates[DB.dates.length-1]});
-    await simSave(); simRender();
-  });
-  box.querySelectorAll('.simhistbtn').forEach(b=>b.onclick=()=>{
-    const body=b.closest('.simhist').querySelector('.simhistbody');
-    body.style.display=body.style.display==='none'?'block':'none';
-  });
-}
-$('#btnSim').onclick=async()=>{ $('#simMask').classList.add('on'); simFillDates(); await simSyncNow(); };
-// 從雲端重新載入＋回報連到哪、抓到幾筆（換裝置／換版本時最常見的問題就是網址欄是空的）
-async function simSyncNow(){
-  const note=$('#simNote'); if(note)note.textContent='載入中…';
-  const url=await ensureFbUrl();
-  if(!url){ await simLoad(); simRender(); if(note)note.textContent='⚠️ 找不到雲端網址，請到左邊「雲端同步」貼上 Realtime Database 網址'; return; }
-  await simLoad(); simRender();
-  if(note)note.textContent=`✓ 已連雲端（${url.replace('https://','').split('.')[0]}）· 目前 ${SIM.length} 筆交易`;
+// 開頁時把本機殘留的模擬下單資料清掉（雲端 /simtrades 不動，要刪請自己到 Firebase 主控台）
+async function purgeSim(){
+  try{ await store.del(SIM_KEY); }catch(e){}
+  try{ if(DB&&DB.simTomb){ delete DB.simTomb; } }catch(e){}
 }
 
 // ── 🧪 Test：每天新手看盤推薦的股票自動進來、去重、用移動停損追蹤 ──
@@ -5607,13 +5418,33 @@ async function buildEasyView(){
   }
   renderEasyTabsAndList();
 }
+// 點容量條：把本工具殘留在共用空間的東西搬走／清掉，並回報現況
+const _q=document.getElementById('quota');
+if(_q){ _q.style.cursor='pointer';
+  _q.onclick=async()=>{
+    const r=await lsCleanup(); updateQuota();
+    const mb=x=>(x/1048576).toFixed(2);
+    const top=r.after.rows.slice(0,6).map(x=>`　${x.k}　${mb(x.b)}MB${x.mine?'（本工具）':''}`).join('\n')||'　（空的）';
+    alert(
+      `共用儲存空間（本站所有工具一起用，約 5MB）\n`+
+      `────────────────────────\n`+
+      `清理前：${mb(r.before.total)}MB\n清理後：${mb(r.after.total)}MB\n`+
+      (r.freed>0?`釋出：${mb(r.freed)}MB\n`:`沒有東西需要清。\n`)+
+      (r.moved.length?`已搬進資料庫：${r.moved.join('、')}\n`:'')+
+      (r.killed.length?`已刪除殘留：${r.killed.join('、')}\n`:'')+
+      `\n目前本工具佔 ${mb(r.after.mine)}MB，其他工具佔 ${mb(r.after.other)}MB。\n`+
+      `\n最大的幾項：\n${top}\n`+
+      `\n（這支工具的行情資料放在 IndexedDB，不算在這 5MB 裡。）`
+    );
+  };
+}
+const _fbBlk=document.getElementById('fbBlk');
+if(_fbBlk)_fbBlk.querySelector('h2').onclick=()=>_fbBlk.classList.toggle('open');
 $('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('reco'); buildEasyView(); };
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
-$('#simSync').onclick=simSyncNow;
-$('#simX').onclick=()=>$('#simMask').classList.remove('on');
 $('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
 $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
 $('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('sec'); };
@@ -5650,23 +5481,6 @@ $('#testClear').onclick=async()=>{
   try{await store.set(TEST_KEY,TEST_TRACK);}catch(e){}
   await testFbPush(true); testRender();
 };
-$('#simMask').onclick=e=>{ if(e.target===$('#simMask'))$('#simMask').classList.remove('on'); };
-$('#simAdd').onclick=async()=>{
-  const code=$('#simCode').value.trim(), qty=Math.max(1,+$('#simQty').value||1);
-  const name=$('#simName').value.trim()||'（未命名）', side=$('#simSide').value;
-  if(!/^[1-9]\d{3}$/.test(code)){ alert('代號要 4 位數字'); return; }
-  const day=($('#simDate')&&$('#simDate').value)||DB.dates[DB.dates.length-1];
-  const px=simPxOn(code,day);
-  if(px==null){ alert(code+' 不在已收集的資料裡（名單只含外資／投信買超前 200 名）。'); return; }
-  if(side==='sell'){
-    const a=simAccount(name); const h=a.holdings.find(x=>x.code===code);
-    const have=h?h.qty:0;
-    if(have<qty){ if(!confirm(`${name} 帳戶 ${code} 只持有 ${have} 張，要賣 ${qty} 張？超賣部分會變成放空。仍要送出？`))return; }
-  }
-  SIM.push({name,code,qty,side,px,date:day});
-  await simSave(); $('#simCode').value=''; $('#simQty').value='1'; simRender();
-};
-$('#simClear').onclick=async()=>{ if(confirm('確定清空所有帳戶與交易紀錄？（雲端與本機都會清）')){ SIM=[]; try{await store.set(SIM_KEY,SIM);}catch(e){} await simFbPush(true); simRender(); } };
 // ── 個股檢查：模糊比對（代號或名稱）＋名單外自動抓 ──
 function ipCandidates(q){
   q=(q||'').trim(); if(!q)return [];
@@ -5880,6 +5694,12 @@ $('#btnTour').onclick=tourStart;
 
 /* ═══ boot ═══ */
 (async()=>{
+  try{ await purgeSim(); }catch(e){}   // V268：開頁就清掉本機殘留的模擬下單資料
+  // V269：開頁就把本工具殘留在「共用 localStorage」的大東西搬進 IndexedDB／刪掉，
+  // 免得靜悄悄把專卷、Gurus 那些工具的空間吃光。
+  try{ const r=await lsCleanup();
+    if(r.freed>0)console.log(`[盤後] 已從共用空間釋出 ${(r.freed/1048576).toFixed(2)}MB`,r.moved,r.killed);
+  }catch(e){}
   const a=await store.get(KEY);
   let migrated=false;
   if(a&&a.dates){ if(a.v===4)DB=Object.assign(DB,a); else migrated=true; }
