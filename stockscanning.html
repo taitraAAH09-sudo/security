@@ -1,14 +1,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V273</title>
+<title>盤後篩選台 V274</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#0D1319; --panel:#141E28; --panel2:#1B2836; --line:#26374A;
-  --paper:#E9EFF5; --muted:#7B90A6; --dim:#4E637A;
-  --up:#E5484D; --down:#1F9E6E; --amber:#F2B544; --amber-d:#C08D22;
+  /* 底：盤後是傍晚的工作，往深夜藍推，紅綠才跳得出來 */
+  --ink:#0A1017; --panel:#121A24; --panel2:#1B2531; --line:#2A3743; --line-2:#3A4C5C;
+  --paper:#E7EEF4; --muted:#8597A6; --dim:#55697A;
+  /* 紅漲綠跌：資料專用，介面其他地方一律不准碰 */
+  --up:#FF5A61; --down:#16A97A; --down-d:#0C5B42;
+  /* chrome：主要動作走黃銅，次要動作走鋼藍。綠色不再兼差當按鈕 */
+  --amber:#E0A33C; --amber-d:#8F6516; --brass-lit:#F7C468;
+  --steel:#4F8CC9; --steel-lit:#86B6E4; --steel-deep:#234A72;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
 }
@@ -25,7 +30,7 @@ a{color:var(--amber)}
 .brand .sub{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.06em}
 .quota{display:inline-flex;align-items:center;gap:7px;margin-left:auto;font-family:var(--mono);font-size:11px;cursor:pointer;padding:3px 9px 3px 3px;border:1px solid var(--line);border-radius:20px;background:var(--panel2)}
 .quota i{display:block;width:52px;height:6px;border-radius:3px;background:var(--panel);position:relative;overflow:hidden}
-.quota i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--pct,0%);background:var(--ok,#1F9E6E);border-radius:3px;transition:width .3s}
+.quota i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--pct,0%);background:var(--ok,#16A97A);border-radius:3px;transition:width .3s}
 .quota b{color:var(--muted);font-weight:600}
 .quota.warn b{color:var(--amber)}
 .quota.danger b{color:var(--up)}
@@ -59,12 +64,12 @@ a{color:var(--amber)}
   .hbtnbar{flex-wrap:wrap;gap:8px}
 }
 @media(max-width:760px){.secbtn{font-size:12px;padding:6px 12px;margin-right:0}}
-.helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:0 3px 12px rgba(31,158,110,.45);animation:helppulse 2.2s ease-in-out infinite}
+.helpbtn{display:inline-block;width:auto;padding:7px 20px;font-size:14px;background:linear-gradient(180deg,#5F9BD6,var(--steel));color:#071320;border:0;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 0 var(--steel-deep);animation:helppulse 2.2s ease-in-out infinite}
 .helpbtn:hover{filter:brightness(1.1)}
 .shortbtn{display:inline-block;width:auto;padding:7px 18px;font-size:14px;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:.5px;margin:0;
-  background:linear-gradient(135deg,#0F2A22,#143A2E);color:#5FD9AE;border:2px solid #1F9E6E;box-shadow:0 2px 10px rgba(31,158,110,.25)}
-.shortbtn:hover{color:#8FF0CC;border-color:#2FE0A6;box-shadow:0 0 14px rgba(47,224,166,.45)}
-.shortbtn.on{background:var(--down);color:#fff;border-color:#2FE0A6}
+  background:linear-gradient(135deg,#0C2219,#113326);color:#5FD3AB;border:2px solid var(--down-d);box-shadow:0 2px 10px rgba(22,169,122,.25)}
+.shortbtn:hover{color:#8FEFCB;border-color:var(--down);box-shadow:0 0 14px rgba(22,169,122,.4)}
+.shortbtn.on{background:var(--down);color:#02130D;border-color:var(--down)}
 .shortbtn small{display:block;font-size:10px;font-weight:600;letter-spacing:0;opacity:.75;margin-top:1px}
 @media(max-width:760px){.shortbtn{font-size:12px;padding:6px 12px;letter-spacing:0}.shortbtn small{font-size:9px}}
 .mktstr{font-size:20px;font-weight:800;color:var(--dim);border:2px solid var(--line);border-radius:26px;padding:11px 24px;white-space:nowrap;background:var(--panel2)}
@@ -78,12 +83,13 @@ a{color:var(--amber)}
 /* V244：載入按鈕＋閃爍步驟箭頭 */
 .stepwrap{position:relative;display:inline-flex}
 .steptip{position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;white-space:nowrap;z-index:2}
-.steptip b{font-size:11px;font-weight:800;color:#2FE0A6;background:rgba(14,22,30,.92);border:1px solid #1F9E6E;border-radius:10px;padding:1px 8px;letter-spacing:.04em}
-.steptip i{font-style:normal;font-size:22px;line-height:1;color:#2FE0A6;text-shadow:0 0 8px rgba(47,224,166,.9);margin-top:-1px}
+.steptip b{font-size:11px;font-weight:800;color:var(--steel-lit);background:rgba(10,16,23,.92);border:1px solid var(--steel);border-radius:10px;padding:1px 8px;letter-spacing:.04em}
+.steptip i{font-style:normal;font-size:22px;line-height:1;color:var(--steel-lit);text-shadow:0 0 8px rgba(79,140,201,.8);margin-top:-1px}
 .steptip{animation:stepblink 1.1s ease-in-out infinite}
 .stepwrap.s2 .steptip{animation-delay:.55s}
 @keyframes stepblink{0%,100%{opacity:1;transform:translate(-50%,0)}50%{opacity:.15;transform:translate(-50%,5px)}}
-.loadbtn{padding:7px 18px;font-size:14px;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;color:#fff;background:linear-gradient(135deg,#127A52,#1F9E6E);border:2px solid #2FE0A6;box-shadow:0 3px 12px rgba(31,158,110,.45)}
+.loadbtn{padding:7px 18px;font-size:14px;font-weight:900;border-radius:20px;cursor:pointer;letter-spacing:1px;margin:0;color:#CFE4F7;background:linear-gradient(180deg,#2E577F,var(--steel-deep));border:1px solid var(--steel);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 2px 0 #142C45}
+.loadbtn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 0 #142C45}
 .loadbtn:hover{filter:brightness(1.12)}
 .loadbtn{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:4px 18px 6px}
 .loadbtn .ldate{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em;padding:1px 7px;border-radius:8px;margin-bottom:2px;background:rgba(0,0,0,.28);color:#FFD27A}
@@ -115,7 +121,7 @@ a{color:var(--amber)}
 .easymask{position:fixed;inset:0;background:rgba(6,10,20,.82);z-index:80;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 14px}
 .easymask.on{display:flex}
 .easywin{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:1080px;width:100%;padding:0 0 22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.easyhd{position:sticky;top:0;background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;padding:16px 22px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between}
+.easyhd{position:sticky;top:0;background:linear-gradient(135deg,var(--steel-deep),var(--steel));color:#fff;padding:16px 22px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between}
 .easyhd h2{margin:0;font-size:19px;font-weight:900;letter-spacing:1px}
 .easyhd .x{background:rgba(255,255,255,.2);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer}
 .easybody{padding:20px 22px}
@@ -174,7 +180,7 @@ a{color:var(--amber)}
 .secnm{font-weight:700;font-size:13px}
 .secbar{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
 .secbar i{display:block;height:100%;border-radius:5px}
-.secbar i.up{background:var(--up)} .secbar i.dn{background:var(--dn,#1F9E6E)}
+.secbar i.up{background:var(--up)} .secbar i.dn{background:var(--down)}
 .secpc{font-family:var(--mono);font-weight:800;font-size:13px;text-align:right}
 .secma{display:flex;gap:4px;justify-content:flex-end}
 .secma em{font-style:normal;font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
@@ -281,7 +287,7 @@ a{color:var(--amber)}
 .gaplist{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--dim);line-height:2}
 .gaplist b{color:var(--paper)}
 .gitem{display:inline-block;margin-left:10px;font-family:var(--mono)}
-.gitem.up{color:var(--up)} .gitem.down{color:var(--dn,#1F9E6E)}
+.gitem.up{color:var(--up)} .gitem.down{color:var(--down)}
 .gapnote{background:rgba(242,181,68,.10);border:1px solid rgba(242,181,68,.4);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:var(--amber);line-height:1.7}
 .gapfix{margin-left:8px;background:var(--amber);color:var(--ink);border:0;border-radius:6px;padding:3px 12px;font-weight:800;cursor:pointer}
 .egrid .eg .stopwhy{display:block;font-style:normal;font-size:10px;color:var(--dim);margin-top:3px;line-height:1.4}
@@ -293,7 +299,7 @@ a{color:var(--amber)}
 .rdtabs{display:flex;align-items:center;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:3px;scrollbar-width:thin}
 .rdtab{flex:0 0 auto;align-self:center;height:34px;line-height:1;padding:0 16px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono);white-space:nowrap}
 .rdtab:hover{border-color:var(--amber-d);color:var(--paper)}
-.rdtab.on{background:linear-gradient(135deg,#1F9E6E,#17B890);color:#fff;border-color:transparent}
+.rdtab.on{background:linear-gradient(135deg,var(--steel-deep),var(--steel));color:#fff;border-color:transparent}
 .estatus{font-size:12px;font-weight:800;padding:3px 11px;border-radius:20px;margin-left:4px}
 .estatus.out{background:rgba(229,72,77,.18);color:#E5484D;border:1px solid rgba(229,72,77,.5)}
 .estatus.tp{background:rgba(31,158,110,.18);color:#3DBB8A;border:1px solid rgba(31,158,110,.5)}
@@ -376,12 +382,12 @@ a{color:var(--amber)}
 .racettl{font-size:12px;color:var(--paper);font-weight:700;margin-bottom:6px}
 .racebar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--panel2)}
 .racebar i{display:block;height:100%}
-.racebar i.a{background:var(--up)} .racebar i.b{background:var(--dn,#1F9E6E)}
+.racebar i.a{background:var(--up)} .racebar i.b{background:var(--down)}
 .racebar i.d{background:rgba(242,181,68,.55)} .racebar i.c{background:rgba(255,255,255,.14)}
 .racelg{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:6px 20px;margin-top:8px;font-size:12px;color:var(--dim)}
 @media(max-width:760px){.racelg{grid-template-columns:1fr}}
 .racelg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.racelg em.a{background:var(--up)} .racelg em.b{background:var(--dn,#1F9E6E)}
+.racelg em.a{background:var(--up)} .racelg em.b{background:var(--down)}
 .racelg em.d{background:rgba(242,181,68,.55)} .racelg em.c{background:rgba(255,255,255,.2)}
 .racelg b{font-family:var(--mono)}
 .diagtbl{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
@@ -397,7 +403,7 @@ a{color:var(--amber)}
 .daysum .ds b{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--paper)}
 .daysum .ds i{font-style:normal;font-family:var(--mono);font-size:12px}
 .daysum .ds.win b{color:var(--amber)} .daysum .ds.win i{color:var(--up)}
-.daysum .ds.lose b{color:var(--up)} .daysum .ds.lose i{color:var(--dn,#1F9E6E)}
+.daysum .ds.lose b{color:var(--up)} .daysum .ds.lose i{color:var(--down)}
 .daysum .ds.net{margin-left:auto}
 .daysum .ds.net b{font-size:17px}
 @media(max-width:760px){.daysum{gap:10px;font-size:11px}.daysum .ds.net{margin-left:0;width:100%}}
@@ -483,6 +489,9 @@ a{color:var(--amber)}
 
 .guard{position:relative}
 .guard.locked{display:none}
+/* V274 測試：①② 教學氣泡只在「還沒有資料」時出現，有資料就收起來，頂端才不會一直掛著字 */
+body.hasdata .steptip{display:none}
+body.hasdata .stepwrap{margin-top:0}
 .locknote{display:none;font-size:12px;color:var(--dim);line-height:1.6;padding:6px 0}
 .locknote.show{display:block}
 .modeseg{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
@@ -519,7 +528,8 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 
 .bar{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:10px}
 .bar i{display:block;height:100%;background:var(--amber);width:0;transition:width .18s}
-.log{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.log{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px;max-height:84px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+#log:empty,#diagLog:empty,#fbLog:empty{display:none;margin:0}
 .log .err{color:var(--up)} .log .ok{color:var(--down)}
 /* 全域的 .warn 是一個有內距與外框的方塊；直接套在 log 的 <span> 上會撐開行高、壓到上下行。
    log 裡一律拉回純文字，只留顏色。 */
@@ -542,6 +552,19 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .gdot{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
 .fun{border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:16px;background:var(--panel)}
 .fun h3{margin:0 0 11px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
+/* 有篩到股票時漏斗自動收起（只剩標題），沒篩到才自動攤開——那時才真的需要看卡在哪一關 */
+/* 模式切換移到表格上方：它決定「現在這張表在看什麼」，屬於結果區，不屬於設定區 */
+.modetop{margin:0 0 12px;flex-wrap:nowrap}
+.modetop button{flex:1 1 0;min-width:0;padding:9px 6px}
+@media(max-width:760px){.modetop{flex-wrap:wrap}.modetop button{flex:1 1 44%}}
+/* 通用收合區塊：統計類的東西預設只剩一行標題，點了才展開。
+   主畫面第一眼應該是「今天篩到什麼」，不是一堆摘要數字。
+   例外：條件漏斗在「一檔都沒篩到」時自動攤開——那時它才是你要看的東西。 */
+.fold2 .foldbody{display:none}
+.fold2.open .foldbody{display:block}
+.fold2>h3{cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none}
+.foldi2{font-style:normal;font-size:11px;color:var(--dim)}
+.fold2.open .foldi2{color:var(--amber)}
 .fstep{display:grid;grid-template-columns:132px 1fr 62px;align-items:center;gap:10px;padding:3px 0;font-size:12px}
 .fstep .fb{height:15px;background:var(--panel2);border-radius:2px;overflow:hidden}
 .fstep .fb i{display:block;height:100%;background:var(--amber-d)}
@@ -556,10 +579,29 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .tbar .sp{flex:1}
 .tblwrap{border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 340px)}
 table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mono);font-size:12.5px}
-th{position:sticky;top:0;z-index:2;background:var(--panel2);text-align:right;padding:9px 11px;font-weight:500;font-size:11px;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th{position:sticky;top:0;z-index:2;background:var(--panel2);text-align:right;padding:9px 7px;font-weight:500;font-size:11px;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
 th:hover,th.on{color:var(--amber)}
 th:first-child,th:nth-child(2){text-align:left}
-td{padding:8px 11px;text-align:right;border-bottom:1px solid rgba(38,55,74,.55);white-space:nowrap}
+td{padding:8px 7px;text-align:right;border-bottom:1px solid rgba(38,55,74,.55);white-space:nowrap}
+/* 不要橫拉：靠縮內容讓它塞得下，而不是用 overflow:hidden 硬切——硬切會讓最右邊幾欄
+   永遠看不到。真的塞不下時（手機）還是要能拖。 */
+.vbar{width:26px;margin-right:4px}
+.ago{font-size:9.5px}
+/* 缺口的「日期＋未補」在窄螢幕藏起來：顏色已經分得出未補／已補（實心＝未補），
+   日期本來就掛在滑鼠提示裡，為了它犧牲整張表的寬度不划算。 */
+@media(max-width:1800px){.ago{display:none}}
+.badge{padding:0 3px;font-size:8.5px}
+/* 表格不再橫拉：螢幕越窄就把欄距與字級壓得越小，讓 16 欄一次看完。 */
+table{table-layout:auto}
+@media(max-width:1700px){ table{font-size:11.5px} th{padding:8px 4px;font-size:10px} td{padding:7px 4px} }
+@media(max-width:1500px){ table{font-size:10.5px} th{padding:7px 3px;font-size:9.5px;letter-spacing:0} td{padding:6px 3px} }
+@media(max-width:1460px){ table{font-size:10px} th{padding:6px 2px;font-size:9px} td{padding:6px 2px}
+  .chip{padding:1px 5px;font-size:9.5px} .vbar{width:20px} .badge{display:none}
+  .fleetag{font-size:10px;padding:2px 7px 2px 5px;gap:3px} .fleetag svg{width:12px;height:12px}
+  .gpct{display:none} .lamps i{width:13px;font-size:8px} }
+.gpct{font-style:normal}
+@media(max-width:1380px){ table{font-size:9.5px} th{padding:5px 2px;font-size:8.5px} td{padding:5px 2px}
+  .chip{padding:1px 4px;font-size:9px} .vbar{display:none} .badge{display:none} }
 td:first-child,td:nth-child(2){text-align:left}
 tbody tr:hover{background:rgba(242,181,68,.06)}
 .code{color:var(--amber);font-weight:700}
@@ -577,9 +619,11 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 .asof span{color:var(--paper);font-size:13px;font-weight:500}
 /* 鎖住時隱藏所有參數欄，只留條件清單 */
 .chip{display:inline-block;padding:1px 8px;border-radius:3px;font-weight:700;font-size:11.5px}
-.chip.b3{background:var(--up);color:#fff}
-.chip.b2{background:var(--amber);color:var(--ink)}
-.chip.b1{background:rgba(242,181,68,.2);color:var(--amber)}
+/* 量比是「程度」不是「方向」，所以走單色熱度階（淡→濃的橘），
+   絕對不能用紅色——紅色在這張表裡只代表「漲」。 */
+.chip.b3{background:#E8743B;color:#1A0A03}
+.chip.b2{background:var(--amber);color:#2B1D04}
+.chip.b1{background:rgba(224,163,60,.18);color:var(--amber)}
 .chip.g2{background:var(--up);color:#fff}
 .chip.g1{background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.35)}
 .tabs{margin:0}
@@ -599,26 +643,36 @@ tbody tr:hover{background:rgba(242,181,68,.06)}
 #tblwrap table{width:100%;table-layout:auto}
 #tblwrap th,#tblwrap td{white-space:nowrap}
 @media(max-width:1100px){#tblwrap th,#tblwrap td{padding-left:6px;padding-right:6px;font-size:12px}}
-.chip.gd{background:rgba(31,158,110,.16);color:var(--dn,#1F9E6E);border:1px solid rgba(31,158,110,.5)}
-.chip.gd2{background:var(--dn,#1F9E6E);color:#fff}
+.chip.gd{background:rgba(31,158,110,.16);color:var(--down);border:1px solid rgba(31,158,110,.5)}
+.chip.gd2{background:var(--down);color:#fff}
 .contchip{display:inline-block;background:rgba(229,72,77,.16);color:var(--up);border:1px solid rgba(229,72,77,.5);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
-.contchip.sell{background:rgba(31,158,110,.16);color:var(--dn,#1F9E6E);border-color:rgba(31,158,110,.5)}
+.contchip.sell{background:rgba(31,158,110,.16);color:var(--down);border-color:rgba(31,158,110,.5)}
 .patdot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}
 .patdot.t1{background:#6FA8DC}
 .patdot.t2{background:var(--up)}
 /* 生命線(10MA)與月線(20MA)雙雙跌破＝危險。依「距月線%」分三級，
    越嚴重越安靜——越到後面能做的越少，衝出去常常賣在反彈前。 */
-tbody tr.flee{background:rgba(31,158,110,.07)}
-tbody tr.flee:hover{background:rgba(31,158,110,.14)}
-tbody tr.flee2{background:rgba(31,158,110,.045)}
-tbody tr.flee3{background:rgba(255,255,255,.025)}
-.fleetag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
-.fleetag.t1{color:#9BFFD8;background:rgba(47,224,166,.18);border:1px solid rgba(47,224,166,.6);animation:fleepulse1 1.6s ease-in-out infinite}
-.fleetag.t2{color:#8FD9BC;background:rgba(31,158,110,.12);border:1px solid rgba(31,158,110,.4);animation:fleepulse2 2.6s ease-in-out infinite}
-.fleetag.t3{color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line)}
-@keyframes fleepulse1{0%,100%{opacity:.55;box-shadow:none}50%{opacity:1;box-shadow:0 0 10px rgba(47,224,166,.55)}}
-@keyframes fleepulse2{0%,100%{opacity:.45}50%{opacity:.95;box-shadow:0 0 7px rgba(31,158,110,.3)}}
-@media (prefers-reduced-motion:reduce){.fleetag{animation:none!important;opacity:.85}}
+/* 生命線(10MA)與月線(20MA)雙雙跌破＝危險，依「距月線%」分三級。
+   V274：改成固定寬度的圖示槽，絕對定位在儲存格左側——數字維持靠右對齊，
+   有沒有標記都不會被推歪。越嚴重越安靜，因為越到後面能做的越少。 */
+tbody tr.flee{background:rgba(22,169,122,.06)}
+tbody tr.flee:hover{background:rgba(22,169,122,.12)}
+tbody tr.flee2{background:rgba(22,169,122,.035)}
+tbody tr.flee3{background:transparent}
+.fleecell{text-align:left!important;white-space:nowrap}
+.fleetag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 7px;border-radius:20px;
+  font-size:11.5px;font-weight:800;letter-spacing:.3px}
+.fleetag svg{display:block;flex:0 0 auto}
+.fleetag em{font-style:normal}
+.fleetag.t3 svg{animation:legshake 1.1s ease-in-out infinite}
+@keyframes legshake{0%,100%{transform:translateX(-.6px)}50%{transform:translateX(.6px)}}
+.fleetag.t1{color:#02130D;background:var(--down);animation:fleepulse1 1.6s ease-in-out infinite}
+.fleetag.t2{color:#8FEFCB;background:rgba(22,169,122,.16);box-shadow:inset 0 0 0 1px rgba(22,169,122,.55);
+  animation:fleepulse2 2.6s ease-in-out infinite}
+.fleetag.t3{color:var(--dim);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line)}
+@keyframes fleepulse1{0%,100%{box-shadow:none}50%{box-shadow:0 0 11px rgba(22,169,122,.7)}}
+@keyframes fleepulse2{0%,100%{opacity:.6}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fleetag{animation:none!important}}
 /* 這檔最後一筆行情不是基準日（通常是掉出買超名單後就沒再抓）→ 收盤價是舊的 */
 td.stalepx{color:var(--dim)}
 .staleD{font-style:normal;font-size:9px;color:var(--amber);margin-left:5px;border:1px solid rgba(242,181,68,.45);border-radius:3px;padding:0 4px;white-space:nowrap}
@@ -671,7 +725,7 @@ td.stalepx{color:var(--dim)}
 .pstops .plabel{color:var(--dim);font-size:11px;letter-spacing:.06em;margin-bottom:6px}
 .pstops .pslist{display:flex;flex-wrap:wrap;gap:8px}
 .pstops .pschip{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 10px;font-family:var(--mono);font-size:12.5px}
-.pstops .pschip b{color:var(--dn,#1F9E6E);font-weight:700}
+.pstops .pschip b{color:var(--down);font-weight:700}
 .pstops .pschip .nm{color:var(--muted);margin-right:6px;font-family:var(--sans);font-size:11.5px}
 .pdisc{margin-top:8px;font-size:10.5px;color:var(--dim)}
 .cbig.dragover{border-color:var(--amber);background:rgba(242,181,68,.06)}
@@ -736,7 +790,9 @@ tbody tr{cursor:pointer}
 .empty{padding:48px 20px;text-align:center;color:var(--muted)}
 .empty b{display:block;color:var(--paper);font-size:15px;margin-bottom:7px}
 .warn{background:rgba(242,181,68,.08);border:1px solid rgba(242,181,68,.32);border-radius:5px;padding:9px 12px;font-size:12px;color:#EDCB84;margin-bottom:14px}
-@media (max-width:1180px){ .mgrid{grid-template-columns:1fr} .insp{position:static;max-height:none} }
+/* 小筆電（1366 之類）：右邊的「個股檢查」改放到表格下面，把整個寬度讓給表格。
+   並排在那個寬度本來就擠，讓表格不用橫拉比較實用。 */
+@media (max-width:1400px){ .mgrid{grid-template-columns:1fr} .insp{position:static;max-height:none} }
 @media (max-width:900px){
   .wrap{grid-template-columns:1fr}
   .side{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
@@ -748,8 +804,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V273</span>
-    <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
+    <h1>盤後篩選台</h1><span class="ver">V274</span>
     <span class="quota" id="quota" title="本機資料用量">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
@@ -759,7 +814,6 @@ tbody tr{cursor:pointer}
     <button class="secbtn" id="btnSector" title="今日最強族群 TOP 5＋產業全景樹狀圖">🏭 近期產業</button>
     <span class="stepwrap s1"><span class="steptip"><b>① 先按這裡讀取</b><i>⬇</i></span><button class="loadbtn" id="btnLoad" title="從雲端讀取最新資料（不用重新抓）"><small class="ldate" id="loadDate">資料 —</small><span id="loadTxt">⬇ 載入最新</span></button></span>
     <span class="stepwrap s2"><span class="steptip"><b>② 再按這裡</b><i>⬇</i></span><button class="helpbtn" id="btnEasy">🔰 看不懂？按這裡</button></span>
-    <button class="shortbtn" id="btnShort" title="四條均線全跌破＋外資投信同步賣超＋量破千張，依法人連賣天數排序只列前 100 檔">🔻 反手做空<small>希望你手上沒有</small></button>
     <i class="hbreak"></i>
     <span class="mktstr" id="strTwse" title="點一下更新：大盤（加權指數）站上幾條均線">大盤<i class="ststub">大型權值股</i> <b>—</b></span>
   </div>
@@ -828,15 +882,9 @@ tbody tr{cursor:pointer}
     <div class="note" id="costNote"></div>
   </div>
 
-  <div class="blk">
-    <h2>篩選條件<button class="lk" id="lock" aria-pressed="false">🔒 解鎖</button></h2>
-    <div class="modeseg" id="modeseg">
-      <button data-m="normal" class="on">一般正常篩選</button>
-      <button data-m="gap">多缺口篩選</button>
-      <button data-m="cont">法人連買篩選</button>
-      <button data-m="short" class="short" title="四條均線全跌破＋外資投信同步賣超">🔻 反手做空</button>
-    </div>
-    <div class="locknote show" id="locknote"><b>條件已鎖定</b>，全部套用中。按上方「解鎖」可調整。</div>
+  <div class="blk fold" id="condBlk">
+    <h2>篩選條件<i class="foldi">條件 ▾</i><button class="lk" id="lock" aria-pressed="false">🔒 解鎖</button></h2>
+    <div class="locknote show" id="locknote">🔒 <b>條件已鎖定</b>，全部套用中（按上方解鎖可調整）</div>
     <div class="guard locked" id="guard">
       <label class="row"><input type="checkbox" id="cMA" checked><span class="tx">收盤站上 5/10/20/60 日均線</span></label>
       <label class="row sub2"><input type="checkbox" id="cMAorder" checked><span class="tx">季線在最下<small>MA5／MA10／MA20 都高於 MA60</small></span></label>
@@ -876,9 +924,7 @@ tbody tr{cursor:pointer}
       <div class="fld adv"><span>請求間隔 (ms)</span><input type="number" id="gap" value="1600" min="600" step="100"></div>
       <label class="row adv"><input type="checkbox" id="mOtc" checked><span class="tx">一併納入上櫃<small>已預設開啟；櫃買 API 若改版抓不到，取消再更新</small></span></label>
     </div>
-    <button class="btn ghost sm" id="btnRun" style="margin-top:12px">只重新篩選（不抓資料）</button>
-    <button class="btn ghost sm" id="btnDiag" style="margin-top:8px">檢查資料完整度</button>
-    <div class="log" id="diagLog"></div>
+    <div class="note" style="margin-top:10px">條件一改就自動重新篩選，不用再按任何按鈕。</div>
   </div>
 
 
@@ -899,7 +945,11 @@ tbody tr{cursor:pointer}
       <button class="btn ghost sm" id="fbDown">下載雲端</button>
       <button class="btn ghost sm" id="fbFind">重新偵測</button>
     </div>
-    <button class="btn ghost sm fbupbtn" id="btnClr" style="margin-top:8px">清除本機快取</button>
+    <div class="duo" style="margin-top:8px">
+      <button class="btn ghost sm" id="btnDiag">檢查資料完整度</button>
+      <button class="btn ghost sm" id="btnClr">清除本機快取</button>
+    </div>
+    <div class="log" id="diagLog"></div>
   </div>
 
 </aside>
@@ -909,14 +959,20 @@ tbody tr{cursor:pointer}
   <div class="mleft">
   <div id="warnBox"></div>
   <div class="cbig" id="cbig"><div class="ihint drop-hint" style="padding:44px 0;text-align:center">點上面表格任一列（或拖進來 / 右邊輸入代號），這裡就會畫出 K 線與成交量。</div></div>
-  <div class="perf" id="perf" style="display:none">
-    <h3>近 30 交易日表現 · 前 50 檔</h3><div id="perfBody"></div>
+  <div class="perf fold2" id="perf" style="display:none">
+    <h3>近 30 交易日表現 · 前 50 檔<i class="foldi2">▾</i></h3><div class="foldbody" id="perfBody"></div>
   </div>
-  <div class="grp" id="grp" style="display:none">
-    <h3>量價型態分組 · 近 5 日均量基準</h3><div id="grpBody"></div>
+  <div class="grp fold2" id="grp" style="display:none">
+    <h3>量價型態分組 · 近 5 日均量基準<i class="foldi2">▾</i></h3><div class="foldbody" id="grpBody"></div>
   </div>
-  <div class="fun" id="fun" style="display:none">
-    <h3>條件漏斗</h3><div id="funBody"></div>
+  <div class="fun fold2" id="fun" style="display:none">
+    <h3 id="funHd">條件漏斗<i class="foldi2">▾</i></h3><div class="foldbody" id="funBody"></div>
+  </div>
+  <div class="modeseg modetop" id="modeseg">
+    <button data-m="normal" class="on">一般正常篩選</button>
+    <button data-m="gap">多缺口篩選</button>
+    <button data-m="cont">法人連買篩選</button>
+    <button data-m="short" class="short" title="四條均線全跌破＋外資投信同步賣超＋量破千張">🔻 反手做空</button>
   </div>
   <div class="tbar">
     <div class="seg tabs" id="segTab">
@@ -2389,6 +2445,8 @@ function paintGroups(){
 }
 function paintFunnel(){
   const f=$('#fun'); f.style.display='block';
+  // 有結果＝不用看漏斗；沒結果＝一定要看，所以自動攤開
+  f.classList.toggle('open',(RESULT||[]).length===0);
   const max=Math.max(1,FUNNEL[0][1]);
   $('#funBody').innerHTML=FUNNEL.map(([t,n,on],i)=>
     `<div class="fstep ${on?'':'off'} ${on&&n===0?'zero':''} ${i===FUNNEL.length-1?'last':''}">
@@ -2396,6 +2454,11 @@ function paintFunnel(){
       <span class="fn">${on?n:'—'}</span></div>`).join('');
 }
 // 反手做空清單只列前 100 檔（依目前排序），多的不看
+/* 腿的三階段圖示。14×14 的線稿，currentColor 吃外層顏色。
+   快逃＝抬腿在跑；腿軟＝膝蓋彎掉；腿麻＝站著不動、旁邊三條抖動線。 */
+const LEG_RUN=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.2" cy="3.2" r="1.5"/><path d="M10.6 5 8.2 8.4"/><path d="M10.4 5.9 13.4 7.2"/><path d="M9.4 6.4 6.9 5.4"/><path d="M8.2 8.4 10 12.4"/><path d="M8.2 8.4 5.6 10.6 6.2 14"/><path d="M1 4.2h3M.6 7.4h3.2M2 10.6h2.2"/></svg>`;
+const LEG_WEAK=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.8" cy="2.9" r="1.6"/><path d="M7.9 4.3C6.2 5.2 5.4 6.6 5.6 8.1"/><path d="M6.5 5.5 5 8.6"/><path d="M5.6 8.1 5.2 12.6"/><path d="M5.6 8.1 7.7 12.6"/><path d="M2.6 8.8l-1.3.8M2.8 11l-1.3.8M10.2 9.2l1.3.8M10 11.4l1.3.8"/></svg>`;
+const LEG_NUMB=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3.6" cy="3.2" r="1.6"/><path d="M3.6 4.8v4.2"/><path d="M3.6 9h6.8"/><path d="M10.4 9l.5 1.8"/><path d="M4.4 6.5 7.6 8.5"/><path d="M12.6 2.4l-1.5 2.4h1.8l-1.5 2.4"/><path d="M14.4 4.2h.9M14 6.6l.8.4"/></svg>`;
 const SHORT_CAP=100;
 function sortedRaw(){
   // 做空模式的 f/i 一定是負的，若還用「買超>0」過濾會永遠空白 → 改成不過濾、只改排序
@@ -2438,8 +2501,15 @@ function paintPerf(){
     <div class="plabel"><span>上漲 ${(up/top.length*100).toFixed(0)}%</span><span>下跌 ${(dn/top.length*100).toFixed(0)}%</span></div>`;
 }
 
-const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量(張)'],
-  ['ratio','量比'],['gap','多缺口'],['pat','型態'],['r30','30日%'],['lamps','均線 5/10/20/60'],['d10','距生命線%'],['d20','距月線%'],['d60','距季線%'],['f','外資(張)'],['i','投信(張)'],['cont','法人(連買3天)']];
+/* 欄名一律縮短，括號裡的說明改掛在滑鼠提示上——15 欄要塞進一個畫面，標題是最省得掉的地方 */
+const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量'],
+  ['ratio','量比'],['gap','缺口'],['pat','型態'],['r30','30日%'],['lamps','均線'],['d10','生命線'],['d20','月線'],['d60','季線'],['flee','狀態'],['f','外資'],['i','投信'],['cont','法人']];
+const COL_TIP={code:'股票代號',name:'股票名稱',px:'收盤價',chg:'今日漲跌幅',vol:'成交量（張）',
+  ratio:'量比＝今日量 ÷ 均量',gap:'多缺口（近幾日內）',pat:'型態 1／2',r30:'近 30 交易日漲跌幅',
+  lamps:'站上 5／10／20／60 日均線（亮＝站上）',d10:'收盤離生命線 10MA 幾 %（負＝已跌破）',
+  d20:'收盤離月線 20MA 幾 %（負＝已跌破）',d60:'收盤離季線 60MA 幾 %（負＝已跌破）',
+  flee:'生命線與月線雙雙跌破時的嚴重程度',
+  f:'外資買賣超（張）',i:'投信買賣超（張）',cont:'外資投信同步連買／連賣天數'};
 function patCell(r){
   const dots=[];
   if(r.hhll)dots.push('<span class="patdot t1" title="型態1 波段型態">1</span>');
@@ -2477,8 +2547,8 @@ function gapCell(g){
   const dt = g.date?fmtD(g.date):'';
   const down = g.dir==='down';
   const cls = down ? (g.unf?'gd2':'gd') : (g.unf?'g2':'g1');
-  return`<span class="chip ${cls}" title="${down?'空方缺口：當日最高 < 前日最低':'多方缺口：當日最低 > 前日最高'}${dt?'，發生於 '+dt:''}">${down?'▼空':'▲多'} ${g.pct.toFixed(2)}%</span>`+
-    `<span class="ago" title="缺口發生日與是否已回補">${dt||agoTxt}·${g.unf?'未補':'已補'}</span>`;
+  return`<span class="chip ${cls}" title="${down?'空方缺口：當日最高 < 前日最低':'多方缺口：當日最低 > 前日最高'}${dt?'，發生於 '+dt:''}">${down?'▼空':'▲多'}<i class="gpct"> ${g.pct.toFixed(2)}%</i></span>`+
+    `<span class="ago" title="缺口發生於 ${dt||agoTxt}，${g.unf?'尚未回補':'已經回補'}">${(dt||agoTxt).replace(/^\d{4}\//,'')} ${g.unf?'未補':'已補'}</span>`;
 }
 function burstCell(ratio){
   const vx=+$('#volX').value||3;
@@ -2496,15 +2566,26 @@ function paintTable(){
       :'<div class="empty"><b>沒有符合的股票</b>看上面的漏斗，數字掉到 0 的那一列就是卡住的條件。條件全開時空手是常態。</div>';
     return;}
   const R=sorted();
+  // 整欄都沒資料就不要畫——法人還沒公布時那兩欄全是「—」，白白佔掉寬度
+  const dead=new Set();
+  if(R.length){
+    if(R.every(x=>x.f==null))dead.add('f');
+    if(R.every(x=>x.i==null))dead.add('i');
+    if(R.every(x=>!x.gap))dead.add('gap');
+    if(R.every(x=>!x.hhll&&!x.wpat))dead.add('pat');
+  }
   let h='<table><thead><tr>'+COLS.map(([k,t])=>
-    `<th data-k="${k}" class="${SORT.k===k?'on':''}">${k==='ratio'?`量比 (${VOLBASE}日)`:k==='gap'?`多缺口 (近${$('#gapDays').value}日)`:k==='cont'?(SHORTONLY?'法人連賣(天)':`法人(連買${CONT_DAYS}天)`):t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
+    `<th data-k="${k}" class="${SORT.k===k?'on':''}" title="${(COL_TIP[k]||t).replace(/"/g,'')}${k==='ratio'?`（${VOLBASE} 日均量）`:k==='gap'?`（近 ${$('#gapDays').value} 日）`:k==='cont'?(SHORTONLY?'':`（連買 ${CONT_DAYS} 日標記）`):''}　點標題可排序">${t}${SORT.k===k?(SORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead><tbody>';
   for(const r of R){
     // 生命線(10MA)與月線(20MA)雙雙跌破才算危險；深度看「距月線%」
     const dbl=(r.d10!=null&&r.d10<0&&r.d20!=null&&r.d20<0);
     const deep=dbl?-r.d20:0;                                   // 破月線幾 %（正數）
     const tier=!dbl?0:deep<5?1:deep<10?2:3;   // 破月線 0-5／5-10／10% 以上
     const flee=tier>0;
-    const fleeTxt=['','快逃','腿軟了','腿麻了'][tier];
+    // 圖示而不是文字：文字會把右對齊的數字推歪。名稱與說明移到滑鼠提示。
+    // 三隻腿：站著跑 → 膝蓋軟掉 → 整隻在抖。用 SVG 不用 emoji，各平台才長一樣。
+    const fleeTxt=['',LEG_RUN,LEG_WEAK,LEG_NUMB][tier];
+    const fleeNm =['','快逃','腿軟了','腿麻了'][tier];
     const fleeWhy=['','剛跌破不久，跑還來得及','跌一段了，還是要走，但別市價砍在最低點','跌很深了，這時候衝出去常常賣在反彈前，分批出場'][tier];
     h+=`<tr data-code="${r.code}" class="${tier===1?'flee':tier===2?'flee2':tier===3?'flee3':''}">`+
     `<td class="code" onclick="drawChart('${r.code}')" style="cursor:pointer;text-decoration:underline">${r.code}</td>`+
@@ -2518,8 +2599,9 @@ function paintTable(){
     `<td class="${r.r30>0?'up':r.r30<0?'dn':''}">${r.r30==null?'—':(r.r30>0?'+':'')+r.r30.toFixed(2)}</td>`+
     `<td><span class="lamps">${['5','10','20','60'].map((l,i)=>`<i class="${r.lamps[i]?'on':''}" data-l="${l}"></i>`).join('')}</span></td>`+
     `<td class="${r.d10>0?'up':r.d10<0?'dn':''}" title="生命線(10MA) ${r.ma10!=null?r.ma10.toFixed(2):'—'}">${r.d10==null?'—':(r.d10>0?'+':'')+r.d10.toFixed(2)}</td>`+
-    `<td class="${r.d20>0?'up':r.d20<0?'dn':''}" title="月線(20MA) ${r.ma20!=null?r.ma20.toFixed(2):'—'}">${r.d20==null?'—':(r.d20>0?'+':'')+r.d20.toFixed(2)}${flee?`<span class="fleetag t${tier}" title="生命線與月線雙雙跌破，破月線 ${deep.toFixed(1)}%｜${fleeWhy}">${fleeTxt}</span>`:''}</td>`+
+    `<td class="${r.d20>0?'up':r.d20<0?'dn':''}" title="月線(20MA) ${r.ma20!=null?r.ma20.toFixed(2):'—'}">${r.d20==null?'—':(r.d20>0?'+':'')+r.d20.toFixed(2)}</td>`+
     `<td class="${r.d60>0?'up':r.d60<0?'dn':''}" title="季線(60MA) ${r.ma60!=null?r.ma60.toFixed(2):'—'}">${r.d60==null?'—':(r.d60>0?'+':'')+r.d60.toFixed(2)}</td>`+
+    `<td class="fleecell">${flee?`<span class="fleetag t${tier}" title="破月線 ${deep.toFixed(1)}%。${fleeWhy}">${fleeTxt}<em>${fleeNm}</em></span>`:'<span style="color:var(--dim)">—</span>'}</td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
     `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
     `<td>${SHORTONLY
@@ -2527,6 +2609,12 @@ function paintTable(){
         : (($('#cCont').checked&&r.contD>=CONT_DAYS)?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>')}</td></tr>`;
   }
   $('#tblwrap').innerHTML=h+'</tbody></table>';
+  // 整欄沒資料的，連同表頭一起藏起來（表頭與表身欄數一致，用序號對得上）
+  if(dead.size){
+    const tb=$('#tblwrap');
+    dead.forEach(k=>{ const i=COLS.findIndex(c=>c[0]===k); if(i<0)return;
+      tb.querySelectorAll(`tr > *:nth-child(${i+1})`).forEach(el=>{el.style.display='none';}); });
+  }
   $('#tblwrap').querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; if(SORT.k===k)SORT.d*=-1; else{SORT.k=k;SORT.d=-1;} paintTable();paintPerf();});
   $('#tblwrap').querySelectorAll('tbody tr').forEach(tr=>{
@@ -2572,6 +2660,8 @@ function updateQuota(){
   box.classList.toggle('danger',hot||lsHot);
   box.classList.toggle('warn',(warm||LS_TIGHT)&&!lsHot&&!hot);
   const mb=x=>(x/1048576).toFixed(1);
+  // 沒問題就不該佔位置——只有共用空間吃緊、本工具超標、或退回 localStorage 時才顯示
+  box.style.display=(LS_TIGHT||ls.mine>1.5*1048576||!onIdb)?'':'none';
   $('#quotaTxt').textContent=onIdb
     ? (LS_TIGHT?`${mb(bytes)}MB 資料庫 · ⚠共用${LS_FULL?'已滿':'快滿'}`:`${mb(bytes)}MB 資料庫`)
     : `${mb(bytes)}MB／5MB（${pct.toFixed(0)}%）`;
@@ -2584,11 +2674,12 @@ function updateQuota(){
     + `其中本工具只佔 ${mb(ls.mine)}MB，其他工具 ${mb(ls.other)}MB。\n\n最大的幾項：\n${top}\n\n點一下可以清掉本工具的殘留。`;
 }
 function paintStrip(){
+  // V274 測試：四格壓成三格——交易日數與追蹤檔數合併成一行小字，它們是診斷用的，不必跟日期一樣大
+  document.body.classList.toggle('hasdata',DB.dates.length>0);
   $('#strip').innerHTML=[
     ['行情日期',fmtD(DB.dates[DB.dates.length-1])],
-    ['交易日數',DB.dates.length],
-    ['追蹤檔數',Object.keys(DB.stocks).length],
-    ['法人日期',fmtD(DB.inst.date)]
+    ['法人日期',fmtD(DB.inst.date)],
+    ['資料量',`${DB.dates.length} 天 · ${Object.keys(DB.stocks).length} 檔`]
   ].map(([a,b])=>`<div class="cellx"><s>${a}</s><b>${b}</b></div>`).join('');
   const need=Math.max(65,+$('#days').value||100),miss=Math.max(0,need-DB.dates.length);
   const gap=Math.max(600,+$('#gap').value||1600),mul=$('#mOtc').checked?2:1;
@@ -3154,7 +3245,7 @@ function planBanner(ser,wpat){
   return `<div class="pbanner"><div class="ptags">${tags.join('')}</div>${cells}
     ${p.rideName?`<div class="pnote" style="color:var(--amber)">目前沿著 <b>${p.rideName}</b> 前進（近期回測守住率 ${p.rideRate!=null?p.rideRate.toFixed(0):'—'}%）——股價貼著它走、靠近就反彈，跌破它才是趨勢轉弱的訊號。圖上該線已加粗標示。</div>`:''}
     ${p.note?`<div class="pnote">${p.note}</div>`:''}${
-      p.resist!=null && (p.resist-p.px)/p.px*100<3 ? `<div class="pnote" style="color:var(--dn,#1F9E6E)">現價逼近前高壓力 ${p.resist.toFixed(2)}（差 ${((p.resist-p.px)/p.px*100).toFixed(1)}%），須帶量才容易突破。</div>`:''
+      p.resist!=null && (p.resist-p.px)/p.px*100<3 ? `<div class="pnote" style="color:var(--down)">現價逼近前高壓力 ${p.resist.toFixed(2)}（差 ${((p.resist-p.px)/p.px*100).toFixed(1)}%），須帶量才容易突破。</div>`:''
     }${others}
     <div class="pdisc">停損取前波段低點／百日均線支撐／近20日大量低點中最靠近現價下方者（皆用最低價）。機械式統計，非投資建議。</div></div>`;
 }
@@ -3339,9 +3430,11 @@ function riskAssess(e){
 
   score=Math.max(0,Math.min(100,score));
   let level,lvColor,lvText,advice;
-  if(score>=70){level='偏低';lvColor='#1F9E6E';lvText='條件多數成立，屬相對安全的進場位置';advice='推薦買進';}
-  else if(score>=50){level='中等';lvColor='#F2B544';lvText='有機會但也有隱憂，建議等回測或帶量確認再進';advice='可考慮／等回測';}
-  else{level='偏高';lvColor='#E5484D';lvText='不利因素較多，這位置進場風險大，宜觀望或嚴設停損';advice='暫時觀望';}
+  // 風險等級不用紅綠：在這個工具裡綠＝跌、紅＝漲，拿來講「安不安全」會跟漲跌撞在一起
+  // （綠色既是「跌」又是「風險低」，看久了一定亂）。改走鋼藍→琥珀→橘的單一強度軸。
+  if(score>=70){level='偏低';lvColor='#4F8CC9';lvText='條件多數成立，屬相對安全的進場位置';advice='推薦買進';}
+  else if(score>=50){level='中等';lvColor='#E0A33C';lvText='有機會但也有隱憂，建議等回測或帶量確認再進';advice='可考慮／等回測';}
+  else{level='偏高';lvColor='#E8743B';lvText='不利因素較多，這位置進場風險大，宜觀望或嚴設停損';advice='暫時觀望';}
 
   return{score,level,lvColor,lvText,advice,pros,cons,plan,rr};
 }
@@ -3353,8 +3446,8 @@ function riskHTML(e){
   const consL=r.cons.length?r.cons.map(x=>`<li class="bad">${x}</li>`).join(''):'<li class="muted">無明顯扣分項</li>';
   return `<div class="riskcard">
     <div class="rhead">
-      <div class="rgauge"><div class="rbar"><i style="width:${r.score}%;background:${r.lvColor}"></i></div>
-        <div class="rscore">評分 <b>${r.score}</b>/100</div></div>
+      <div class="rgauge"><div class="rbar"><i style="width:${100-r.score}%;background:${r.lvColor}"></i></div>
+        <div class="rscore">風險分數 <b>${100-r.score}</b>/100 <span style="color:var(--dim)">越大越危險</span></div></div>
       <div class="rlevel" style="color:${r.lvColor}"><span class="radvice" style="background:${r.lvColor}">${r.advice}</span><br>進場風險 <b>${r.level}</b></div>
     </div>
     <div class="rsum">${r.lvText}</div>
@@ -3764,11 +3857,6 @@ $('#modeseg').onclick=e=>{
   applyMode(b.dataset.m);
 };
 // 頂端的「🔻 反手做空」：按一下切到做空模式、再按一下回一般篩選
-$('#btnShort').onclick=()=>{
-  if(!DB.dates.length){alert('還沒有資料，先按左邊「更新並篩選」或上方「載入最新」。');return;}
-  applyMode(SHORTONLY?'normal':'short');
-  const t=$('#tblwrap'); if(t)t.scrollIntoView({behavior:'smooth',block:'center'});
-};
 $('#lock').onclick=e=>{
   // aria-pressed=true 代表「已解鎖」
   const unlocked=e.target.getAttribute('aria-pressed')==='true';
@@ -3782,13 +3870,17 @@ $('#lock').onclick=e=>{
 };
 $('#btnFetch').onclick=runFetch;
 $('#btnStop').onclick=()=>{ABORT=true;};
-$('#btnRun').onclick=()=>{
-  if(!DB.dates.length){alert('還沒有資料，先按「更新並篩選」。');return;}
-  run();
-  const b=$('#btnRun'), old=b.textContent;
-  b.textContent='✓ 已重新篩選，共 '+RESULT.length+' 檔';
-  setTimeout(()=>{b.textContent=old;},1500);
-};
+// 條件一改就自動重篩（不連網，所以免費）。小延遲避免連點幾個勾選跑好幾次。
+let _autoRunT=null;
+function autoRun(){
+  clearTimeout(_autoRunT);
+  _autoRunT=setTimeout(()=>{ if(DB.dates.length>=61){ try{ run(); }catch(e){} } },180);
+}
+(()=>{ const g=document.getElementById('guard');
+  if(g)g.addEventListener('change',autoRun);
+  ['#volBase','#volX','#nRank','#nSell','#minVol','#gapDays','#gapPct','#contDays','#segLogic']
+    .forEach(sel=>{const e=document.querySelector(sel); if(e)e.addEventListener('change',autoRun);});
+})();
 $('#btnDiag').onclick=()=>{
   const nD=DB.dates.length, codes=Object.keys(DB.stocks);
   if(!nD){$('#diagLog').innerHTML='<span class="err">本機沒有任何行情資料。請按「更新並篩選」。</span>';return;}
@@ -5491,6 +5583,11 @@ if(_q){ _q.style.cursor='pointer';
 }
 /* 「設定」要密碼才打得開（跟上傳同一組）。解開後這次開頁都算數，重新整理會再鎖上。
    說清楚：這只擋誤按和旁邊的人隨手亂動，頁面原始碼是公開的，擋不住真的想繞過的人。 */
+// 篩選條件：預設收起來，點標題展開（不鎖密碼，這是會調的東西，只是不必每天看著）
+const _condBlk=document.getElementById('condBlk');
+if(_condBlk){
+  _condBlk.querySelector('h2').onclick=e=>{ if(e.target.closest('.lk'))return; _condBlk.classList.toggle('open'); };
+}
 const _fbBlk=document.getElementById('fbBlk');
 let SET_UNLOCKED=false;
 function paintSetLock(){
@@ -5522,6 +5619,8 @@ function openEasy(mode){
   if(sec){ switchEasyTab('sec'); }
   else { switchEasyTab('reco'); buildEasyView(); }
 }
+// 所有收合區塊共用同一個點擊行為
+document.querySelectorAll('.fold2>h3').forEach(h=>{ h.onclick=()=>h.parentElement.classList.toggle('open'); });
 $('#btnEasy').onclick=()=>openEasy('easy');
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
