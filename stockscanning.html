@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V274</title>
+<title>盤後篩選台 V275</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -554,7 +554,9 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 .fun h3{margin:0 0 11px;font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:700}
 /* 有篩到股票時漏斗自動收起（只剩標題），沒篩到才自動攤開——那時才真的需要看卡在哪一關 */
 /* 模式切換移到表格上方：它決定「現在這張表在看什麼」，屬於結果區，不屬於設定區 */
-.modetop{margin:0 0 12px;flex-wrap:nowrap}
+.modetop{margin:0 0 12px;flex-wrap:nowrap;align-items:stretch}
+.modeseg button small{display:block;font-size:9.5px;font-weight:600;letter-spacing:0;opacity:.72;margin-top:1px}
+@media(max-width:1460px){.modeseg button small{font-size:9px}}
 .modetop button{flex:1 1 0;min-width:0;padding:9px 6px}
 @media(max-width:760px){.modetop{flex-wrap:wrap}.modetop button{flex:1 1 44%}}
 /* 通用收合區塊：統計類的東西預設只剩一行標題，點了才展開。
@@ -804,7 +806,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V274</span>
+    <h1>盤後篩選台</h1><span class="ver">V275</span>
     <span class="quota" id="quota" title="本機資料用量">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
@@ -972,7 +974,7 @@ tbody tr{cursor:pointer}
     <button data-m="normal" class="on">一般正常篩選</button>
     <button data-m="gap">多缺口篩選</button>
     <button data-m="cont">法人連買篩選</button>
-    <button data-m="short" class="short" title="四條均線全跌破＋外資投信同步賣超＋量破千張">🔻 反手做空</button>
+    <button data-m="short" class="short" title="四條均線全跌破＋外資投信同步賣超＋量破千張">🔻 反手做空<small>希望你沒有</small></button>
   </div>
   <div class="tbar">
     <div class="seg tabs" id="segTab">
@@ -2503,12 +2505,12 @@ function paintPerf(){
 
 /* 欄名一律縮短，括號裡的說明改掛在滑鼠提示上——15 欄要塞進一個畫面，標題是最省得掉的地方 */
 const COLS=[['code','代號'],['name','名稱'],['px','收盤'],['chg','漲跌%'],['vol','量'],
-  ['ratio','量比'],['gap','缺口'],['pat','型態'],['r30','30日%'],['lamps','均線'],['d10','生命線'],['d20','月線'],['d60','季線'],['flee','狀態'],['f','外資'],['i','投信'],['cont','法人']];
+  ['ratio','量比'],['gap','缺口'],['pat','型態'],['r30','30日%'],['lamps','均線'],['d10','生命線'],['d20','月線'],['d60','季線'],['flee','你的狀態'],['f','外資'],['i','投信'],['cont','法人']];
 const COL_TIP={code:'股票代號',name:'股票名稱',px:'收盤價',chg:'今日漲跌幅',vol:'成交量（張）',
   ratio:'量比＝今日量 ÷ 均量',gap:'多缺口（近幾日內）',pat:'型態 1／2',r30:'近 30 交易日漲跌幅',
   lamps:'站上 5／10／20／60 日均線（亮＝站上）',d10:'收盤離生命線 10MA 幾 %（負＝已跌破）',
   d20:'收盤離月線 20MA 幾 %（負＝已跌破）',d60:'收盤離季線 60MA 幾 %（負＝已跌破）',
-  flee:'生命線與月線雙雙跌破時的嚴重程度',
+  flee:'手上有這檔的話現在是什麼狀況——生命線與月線雙雙跌破時才會出現',
   f:'外資買賣超（張）',i:'投信買賣超（張）',cont:'外資投信同步連買／連賣天數'};
 function patCell(r){
   const dots=[];
