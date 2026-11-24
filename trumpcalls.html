@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>點名台 V35</title>
+<title>點名台 V36</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -139,6 +139,14 @@ h3.sect small{font-weight:400;font-size:12px}
 .tw a.st b{font-family:var(--num);font-size:16px;font-weight:700}
 .tw .note{font-size:12.5px;color:var(--muted);margin-top:7px}
 a.btn{text-decoration:none;display:inline-block}
+.tag.hawk{background:#FDEBD9;color:#B0570E}
+.tag.dove{background:#E3EEFB;color:#2C6CB8}
+:root[data-theme="dark"] .tag.hawk{background:#3A2A1A;color:#F0A35E}
+:root[data-theme="dark"] .tag.dove{background:#1C2A3D;color:#7FB0F0}
+.call .tone{font-family:var(--body);font-size:14px;font-weight:700;padding:1px 10px;border-radius:8px}
+.hd{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:11px;font-size:13.5px}
+.hd .meter{flex:1;min-width:160px;height:10px;border-radius:999px;background:#E3EEFB;overflow:hidden;display:flex}
+.hd .meter i{display:block;height:100%;background:#E8893A}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:34px 20px;text-align:center;color:var(--muted)}
 .disc{font-size:12px;color:var(--muted);text-align:center;margin-top:24px;line-height:1.6}
 @media (max-width:640px){ .call .verdict{margin-left:0} }
@@ -148,8 +156,8 @@ a.btn{text-decoration:none;display:inline-block}
 <body>
 <header><div class="wrap">
   <div>
-    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V35</span></h1>
-    <p>川普本人發文＋美國財經新聞，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
+    <h1>點名台 <span style="font-family:var(--num);font-size:17px;color:var(--muted);font-weight:600">V36</span></h1>
+    <p>以川普、馬斯克、黃仁勳為主，加上聯準會與財經官員的鷹鴿發言，抓出被點名的公司與產業，判多空並帶出台股概念股。</p>
   </div>
   <div class="right"><span class="dot" id="syncDot"><i></i><span>連線中</span></span></div>
 </div></header>
@@ -190,6 +198,8 @@ a.btn{text-decoration:none;display:inline-block}
       <button data-f="bull" aria-pressed="false">多</button>
       <button data-f="bear" aria-pressed="false">空</button>
       <button data-f="tw" aria-pressed="false">台灣</button>
+      <button data-f="hawk" aria-pressed="false">鷹</button>
+      <button data-f="dove" aria-pressed="false">鴿</button>
     </div>
     <select id="who" aria-label="來源"><option value="">所有來源</option></select>
     <input type="text" id="q" placeholder="搜尋標的、主題或股號" style="min-width:190px">
@@ -221,7 +231,11 @@ const CONFIG = {
   firebasePath: "PRESS_KIT/trumpcalls/trumpcalls",
   firebaseAuth: "",                // 規則需要驗證時才填
   proxy: "auto",                   // auto / direct / allorigins / corsproxy / jina
-  maxPosts: 25
+  maxPosts: 25,                    // 「改用貼上」一次最多判讀幾則
+  // 每次「更新」各來源的判讀名額：三大主角優先，官員每人幾則，一般新聞合計幾則
+  quota: { "川普":15, "馬斯克":8, "黃仁勳":8 },
+  perOfficial: 3,
+  mediaCap: 8
 };
 /* =================================================================== */
 
@@ -269,29 +283,45 @@ AI 伺服器 | AI,artificial intelligence,superintelligence,data center,data cen
 加密貨幣 | bitcoin,crypto,cryptocurrency,digital asset,加密貨幣 | 
 量子運算 | quantum,quantum computing,量子 | `;
 
-const DEFAULT_SOURCES = `#v6
-川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100
+const DEFAULT_SOURCES = `#v7
+# 格式：人 | archive/news/trades | 說明 | 網址 | 分組（lead 主角 / fed 聯準會 / gov 政府財經官員 / 空白＝一般新聞）
+川普 | archive | 本人發文 | https://www.trumpstruth.org/?per_page=100 | lead
+馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+(Tesla+OR+SpaceX+OR+xAI+OR+chips+OR+robot+OR+said)+when:7d&hl=en-US&gl=US&ceid=US:en | lead
+馬斯克 | news | Tesla 重大訊息 | https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001318605&type=8-K&count=15&output=atom | lead
+黃仁勳 | news | NVIDIA 官方新聞 | https://nvidianews.nvidia.com/releases.xml | lead
+黃仁勳 | news | NVIDIA 部落格 | https://blogs.nvidia.com/feed/ | lead
+黃仁勳 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Jensen+Huang%22+(Nvidia+OR+AI+OR+chips+OR+said)+when:7d&hl=en-US&gl=US&ceid=US:en | lead
 國會交易 | trades | 申報揭露 | https://www.capitoltrades.com/trades
+華許 | news | 聯準會主席 | https://news.google.com/rss/search?q=%22Kevin+Warsh%22+(Fed+OR+rates+OR+inflation)+when:7d&hl=en-US&gl=US&ceid=US:en | fed
+鮑爾 | news | 聯準會理事 | https://news.google.com/rss/search?q=%22Jerome+Powell%22+(Fed+OR+rates+OR+inflation)+when:7d&hl=en-US&gl=US&ceid=US:en | fed
+聯準會官員 | news | 官方演講 | https://www.federalreserve.gov/feeds/speeches.xml | fed
+聯準會官員 | news | 理事與分行總裁 | https://news.google.com/rss/search?q=(Waller+OR+Bowman+OR+Jefferson+OR+%22John+Williams%22+OR+Goolsbee+OR+Logan+OR+Hammack+OR+Kashkari+OR+Musalem+OR+Daly)+Fed+(rates+OR+inflation+OR+cut)+when:7d&hl=en-US&gl=US&ceid=US:en | fed
+貝森特 | news | 財政部長 | https://news.google.com/rss/search?q=%22Scott+Bessent%22+when:7d&hl=en-US&gl=US&ceid=US:en | gov
+盧特尼克 | news | 商務部長 | https://news.google.com/rss/search?q=%22Howard+Lutnick%22+when:7d&hl=en-US&gl=US&ceid=US:en | gov
+哈塞特 | news | 國家經濟會議主任 | https://news.google.com/rss/search?q=%22Kevin+Hassett%22+when:7d&hl=en-US&gl=US&ceid=US:en | gov
+葛里爾 | news | 貿易代表 | https://news.google.com/rss/search?q=%22Jamieson+Greer%22+when:7d&hl=en-US&gl=US&ceid=US:en | gov
 美國財經 | news | 頭條 | https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en
 關稅與貿易 | news | 主題新聞 | https://news.google.com/rss/search?q=(tariff+OR+tariffs+OR+%22trade+deal%22+OR+%22export+controls%22)+(Trump+OR+%22White+House%22+OR+Commerce)+when:3d&hl=en-US&gl=US&ceid=US:en
-聯準會與利率 | news | 主題新聞 | https://news.google.com/rss/search?q=(%22Federal+Reserve%22+OR+%22Fed+chair%22+OR+FOMC)+(rates+OR+inflation+OR+cut)+when:3d&hl=en-US&gl=US&ceid=US:en
 半導體與 AI | news | 主題新聞 | https://news.google.com/rss/search?q=(semiconductor+OR+chips+OR+%22AI+data+center%22+OR+GPU)+(Nvidia+OR+TSMC+OR+export+OR+capex)+when:3d&hl=en-US&gl=US&ceid=US:en
 能源與原物料 | news | 主題新聞 | https://news.google.com/rss/search?q=(oil+OR+crude+OR+copper+OR+%22rare+earth%22+OR+potash+OR+uranium)+(price+OR+supply+OR+tariff)+when:3d&hl=en-US&gl=US&ceid=US:en
 國防與無人機 | news | 主題新聞 | https://news.google.com/rss/search?q=(defense+OR+munitions+OR+drone+OR+shipbuilding)+(Pentagon+OR+contract+OR+budget)+when:3d&hl=en-US&gl=US&ceid=US:en
-馬斯克 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Elon+Musk%22+(Tesla+OR+SpaceX+OR+xAI+OR+chips+OR+robot)+when:7d&hl=en-US&gl=US&ceid=US:en
-黃仁勳 | news | NVIDIA 官方新聞 | https://nvidianews.nvidia.com/releases.xml
-黃仁勳 | news | NVIDIA 部落格 | https://blogs.nvidia.com/feed/
-馬斯克 | news | Tesla 重大訊息 | https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001318605&type=8-K&count=15&output=atom
-BBC 財經 | news | 國際媒體 | https://feeds.bbci.co.uk/news/business/rss.xml
 CNBC 財經 | news | 國際媒體 | https://www.cnbc.com/id/100003114/device/rss/rss.html
-Yahoo Finance | news | 國際媒體 | https://finance.yahoo.com/news/rssindex
-黃仁勳 | news | 新聞報導 | https://news.google.com/rss/search?q=%22Jensen+Huang%22+(Nvidia+OR+AI+OR+chips)+when:7d&hl=en-US&gl=US&ceid=US:en`;
+BBC 財經 | news | 國際媒體 | https://feeds.bbci.co.uk/news/business/rss.xml`;
+const LEADS = ["川普","馬斯克","黃仁勳"];
 let SOURCE_RAW = DEFAULT_SOURCES, SOURCES = [];
+function groupOf(person){
+  if (LEADS.includes(person)) return "lead";
+  if (person === "國會交易") return "trades";
+  const s = SOURCES.find(x => x.person === person && x.group); return s ? s.group : "";
+}
+const isOfficial = p => ["fed","gov"].includes(groupOf(p));
 function parseSources(raw){
   return String(raw||"").split("\n").map(line => {
-    const [person, kind, note, url] = line.split("|").map(x => (x||"").trim());
+    if (/^\s*#/.test(line)) return null;
+    const [person, kind, note, url, group] = line.split("|").map(x => (x||"").trim());
     if (!person || !url) return null;
-    return { person, kind: ["news","trades"].includes(kind) ? kind : "archive", note: note || "", url };
+    return { person, kind: ["news","trades"].includes(kind) ? kind : "archive", note: note || "", url,
+      group: ["lead","fed","gov"].includes(group) ? group : (LEADS.includes(person) ? "lead" : "") };
   }).filter(Boolean);
 }
 function refreshSources(){ SOURCES = parseSources(SOURCE_RAW); }
@@ -309,7 +339,8 @@ function parseThemes(raw){
       }) };
   }).filter(Boolean);
 }
-function refreshThemes(){ THEMES = parseThemes(THEME_RAW); }
+const RATE_THEME = "利率政策 | Fed,FOMC,Federal Reserve,interest rate,interest rates,rate cut,rate cuts,rate hike,inflation,Treasury yields,聯準會,降息,升息,利率,通膨 | 2882 國泰金;2881 富邦金;2891 中信金;2886 兆豐金";
+function refreshThemes(){ THEMES = parseThemes(THEME_RAW); if (!THEMES.some(t => t.name === "利率政策")) THEMES.push(...parseThemes(RATE_THEME)); }
 refreshThemes();
 function matchTheme(c){
   if (c.theme){ const hit = THEMES.find(t => t.name === c.theme); if (hit) return hit; }
@@ -349,7 +380,7 @@ async function boot(){
   try{
     const [cfg, th, sr, c, s] = await Promise.all([fbGet("config"), fbGet("themes"), fbGet("sources"), fbGet("calls"), fbGet("seen")]);
     if (typeof sr === "string" && sr.trim()){
-      if (!sr.includes("#v6")){
+      if (!sr.includes("#v7")){
         try{ await fbPut("sources_backup", sr); await fbPut("sources", DEFAULT_SOURCES); SOURCE_RAW = DEFAULT_SOURCES; }
         catch(e){ SOURCE_RAW = sr; }
       } else SOURCE_RAW = sr;
@@ -558,7 +589,7 @@ async function fetchNews(src, signal){
       const posts = base.map(p => {
         const m = p.text.match(/^(.*)\s[-–—]\s([^-–—]{2,40})$/);
         return { ...p, text: m ? m[1].trim() : p.text, outlet: m ? m[2].trim() : "",
-          person: src.person, note: src.note, kind:"news" };
+          person: src.person, note: src.note, kind:"news", group: src.group || "" };
       });
       if (posts.length) return posts;
       NEWS_ERR[src.person] = via + " 抓到內容但解析不出項目";
@@ -881,6 +912,21 @@ function threatCalls(p){
   return out.slice(0, 3);
 }
 
+/* ---------- 鷹派／鴿派 ---------- */
+const RATE_RE = /\b(Fed|FOMC|Federal Reserve|interest rates?|rate (?:cut|hike)s?|inflation|monetary policy|Treasury yields?)\b|聯準會|利率|降息|升息|通膨|貨幣政策/i;
+const HAWK_RE = /\b(rate hikes?|hike rates|rais\w* rates|higher for longer|restrictive|hold\w* rates (?:steady|unchanged)|keep\w* rates|no rush|premature|patient|inflation (?:is |remains |still )?(?:too high|persistent|sticky|elevated|stubborn)|tighten\w*|hawkish|balance sheet (?:reduction|runoff)|shrink\w* the balance sheet)\b|升息|鷹派|緊縮|不急於降息|暫停降息|通膨黏著|縮表/i;
+const DOVE_RE = /\b(rate cuts?|cut\w* rates|lower\w* rates|easing|ease policy|dovish|accommodat\w*|labor market (?:is )?(?:weaken\w*|soften\w*|cool\w*)|downside risks? to (?:employment|jobs)|support the economy|room to cut)\b|降息|鴿派|寬鬆|就業轉弱/i;
+const NEG_CUT = /\b(?:no rush|premature|not (?:yet )?ready|too early|hold off|wait\w*|patient|in no hurry)\b[^.]{0,30}?\b(?:cut|cuts|cutting|eas\w*)\b|\bcuts? (?:are |is |would be )?(?:premature|unlikely|off the table|not warranted)\b|降息言之過早|不急於降息/i;
+function toneOf(text){
+  if (!RATE_RE.test(text)) return "";
+  if (NEG_CUT.test(text)) return "hawk";       // 「不急著降息」「降息言之過早」算鷹
+  const h = HAWK_RE.test(text), d = DOVE_RE.test(text);
+  if (h && !d) return "hawk";
+  if (d && !h) return "dove";
+  return "";
+}
+const TONE = { hawk:"鷹派", dove:"鴿派" };
+
 /* ---------- 不用 AI 的判讀：關鍵詞比對 ---------- */
 const BULL_STEMS = ["buy","buying","purchas","order","invest","boost","expand","build","bring back","bringing back","support","subsid","protect","deal","signed","approv","record","increas","grow","growth","tax cut","cut taxes","lower rate","rate cut","drill","dominance","winning","leading","cherish","encourag","back to america","made in america","reshor","incentiv","contract"];
 const BEAR_STEMS = ["tariff","ban ","banning","banned","investigat","sanction","halt","cancel","terminat","lawsuit","sue ","penalt","price gouging","too expensive","rip off","cut off","restrict","block","disaster","substantially less than","replac","reduc","cutting","curb","crack down","phase out"];
@@ -925,9 +971,20 @@ function localAnalyze(p){
       made.push({ id: safeKey(p.id + "-" + t.name), postId:p.id, ts:p.ts, link:p.link,
         person: p.person || "川普", note: p.note || "", outlet: p.outlet || "",
         target: t.name, targetEn: kw, kind:"", stance: stanceOf(hit, p.text),
-        quote: hit.slice(0,280), zh:"", why:"", theme: t.name, related:[], local:true });
+        quote: hit.slice(0,280), zh:"", why:"", theme: t.name, related:[], local:true,
+        tone: t.name === "利率政策" ? toneOf(hit + " " + p.text) : "", group: p.group || groupOf(p.person) });
       break;
     }
+  }
+  // 官員講利率：就算對照表沒中，也做一張鷹鴿卡
+  const tone = toneOf(p.text);
+  if (tone && !made.some(c => c.theme === "利率政策")){
+    const hit = sents.find(sn => RATE_RE.test(sn)) || sents[0] || p.text;
+    made.push({ id: safeKey(p.id + "-rate"), postId:p.id, ts:p.ts, link:p.link,
+      person: p.person || "川普", note: p.note || "", outlet: p.outlet || "",
+      target: "利率路線", targetEn: "rates", kind:"政策", stance: tone === "dove" ? "bull" : "bear",
+      quote: hit.slice(0,280), zh:"", why: tone === "dove" ? "偏向降息或寬鬆，對股市、成長股偏多。" : "偏向利率維持高檔或緊縮，對股市、成長股偏空。",
+      theme: "利率政策", related:[], local:true, tone, group: p.group || groupOf(p.person) });
   }
   return made;
 }
@@ -963,6 +1020,33 @@ Return JSON only, no prose, no code fences:
 }
 
 /* ---------- AI 判讀 ---------- */
+function buildNewsPrompt(text, p){
+  const who = p.person, role = p.note || "";
+  return `You read one news item (headline, summary or speech excerpt). It was collected because it concerns ${who}${role ? " (" + role + ")" : ""}. Pull out only things a market watcher could act on.
+
+ITEM:
+<<<
+${text.slice(0,4000)}
+>>>
+
+A "call" is a concrete named target that this person said, announced or did something about: a company, a product, a commodity, an industry or technology, a policy (tariffs, export controls, subsidies, interest rates), or a country/trade partner where goods or money move. A headline that only mentions the person with no tradable content gives an empty array — that is normal.
+
+For each call give:
+- "target": the thing, in Traditional Chinese, short.
+- "targetEn": the same in English.
+- "kind": one of 公司 / 原物料 / 產業 / 政策 / 國家.
+- "stance": "bull" if it means more demand, spending, protection, subsidy, orders or easier money for that target; "bear" for tariffs, restrictions, price pressure, investigation, cancellation or tighter money; "neutral" when no direction.
+- "tone": only when the item is about interest rates, inflation or monetary policy: "hawk" if it leans to higher-for-longer, hikes, holding, worry about inflation or balance-sheet shrinking; "dove" if it leans to cuts, easing, worry about jobs or growth. Otherwise "". For rate items use target 利率路線, kind 政策, theme 利率政策, and stance bull for dove, bear for hawk.
+- "quote": the exact sentence from the item, verbatim, max 40 words.
+- "zh": that sentence in natural Traditional Chinese, Taiwan usage.
+- "why": one short Traditional Chinese sentence on why this is 多 or 空.
+- "related": up to 4 US tickers or sector names. [] if none. No Taiwan stock codes.
+- "theme": the single best match copied exactly from this list, or "":
+${THEMES.map(t=>t.name).join(" / ")}
+
+Return JSON only, no prose, no code fences:
+{"calls":[{"target":"","targetEn":"","kind":"","stance":"bull|bear|neutral","tone":"","quote":"","zh":"","why":"","related":[],"theme":""}]}`;
+}
 function buildPrompt(text){
   return `You read one Truth Social post by Donald Trump (the text may be a video transcript or an image description) and pull out only the things he NAMES that a market watcher could act on.
 
@@ -985,12 +1069,13 @@ For each call give:
 - "why": one short Traditional Chinese sentence on the mechanism — why this is 多 or 空 for that target.
 - "related": up to 4 US tickers or sector names to watch (MP, BA, NVDA). [] if none. Do NOT put Taiwan stock codes here.
 - Taiwan is a special case: any signal of Chinese military action, blockade or drills around Taiwan, or doubt over US defence commitments, is a call with target 動武訊號・台海, kind 國家, stance bear (systemic risk for Taiwanese equities), theme 台海.
+- "tone": only when he talks about interest rates, the Fed or inflation: "dove" if he wants cuts or easier money, "hawk" if the opposite; otherwise "".
 - If he threatens or signals military action against another country (strikes, invasion, blockade, troops, "take them out"), that counts as a call: target = 動武訊號・<國名 in Chinese>, kind = 國家, stance = bull (defence and oil benefit), theme = 地緣衝突.
 - "theme": the single best match copied exactly from this list, or "" when none fits. Never invent a name outside the list:
 ${THEMES.map(t=>t.name).join(" / ")}
 
 Return JSON only, no prose, no code fences:
-{"calls":[{"target":"","targetEn":"","kind":"","stance":"bull|bear|neutral","quote":"","zh":"","why":"","related":[],"theme":""}]}`;
+{"calls":[{"target":"","targetEn":"","kind":"","stance":"bull|bear|neutral","tone":"","quote":"","zh":"","why":"","related":[],"theme":""}]}`;
 }
 function aiErrMsg(status, body, who){
   const b = String(body||"");
@@ -1025,7 +1110,8 @@ function parseJSON(t){
 }
 async function analyzePost(p, signal){
   if (!AI.key) return localAnalyze(p);
-  const out = parseJSON(await callAI(buildPrompt(p.text), signal));
+  const isTrump = (p.person || "川普") === "川普" && p.kind !== "news";
+  const out = parseJSON(await callAI(isTrump ? buildPrompt(p.text) : buildNewsPrompt(p.text, p), signal));
   const arr = Array.isArray(out?.calls) ? out.calls : [];
   const made = [];
   arr.forEach((c, i) => {
@@ -1035,7 +1121,7 @@ async function analyzePost(p, signal){
       targetEn:String(c.targetEn||"").trim(), kind:String(c.kind||"").trim(),
       stance:["bull","bear","neutral"].includes(c.stance)?c.stance:"neutral",
       quote:String(c.quote||"").trim(), zh:String(c.zh||"").trim(), why:String(c.why||"").trim(),
-      theme:String(c.theme||"").trim(),
+      theme:String(c.theme||"").trim(), tone:["hawk","dove"].includes(c.tone)?c.tone:"", group: p.group || groupOf(p.person || "川普"),
       related:Array.isArray(c.related)?c.related.map(x=>String(x).replace(/^\$/,"").trim()).filter(Boolean).slice(0,4):[] });
   });
   return made;
@@ -1083,13 +1169,28 @@ $("#update").onclick = async () => {
     SRC_REPORT = perSource.join("、");
     if (!items.length) return;
     const cutoff = Date.now() - (+$("#days").value) * 86400000;
-    const todo = items.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts).slice(0, CONFIG.maxPosts);
+    const todo = pickByQuota(items.filter(p => (p.noDate || p.ts >= cutoff) && !SEEN[p.id]).sort((a,b)=>b.ts-a.ts));
     if (!todo.length){ setStatus(`抓到 ${items.length} 則，沒有新的。（管道：${via}）`); return; }
     await ingest(todo, CTL.signal, `抓取成功（${via}）`);
   }catch(e){
     setStatus(e.name === "AbortError" ? "已停止。" : e.message, e.name !== "AbortError");
   }finally{ $("#update").disabled = false; $("#stop").hidden = true; $("#prog").hidden = true; }
 };
+
+/* 判讀名額：三大主角先排，官員每人幾則，一般新聞合計幾則（不再被大媒體洗掉） */
+function pickByQuota(fresh){
+  const byP = {};
+  fresh.forEach(p => (byP[p.person || "川普"] ||= []).push(p));
+  const lead = [], off = [], media = [];
+  Object.entries(byP).forEach(([who, list]) => {
+    const g = groupOf(who);
+    if (g === "lead") lead.push(...list.slice(0, CONFIG.quota[who] ?? 8));
+    else if (g === "fed" || g === "gov") off.push(...list.slice(0, CONFIG.perOfficial));
+    else media.push(...list);
+  });
+  media.sort((a,b) => b.ts - a.ts);
+  return [...lead, ...off, ...media.slice(0, CONFIG.mediaCap)];
+}
 
 /* ---------- 共用：判讀一批貼文並寫入 ---------- */
 async function ingest(list, signal, label){
@@ -1264,6 +1365,7 @@ function render(){
   const rows = all.filter(c => {
     if (who && (c.person || "川普") !== who) return false;
     if (FILTER === "tw"){ if (!isTW(c)) return false; }
+    else if (FILTER === "hawk" || FILTER === "dove"){ if (c.tone !== FILTER) return false; }
     else if (FILTER !== "all" && c.stance !== FILTER) return false;
     if (!q) return true;
     const t = matchTheme(c);
@@ -1284,6 +1386,7 @@ function render(){
     <div><div class="k">多</div><div class="v" style="color:var(--up)">${all.filter(c=>c.stance==="bull").length}</div></div>
     <div><div class="k">空</div><div class="v" style="color:var(--down)">${all.filter(c=>c.stance==="bear").length}</div></div>
     <div><div class="k">台灣相關</div><div class="v">${all.filter(isTW).length}</div></div>
+    <div><div class="k">鷹／鴿（7 天）</div><div class="v"><span style="color:#B0570E">${week.filter(c=>c.tone==="hawk").length}</span><span style="color:var(--muted);font-size:18px">／</span><span style="color:#2C6CB8">${week.filter(c=>c.tone==="dove").length}</span></div></div>
     <div style="flex:1;min-width:200px"><div class="k">最常被點到</div><div class="chips">${
       hot.map(([t,n])=>`<span class="tag neutral">${esc(t)} ×${n}</span>`).join("")}</div></div>
   </div>` : "";
@@ -1298,6 +1401,7 @@ function render(){
         ${c.kind?`<span class="kind">${esc(c.kind)}</span>`:""}
         ${isTW(c)?`<span class="kind" style="border-color:var(--up);color:var(--up)">台灣</span>`:""}
         <span class="kind" style="border-color:var(--brand);color:var(--brand)">${esc(c.person || "川普")}${c.note?"・"+esc(c.note):""}</span>
+        ${c.tone?`<span class="tone tag ${c.tone}">${TONE[c.tone]}</span>`:""}
         <span class="verdict ${c.stance}">${VERDICT[c.stance]}</span>
       </div>
       ${c.quote?`<p class="quote">${esc(c.quote)}</p>`:""}
@@ -1320,9 +1424,12 @@ function render(){
   });
   const uniq = Object.values(best).sort((a,b) => b.ts - a.ts);
 
-  const VOICES = ["川普","馬斯克","黃仁勳","國會交易"];
-  const lead = uniq.filter(c => VOICES.includes(c.person || "川普"));
-  const news = uniq.filter(c => !VOICES.includes(c.person || "川普"));
+  const gOf = c => c.group || groupOf(c.person || "川普");
+  const RANK = { "川普":0, "馬斯克":1, "黃仁勳":2 };
+  const lead = uniq.filter(c => gOf(c) === "lead").sort((a,b) => (RANK[a.person||"川普"]-RANK[b.person||"川普"]) || b.ts-a.ts);
+  const offs = uniq.filter(c => gOf(c) === "fed" || gOf(c) === "gov");
+  const trades = uniq.filter(c => gOf(c) === "trades");
+  const news = uniq.filter(c => !["lead","fed","gov","trades"].includes(gOf(c)));
   const usedNews = new Set();
   const WINDOW = 5 * 86400000;
 
@@ -1341,14 +1448,29 @@ function render(){
       : "";
   };
 
-  const leadHTML = lead.map(c => cardHTML(c).replace("</article>", attach(c) + "</article>")).join("");
+  const cardsOf = arr => arr.map(c => cardHTML(c).replace("</article>", attach(c) + "</article>")).join("");
+  // 三大主角：各自一段，川普 → 馬斯克 → 黃仁勳
+  const leadBy = LEADS.map(n => [n, lead.filter(c => (c.person||"川普") === n)]);
+  const leadHTML = `<h3 class="sect">三大主角 <small>川普・馬斯克・黃仁勳</small></h3>` + leadBy.map(([n, arr]) =>
+    arr.length ? cardsOf(arr) : `<div class="empty" style="padding:14px;margin-bottom:11px;text-align:left">${esc(n)}　這段期間沒有抓到可交易的點名</div>`).join("");
+  // 財經官員：鷹鴿儀表＋卡片
+  const wk = offs.filter(c => c.ts >= Date.now() - 7*86400000 && c.tone);
+  const hk = wk.filter(c => c.tone === "hawk").length, dv = wk.filter(c => c.tone === "dove").length;
+  const byWho = {}; wk.forEach(c => { const k = c.person; (byWho[k] ||= {h:0,d:0}); c.tone === "hawk" ? byWho[k].h++ : byWho[k].d++; });
+  const lean = x => x.h > x.d ? `<span class="tag hawk">偏鷹</span>` : x.d > x.h ? `<span class="tag dove">偏鴿</span>` : `<span class="tag neutral">中性</span>`;
+  const offHTML = offs.length ? `<h3 class="sect">美國財經官員 <small>聯準會與政府財經首長，鷹派＝利率偏高、偏空；鴿派＝傾向降息、偏多</small></h3>
+    ${(hk+dv) ? `<div class="hd"><span>近 7 天　<b style="color:#B0570E">鷹 ${hk}</b>　<b style="color:#2C6CB8">鴿 ${dv}</b></span>
+      <span class="meter"><i style="width:${Math.round(hk/(hk+dv)*100)}%"></i></span>
+      <span class="chips">${Object.entries(byWho).map(([k,x]) => `<span class="tag neutral">${esc(k)}</span>${lean(x)}`).join(" ")}</span></div>` : ""}
+    ${cardsOf(offs)}` : "";
+  const tradeHTML = trades.length ? `<h3 class="sect">國會交易 <small>申報揭露</small></h3>${cardsOf(trades)}` : "";
   const rest = news.filter(n => !usedNews.has(n.id));
   const restHTML = rest.length
     ? `<details class="rest"><summary>其他新聞，沒有對應到誰的發言（${rest.length} 則）</summary>${rest.map(newsLine).join("")}</details>`
     : "";
 
   $("#list").innerHTML = uniq.length
-    ? (lead.length ? leadHTML : `<div class="empty"><p>這段期間主角們沒有點名任何東西，只有新聞。</p></div>`) + restHTML
+    ? leadHTML + offHTML + tradeHTML + restHTML
     : `<div class="empty"><p>${all.length ? "這個篩選沒有東西。" : "還沒有資料，上面按「更新」。"}</p></div>`;
 }
 $("#list").addEventListener("click", async e => {
