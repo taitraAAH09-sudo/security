@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V269</title>
+<title>盤後篩選台 V273</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -467,11 +467,14 @@ a{color:var(--amber)}
 /* 收合式區塊：平常只露出標題，點一下才展開。欄位仍留在 DOM 裡，程式照樣讀得到 fbUrl／fbPath。 */
 .blk.fold>h2{cursor:pointer;user-select:none}
 .blk.fold>*:not(h2){display:none}
+.blk.fold>.keep{display:block}          /* 收起來的時候也要留著的那一塊 */
 .blk.fold.open>*{display:revert}
+.fbupbtn{width:100%}
 .blk.fold.open>.duo{display:grid}
 .blk.fold.open>label.row{display:flex}
-.foldi{flex:0 0 auto;order:10;font-style:normal;font-size:10px;color:var(--dim);transition:transform .15s}
-.blk.fold.open .foldi{transform:rotate(180deg);color:var(--amber)}
+.foldi{flex:0 0 auto;order:10;font-style:normal;font-size:10px;letter-spacing:.04em;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 7px}
+.blk.fold>h2:hover .foldi{color:var(--amber);border-color:var(--amber)}
+.blk.fold.open .foldi{color:var(--amber);border-color:var(--amber-d)}
 .blk>h2{margin:0 0 12px;font-size:11px;letter-spacing:.2em;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:9px}
 .blk>h2::after{content:"";flex:1;height:1px;background:var(--line)}
 .blk>h2 .lk{flex:0 0 auto;font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:transparent;border:1px solid var(--line);border-radius:3px;padding:2px 8px;color:var(--dim);cursor:pointer;order:9}
@@ -745,7 +748,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V269</span>
+    <h1>盤後篩選台</h1><span class="ver">V273</span>
     <span class="sub">名單制 · 追蹤外資／投信買超＋賣超排行內的股票</span>
     <span class="quota" id="quota" title="本機資料用量">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
@@ -765,8 +768,8 @@ tbody tr{cursor:pointer}
 
 <div class="pwmask" id="pwMask">
   <div class="pwbox">
-    <h3>🔒 上傳雲端需要密碼</h3>
-    <p>上傳會用這台電腦的資料<b>整份覆蓋</b>雲端。確定是你本人要上傳，再輸入密碼。</p>
+    <h3 id="pwTitle">🔒 上傳雲端需要密碼</h3>
+    <p id="pwDesc">上傳會用這台電腦的資料<b>整份覆蓋</b>雲端。確定是你本人要上傳，再輸入密碼。</p>
     <input type="password" id="pwInput" inputmode="numeric" autocomplete="off" maxlength="12">
     <div class="pwerr" id="pwErr"></div>
     <div class="pwbtns"><button id="pwCancel">取消</button><button class="pri" id="pwOk">確定上傳</button></div>
@@ -790,11 +793,10 @@ tbody tr{cursor:pointer}
 
 <div class="easymask" id="easyMask">
   <div class="easywin">
-    <div class="easyhd"><h2>🔰 新手看盤：直接告訴你買哪些、停損停利在哪</h2><button class="x" id="easyX">✕</button></div>
-    <div class="simtabs">
+    <div class="easyhd"><h2 id="easyTitle">🔰 新手看盤：直接告訴你買哪些、停損停利在哪</h2><button class="x" id="easyX">✕</button></div>
+    <div class="simtabs" id="easyTabs">
       <button class="simtab on" id="easyTabReco">📋 推薦清單</button>
       <button class="simtab" id="easyTabTest">🧪 追蹤成績</button>
-      <button class="simtab" id="easyTabSec">🏭 近期產業</button>
       <button class="testbtn tabsync" id="testSync" title="用目前最新的規則，把所有推薦日與追蹤紀錄整批重新計算一次（舊版算出來的數字全部作廢重建）">↻ 全部重算</button>
     </div>
     <div class="easybody" id="easyBody"></div>
@@ -881,21 +883,23 @@ tbody tr{cursor:pointer}
 
 
   <div class="blk fold" id="fbBlk">
-    <h2>雲端同步 · Firebase<i class="foldi">▾</i></h2>
+    <h2>雲端同步<i class="foldi">設定 ▾</i></h2>
+    <!-- 永遠看得到：每天只會按這一顆，加上它有沒有成功 -->
+    <div class="keep">
+      <button class="btn ghost sm fbupbtn" id="fbUp">🔒 上傳雲端</button>
+      <small class="fbauth" id="fbAuthTip"></small>
+      <div class="log" id="fbLog"></div>
+    </div>
+    <!-- 以下收在「設定」裡：平常不會動的連線設定與救援工具 -->
     <div class="fld"><span>Realtime Database 網址</span></div>
     <input type="text" id="fbUrl" placeholder="https://xxx-default-rtdb.firebaseio.com">
     <div class="fld"><span>資料路徑</span><input type="text" id="fbPath" value="twstk" style="width:120px"></div>
     <label class="row"><input type="checkbox" id="fbAuto" checked><span class="tx">自動同步<small>開啟頁面時下載、更新完成後上傳</small></span></label>
     <div class="duo">
-      <button class="btn ghost sm" id="fbUp">🔒 上傳雲端</button>
       <button class="btn ghost sm" id="fbDown">下載雲端</button>
-    </div>
-    <small class="fbauth" id="fbAuthTip"></small>
-    <div class="log" id="fbLog"></div>
-    <div class="duo" style="margin-top:8px">
       <button class="btn ghost sm" id="fbFind">重新偵測</button>
-      <button class="btn ghost sm" id="btnClr">清除本機快取</button>
     </div>
+    <button class="btn ghost sm fbupbtn" id="btnClr" style="margin-top:8px">清除本機快取</button>
   </div>
 
 </aside>
@@ -1014,6 +1018,28 @@ const LS_LIMIT=5*1024*1024;
 const LS_MAX_ONE=512*1024;                 // 單一 key 可以寫進 localStorage 的上限
 const LS_KEEP=new Set(['twstk2_fb','twstk2_fbauth','tour_seen_v1']);   // 這支工具該留在 localStorage 的小設定
 const lsMine=k=>LS_KEEP.has(k)||IDB_KEYS.has(k)||k==='sim_trades_v2'||/^twstk/.test(k);
+/* 「約 5MB」只是常見值，各家瀏覽器實際給的不一樣（實測這台 Chromium 給到近 10MB），
+   拿猜來的數字嚇人沒有意義。改成直接試寫，量出「現在還塞得下多大一筆」——
+   這才是其他工具（專卷、Gurus…）會不會存不了東西的真實答案。
+   試寫有成本，所以只在開頁、清理後、按容量條時重算，平常讀快取。 */
+let LS_HEAD=null;          // 估計還可寫入的 bytes；null＝還沒量
+let LS_TIGHT=false;        // 剩不到 1MB＝吃緊，其他工具快要存不下大一點的東西
+let LS_FULL=false;         // 剩不到 128KB＝真的滿了，連設定檔都可能存不進去
+function lsHeadroom(){
+  const k='__lsprobe__';
+  for(const kb of [2048,1024,512,256,128,64,32]){
+    try{ localStorage.setItem(k,'x'.repeat(kb*512)); localStorage.removeItem(k); return kb*1024; }
+    catch(e){ try{ localStorage.removeItem(k); }catch(_){} }
+  }
+  return 0;
+}
+function refreshLsHead(){
+  try{ LS_HEAD=lsHeadroom(); }catch(e){ LS_HEAD=null; }
+  LS_TIGHT=(LS_HEAD!=null&&LS_HEAD<1024*1024);
+  LS_FULL =(LS_HEAD!=null&&LS_HEAD<128*1024);
+  return LS_HEAD;
+}
+const lsHeadTxt=()=>LS_HEAD==null?'—':(LS_HEAD>=1048576?(LS_HEAD/1048576).toFixed(1)+'MB':Math.round(LS_HEAD/1024)+'KB');
 function lsScan(){
   const o={total:0,mine:0,other:0,rows:[]};
   try{
@@ -2294,12 +2320,26 @@ function run(){
   const nStale=RESULT.filter(r=>r.stale).length;
   if(nStale>0)warn.push(`有 <b>${nStale} 檔</b>的收盤價不是 ${fmtD(baseDate)} 的（收盤欄位旁邊有橘色日期標記）。這些股票最近掉出外資／投信「買超」排行，就不再被抓新行情，所以價格停在舊的那天——漲跌%、距均線%、快逃分級全部都是用舊價算的，<b>不能當今天的狀況看</b>。`);
   if(noHL>0)warn.push(`有 ${noHL} 檔沒有最高／最低價（舊版快取留下的），無法判斷多缺口。按一次「清除全部快取」再重新更新就會補齊。`);
-  // 共用空間吃緊 → 要講，因為先壞的通常不是這支工具，是專卷那些
+  // 共用空間：只有「實測真的塞不下」才報警，而且一定要講出是誰佔的，否則這條警告沒辦法行動
   try{
-    const ls=lsScan(), p=ls.total/LS_LIMIT*100;
-    if(p>=70)warn.unshift(`⚠ <b>瀏覽器共用儲存空間已用 ${(ls.total/1048576).toFixed(1)}MB／約 5MB（${p.toFixed(0)}%）</b>。`
-      +`這一塊是 <b>本站所有工具共用</b>的（專卷、Gurus、活動頁…），塞滿之後它們會<b>靜悄悄存不了東西</b>。`
-      +`其中本工具佔 ${(ls.mine/1048576).toFixed(1)}MB —— 點右上角容量條可以清掉本工具的殘留。`);
+    const mb=x=>(x/1048576).toFixed(1);
+    if(LS_HEAD==null)refreshLsHead();
+    const ls=lsScan();
+    if(LS_TIGHT){
+      const top=ls.rows.filter(r=>!r.mine).slice(0,3)
+        .map(r=>`<code>${r.k}</code> ${mb(r.b)}MB`).join('、')||'（列不出來）';
+      warn.unshift(
+        (LS_FULL
+          ? `⚠ <b>瀏覽器共用儲存空間已經滿了</b>（實測連 ${lsHeadTxt()} 以上都寫不進去`
+          : `⚠ <b>瀏覽器共用儲存空間快滿了</b>（實測只剩約 ${lsHeadTxt()} 可寫`)
+        +`；目前共 ${mb(ls.total)}MB）。`
+        +`這塊空間是本站所有工具共用的，塞滿之後<b>專卷、Gurus、活動頁會存不了東西，而且不會跳任何錯誤</b>。`
+        +`<br><b>不是這支工具造成的</b>：本工具只佔 ${mb(ls.mine)}MB，資料都放在 IndexedDB。佔最多的是 ${top}。`
+        +`<br>點右上角容量條看完整清單，再到對應的那支工具裡清掉它自己的資料。`);
+    }else if(ls.mine>1.5*1048576){
+      warn.unshift(`⚠ 本工具在共用儲存空間佔了 ${mb(ls.mine)}MB，點右上角容量條清一下，把位子讓給專卷等其他工具。`);
+    }
+    try{ updateQuota(); }catch(e){}   // 容量條跟警告要講同一件事，不能一個紅一個綠
   }catch(e){}
   $('#warnBox').innerHTML=warn.map(w=>`<div class="warn">${w}</div>`).join('')
     + (SHORTONLY?`<div class="shortnote">🔻 <b>反手做空清單</b>　條件：<b>收盤跌破 5／10／20／60 全部四條均線</b>（第一基準）→ <b>外資賣超且投信也賣超</b>（第二基準）→ 成交量 ≥ ${MIN_VOL.toLocaleString()} 張。<br>這是「趨勢壞掉、法人同步減碼」的名單，<b>手上有的先想清楚要不要停損</b>；要放空請自己確認可不可借券、留意軋空與回補風險。這不是投資建議。<br>清單依「法人連賣天數」排序，<b>只列前 ${SHORT_CAP} 檔</b>；「距月線／距季線」是收盤離 20MA／60MA 的百分比，負的越多代表跌得越深、反彈要走的路越長。</div>`:'');
@@ -2526,19 +2566,20 @@ function updateQuota(){
   $('#quotaBar').style.setProperty('--pct',Math.max(3,pct).toFixed(0)+'%');
   $('#quotaBar').style.setProperty('--ok',hot?'var(--up)':warm?'var(--amber)':'#1F9E6E');
   // 真正會害別的工具壞掉的是「共用空間」，所以紅燈給它，不給自己的資料庫
-  const ls=lsScan(), lsPct=ls.total/LS_LIMIT*100;
-  const lsHot=lsPct>=75;
+  const ls=lsScan();
+  if(LS_HEAD==null)refreshLsHead();
+  const lsHot=LS_FULL;                 // 看實測結果，不看猜來的百分比；LS_TIGHT 只轉黃
   box.classList.toggle('danger',hot||lsHot);
-  box.classList.toggle('warn',(warm||lsPct>=55)&&!lsHot&&!hot);
+  box.classList.toggle('warn',(warm||LS_TIGHT)&&!lsHot&&!hot);
   const mb=x=>(x/1048576).toFixed(1);
   $('#quotaTxt').textContent=onIdb
-    ? `${mb(bytes)}MB 資料庫 · 共用 ${mb(ls.total)}MB`
+    ? (LS_TIGHT?`${mb(bytes)}MB 資料庫 · ⚠共用${LS_FULL?'已滿':'快滿'}`:`${mb(bytes)}MB 資料庫`)
     : `${mb(bytes)}MB／5MB（${pct.toFixed(0)}%）`;
   const top=ls.rows.slice(0,4).map(r=>`  ${r.k} ${mb(r.b)}MB${r.mine?'（本工具）':''}`).join('\n');
   box.title=(onIdb
     ? `這支工具的資料放在 IndexedDB（上限 GB 等級）：${mb(bytes)}MB，不受 5MB 限制。\n\n`
     : `⚠ 這台裝置用不了 IndexedDB，資料只能放共用空間。\n\n`)
-    + `共用空間 localStorage：${mb(ls.total)}MB／約 5MB（${lsPct.toFixed(0)}%）\n`
+    + `共用空間 localStorage：目前 ${mb(ls.total)}MB，實測還塞得下 ${lsHeadTxt()}\n`
     + `這一塊是本站所有工具（專卷、Gurus、活動頁…）共用的。塞滿了它們會存不了東西。\n`
     + `其中本工具只佔 ${mb(ls.mine)}MB，其他工具 ${mb(ls.other)}MB。\n\n最大的幾項：\n${top}\n\n點一下可以清掉本工具的殘留。`;
 }
@@ -3580,9 +3621,14 @@ function paintFbAuth(){
     :'🔒 這台裝置未授權：自動同步只會下載、不會上傳';
   const a=$('#fbDeauth'); if(a)a.onclick=()=>{fbSetAuth(false);fbLog('已取消這台裝置的上傳授權。');};
 }
-function askUploadPw(){
+// 同一個密碼框，上傳與「設定」共用；只是標題、說明、按鈕字不一樣
+function askPw(opt){
+  opt=opt||{};
   return new Promise(res=>{
     const m=$('#pwMask'),inp=$('#pwInput'),err=$('#pwErr');
+    $('#pwTitle').textContent=opt.title||'🔒 上傳雲端需要密碼';
+    $('#pwDesc').innerHTML=opt.desc||'上傳會用這台電腦的資料<b>整份覆蓋</b>雲端。確定是你本人要上傳，再輸入密碼。';
+    $('#pwOk').textContent=opt.okText||'確定上傳';
     inp.value='';err.textContent='';inp.classList.remove('bad');
     m.classList.add('on'); setTimeout(()=>inp.focus(),30);
     const done=v=>{m.classList.remove('on');$('#pwOk').onclick=$('#pwCancel').onclick=inp.onkeydown=m.onclick=null;res(v);};
@@ -3595,6 +3641,7 @@ function askUploadPw(){
     m.onclick=e=>{if(e.target===m)done(false);};
   });
 }
+const askUploadPw=()=>askPw();
 /* 手動上傳：密碼 → 檢查雲端是不是比本機新 → 上傳 */
 async function fbPushManual(){
   const e=fbEnd(); if(!e){fbLog('先填 Realtime Database 網址。','err');return false;}
@@ -4121,9 +4168,11 @@ async function testAutoSync(){
 }
 // 新手看盤視窗的三個分頁：推薦清單 / 追蹤成績 / 近期產業
 async function switchEasyTab(which){
-  $('#easyTabReco').classList.toggle('on',which==='reco');
-  $('#easyTabTest').classList.toggle('on',which==='test');
-  $('#easyTabSec').classList.toggle('on',which==='sec');
+  // V272：「近期產業」已經不是分頁了，改由左上角那顆按鈕獨立開啟，所以這裡要容得下按鈕不存在
+  const tb=(id,on)=>{const e=$(id); if(e)e.classList.toggle('on',on);};
+  tb('#easyTabReco',which==='reco');
+  tb('#easyTabTest',which==='test');
+  tb('#easyTabSec',which==='sec');
   $('#easyBody').style.display=which==='reco'?'block':'none';
   $('#easyPaneTest').style.display=which==='test'?'block':'none';
   $('#easyPaneSec').style.display=which==='sec'?'block':'none';
@@ -5424,7 +5473,8 @@ if(_q){ _q.style.cursor='pointer';
   _q.onclick=async()=>{
     const r=await lsCleanup(); updateQuota();
     const mb=x=>(x/1048576).toFixed(2);
-    const top=r.after.rows.slice(0,6).map(x=>`　${x.k}　${mb(x.b)}MB${x.mine?'（本工具）':''}`).join('\n')||'　（空的）';
+    refreshLsHead();
+    const top=r.after.rows.map(x=>`　${x.mine?'·':'▲'} ${x.k}　${mb(x.b)}MB${x.mine?'（本工具）':''}`).join('\n')||'　（空的）';
     alert(
       `共用儲存空間（本站所有工具一起用，約 5MB）\n`+
       `────────────────────────\n`+
@@ -5433,26 +5483,57 @@ if(_q){ _q.style.cursor='pointer';
       (r.moved.length?`已搬進資料庫：${r.moved.join('、')}\n`:'')+
       (r.killed.length?`已刪除殘留：${r.killed.join('、')}\n`:'')+
       `\n目前本工具佔 ${mb(r.after.mine)}MB，其他工具佔 ${mb(r.after.other)}MB。\n`+
-      `\n最大的幾項：\n${top}\n`+
+      `還塞得下：${lsHeadTxt()}\n`+
+      `\n全部項目（▲＝別的工具的，要清請到那支工具裡清）：\n${top}\n`+
       `\n（這支工具的行情資料放在 IndexedDB，不算在這 5MB 裡。）`
     );
   };
 }
+/* 「設定」要密碼才打得開（跟上傳同一組）。解開後這次開頁都算數，重新整理會再鎖上。
+   說清楚：這只擋誤按和旁邊的人隨手亂動，頁面原始碼是公開的，擋不住真的想繞過的人。 */
 const _fbBlk=document.getElementById('fbBlk');
-if(_fbBlk)_fbBlk.querySelector('h2').onclick=()=>_fbBlk.classList.toggle('open');
-$('#btnEasy').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('reco'); buildEasyView(); };
+let SET_UNLOCKED=false;
+function paintSetLock(){
+  const i=_fbBlk&&_fbBlk.querySelector('.foldi'); if(!i)return;
+  i.textContent=_fbBlk.classList.contains('open')?'設定 ▴':(SET_UNLOCKED?'設定 ▾':'🔒 設定');
+}
+if(_fbBlk){
+  _fbBlk.querySelector('h2').onclick=async()=>{
+    if(_fbBlk.classList.contains('open')){ _fbBlk.classList.remove('open'); paintSetLock(); return; }
+    if(!SET_UNLOCKED){
+      const ok=await askPw({title:'🔒 設定需要密碼',
+        desc:'這裡面是雲端連線設定與<b>清除本機快取</b>，按錯會讓資料要整個重抓。輸入密碼才打得開。',
+        okText:'解鎖'});
+      if(!ok)return;
+      SET_UNLOCKED=true;
+    }
+    _fbBlk.classList.add('open'); paintSetLock();
+  };
+  paintSetLock();
+}
+/* 同一個視窗，兩種開法：
+   「🔰 看不懂？按這裡」＝新手看盤（推薦清單＋追蹤成績）
+   「🏭 近期產業」      ＝只有產業那一頁，不帶分頁列，也不帶「全部重算」 */
+function openEasy(mode){
+  const sec=mode==='sec';
+  const t=$('#easyTitle'); if(t)t.textContent=sec?'🏭 近期產業：今日最強族群與產業全景':'🔰 新手看盤：直接告訴你買哪些、停損停利在哪';
+  const tabs=$('#easyTabs'); if(tabs)tabs.style.display=sec?'none':'';
+  $('#easyMask').classList.add('on');
+  if(sec){ switchEasyTab('sec'); }
+  else { switchEasyTab('reco'); buildEasyView(); }
+}
+$('#btnEasy').onclick=()=>openEasy('easy');
 // 大盤／櫃買徽章：點一下各自獨立去抓自己的指數更新（不影響主資料、不用按更新並篩選）
 $('#strTwse').style.cursor='pointer'; $('#strTwse').onclick=()=>updateOneStrength('twse');
 $('#easyX').onclick=()=>$('#easyMask').classList.remove('on');
 $('#easyMask').onclick=e=>{ if(e.target===$('#easyMask'))$('#easyMask').classList.remove('on'); };
 $('#testViewList').onclick=()=>{ TEST_VIEW='list'; $('#testViewList').classList.add('on'); $('#testViewCal').classList.remove('on'); testRender(); };
 $('#testViewCal').onclick=()=>{ TEST_VIEW='cal'; $('#testViewCal').classList.add('on'); $('#testViewList').classList.remove('on'); testRender(); };
-$('#btnSector').onclick=()=>{ $('#easyMask').classList.add('on'); switchEasyTab('sec'); };
+$('#btnSector').onclick=()=>openEasy('sec');
 $('#easyTabReco').onclick=()=>switchEasyTab('reco');
 $('#easyTabTest').onclick=()=>switchEasyTab('test');
 (()=>{ const cd=$('#contDays');
   if(cd)cd.oninput=()=>{ const v=+cd.value||3; CONT_DAYS=v; const l=$('#contDLbl'); if(l)l.textContent=v; }; })();
-$('#easyTabSec').onclick=()=>switchEasyTab('sec');
 
 // 手動按這顆＝使用者明確要求重整，一律用現行規則把所有推薦日與追蹤紀錄整批重算，
 // 不必自己一張一張找哪些是舊版算出來的。（自動同步走輕量路徑，只在規則版號變了才重算）
@@ -5699,6 +5780,7 @@ $('#btnTour').onclick=tourStart;
   // 免得靜悄悄把專卷、Gurus 那些工具的空間吃光。
   try{ const r=await lsCleanup();
     if(r.freed>0)console.log(`[盤後] 已從共用空間釋出 ${(r.freed/1048576).toFixed(2)}MB`,r.moved,r.killed);
+    refreshLsHead();
   }catch(e){}
   const a=await store.get(KEY);
   let migrated=false;
