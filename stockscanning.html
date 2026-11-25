@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>盤後篩選台 V275</title>
+<title>盤後篩選台 V277</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -555,6 +555,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--amber);out
 /* 有篩到股票時漏斗自動收起（只剩標題），沒篩到才自動攤開——那時才真的需要看卡在哪一關 */
 /* 模式切換移到表格上方：它決定「現在這張表在看什麼」，屬於結果區，不屬於設定區 */
 .modetop{margin:0 0 12px;flex-wrap:nowrap;align-items:stretch}
+th,td{overflow:hidden;text-overflow:ellipsis}   /* 最後 2px 的保險，寧可切字也不要跑出捲軸 */
 .modeseg button small{display:block;font-size:9.5px;font-weight:600;letter-spacing:0;opacity:.72;margin-top:1px}
 @media(max-width:1460px){.modeseg button small{font-size:9px}}
 .modetop button{flex:1 1 0;min-width:0;padding:9px 6px}
@@ -595,7 +596,10 @@ td{padding:8px 7px;text-align:right;border-bottom:1px solid rgba(38,55,74,.55);w
 .badge{padding:0 3px;font-size:8.5px}
 /* 表格不再橫拉：螢幕越窄就把欄距與字級壓得越小，讓 16 欄一次看完。 */
 table{table-layout:auto}
-@media(max-width:1700px){ table{font-size:11.5px} th{padding:8px 4px;font-size:10px} td{padding:7px 4px} }
+@media(max-width:1700px){ table{font-size:11.5px} th{padding:8px 3px;font-size:10px} td{padding:7px 3px}
+  .fleetag{font-size:10.5px;padding:2px 8px 2px 6px;gap:4px} .fleetag svg{width:13px;height:13px}
+  /* 量比的長條是裝飾，數字才是重點；缺口的幅度滑鼠移上去看得到。兩個都讓位給「你的狀態」 */
+  .vbar{display:none} .gpct{display:none} }
 @media(max-width:1500px){ table{font-size:10.5px} th{padding:7px 3px;font-size:9.5px;letter-spacing:0} td{padding:6px 3px} }
 @media(max-width:1460px){ table{font-size:10px} th{padding:6px 2px;font-size:9px} td{padding:6px 2px}
   .chip{padding:1px 5px;font-size:9.5px} .vbar{width:20px} .badge{display:none}
@@ -672,6 +676,9 @@ tbody tr.flee3{background:transparent}
 .fleetag.t2{color:#8FEFCB;background:rgba(22,169,122,.16);box-shadow:inset 0 0 0 1px rgba(22,169,122,.55);
   animation:fleepulse2 2.6s ease-in-out infinite}
 .fleetag.t3{color:var(--dim);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line)}
+/* 睏霸數錢：實心紅，跟「快逃」的實心綠對稱（台股紅漲綠跌） */
+.fleetag.rich{color:#2A0507;background:var(--up);animation:richpulse 2.8s ease-in-out infinite}
+@keyframes richpulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 11px rgba(255,90,97,.6)}}
 @keyframes fleepulse1{0%,100%{box-shadow:none}50%{box-shadow:0 0 11px rgba(22,169,122,.7)}}
 @keyframes fleepulse2{0%,100%{opacity:.6}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fleetag{animation:none!important}}
@@ -806,7 +813,7 @@ tbody tr{cursor:pointer}
 
 <div class="top">
   <div class="brand">
-    <h1>盤後篩選台</h1><span class="ver">V275</span>
+    <h1>盤後篩選台</h1><span class="ver">V277</span>
     <span class="quota" id="quota" title="本機資料用量">
       <i id="quotaBar"></i><b id="quotaTxt">—</b>
     </span>
@@ -2461,6 +2468,8 @@ function paintFunnel(){
 const LEG_RUN=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.2" cy="3.2" r="1.5"/><path d="M10.6 5 8.2 8.4"/><path d="M10.4 5.9 13.4 7.2"/><path d="M9.4 6.4 6.9 5.4"/><path d="M8.2 8.4 10 12.4"/><path d="M8.2 8.4 5.6 10.6 6.2 14"/><path d="M1 4.2h3M.6 7.4h3.2M2 10.6h2.2"/></svg>`;
 const LEG_WEAK=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.8" cy="2.9" r="1.6"/><path d="M7.9 4.3C6.2 5.2 5.4 6.6 5.6 8.1"/><path d="M6.5 5.5 5 8.6"/><path d="M5.6 8.1 5.2 12.6"/><path d="M5.6 8.1 7.7 12.6"/><path d="M2.6 8.8l-1.3.8M2.8 11l-1.3.8M10.2 9.2l1.3.8M10 11.4l1.3.8"/></svg>`;
 const LEG_NUMB=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3.6" cy="3.2" r="1.6"/><path d="M3.6 4.8v4.2"/><path d="M3.6 9h6.8"/><path d="M10.4 9l.5 1.8"/><path d="M4.4 6.5 7.6 8.5"/><path d="M12.6 2.4l-1.5 2.4h1.8l-1.5 2.4"/><path d="M14.4 4.2h.9M14 6.6l.8.4"/></svg>`;
+// 睏霸數錢：錢袋。筆畫刻意加粗到 1.9——13px 的時候 1.5 的線會跟 $ 糊在一起
+const MONEY=`<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.4 1.5h5.2l-1.5 2.7c2.8 1.6 4.3 4 4.3 6.3 0 2.6-2.3 4.3-5.4 4.3S2.6 13.1 2.6 10.5c0-2.3 1.5-4.7 4.3-6.3z"/><path d="M8 6.8v4.6"/><path d="M9.4 8H7.4a1 1 0 000 2h1.2a1 1 0 010 2H6.6"/></svg>`;
 const SHORT_CAP=100;
 function sortedRaw(){
   // 做空模式的 f/i 一定是負的，若還用「買超>0」過濾會永遠空白 → 改成不過濾、只改排序
@@ -2587,6 +2596,10 @@ function paintTable(){
     // 圖示而不是文字：文字會把右對齊的數字推歪。名稱與說明移到滑鼠提示。
     // 三隻腿：站著跑 → 膝蓋軟掉 → 整隻在抖。用 SVG 不用 emoji，各平台才長一樣。
     const fleeTxt=['',LEG_RUN,LEG_WEAK,LEG_NUMB][tier];
+    // 睏霸數錢：外資投信同步連買、今天兩邊也都還在買，而且價格站在生命線與月線上。
+    // 有加「站上兩條均線」這個條件——法人一直買但價格卻在均線下，那不是能安心睡的狀況。
+    const rich = !flee && r.contD>=CONT_DAYS && r.f>0 && r.i>0
+                 && r.d10!=null && r.d10>0 && r.d20!=null && r.d20>0;
     const fleeNm =['','快逃','腿軟了','腿麻了'][tier];
     const fleeWhy=['','剛跌破不久，跑還來得及','跌一段了，還是要走，但別市價砍在最低點','跌很深了，這時候衝出去常常賣在反彈前，分批出場'][tier];
     h+=`<tr data-code="${r.code}" class="${tier===1?'flee':tier===2?'flee2':tier===3?'flee3':''}">`+
@@ -2603,12 +2616,15 @@ function paintTable(){
     `<td class="${r.d10>0?'up':r.d10<0?'dn':''}" title="生命線(10MA) ${r.ma10!=null?r.ma10.toFixed(2):'—'}">${r.d10==null?'—':(r.d10>0?'+':'')+r.d10.toFixed(2)}</td>`+
     `<td class="${r.d20>0?'up':r.d20<0?'dn':''}" title="月線(20MA) ${r.ma20!=null?r.ma20.toFixed(2):'—'}">${r.d20==null?'—':(r.d20>0?'+':'')+r.d20.toFixed(2)}</td>`+
     `<td class="${r.d60>0?'up':r.d60<0?'dn':''}" title="季線(60MA) ${r.ma60!=null?r.ma60.toFixed(2):'—'}">${r.d60==null?'—':(r.d60>0?'+':'')+r.d60.toFixed(2)}</td>`+
-    `<td class="fleecell">${flee?`<span class="fleetag t${tier}" title="破月線 ${deep.toFixed(1)}%。${fleeWhy}">${fleeTxt}<em>${fleeNm}</em></span>`:'<span style="color:var(--dim)">—</span>'}</td>`+
+    `<td class="fleecell">${
+       flee?`<span class="fleetag t${tier}" title="破月線 ${deep.toFixed(1)}%。${fleeWhy}">${fleeTxt}<em>${fleeNm}</em></span>`
+      :rich?`<span class="fleetag rich" title="外資與投信同步連買 ${r.contD} 日，今天兩邊也都還在買，而且站在生命線（+${r.d10.toFixed(1)}%）與月線（+${r.d20.toFixed(1)}%）上。抱著就好。">${MONEY}<em>睏霸數錢</em></span>`
+      :'<span style="color:var(--dim)">—</span>'}</td>`+
     `<td class="${r.f>0?'up':r.f<0?'dn':''}">${r.f==null?'—':r.f.toLocaleString()}</td>`+
     `<td class="${r.i>0?'up':r.i<0?'dn':''}">${r.i==null?'—':r.i.toLocaleString()}</td>`+
     `<td>${SHORTONLY
-        ? (r.sellD>=2?`<span class="contchip sell" title="外資與投信同步連賣 ${r.sellD} 日（不看張數）">▼ 同步連賣 ${r.sellD} 日</span>`:'<span style="color:var(--dim)">今日同步賣</span>')
-        : (($('#cCont').checked&&r.contD>=CONT_DAYS)?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 外資投信強力買</span>`:'<span style="color:var(--dim)">—</span>')}</td></tr>`;
+        ? (r.sellD>=2?`<span class="contchip sell" title="外資與投信同步連賣 ${r.sellD} 日（不看張數）">▼ 連賣 ${r.sellD} 日</span>`:'<span style="color:var(--dim)">今日同步賣</span>')
+        : (($('#cCont').checked&&r.contD>=CONT_DAYS)?`<span class="contchip" title="外資與投信同步連買 ${r.contD} 日（不看張數）">✔ 強力買</span>`:'<span style="color:var(--dim)">—</span>')}</td></tr>`;
   }
   $('#tblwrap').innerHTML=h+'</tbody></table>';
   // 整欄沒資料的，連同表頭一起藏起來（表頭與表身欄數一致，用序號對得上）
